@@ -11,6 +11,7 @@ import { DropZone } from "@/components/chat/DropZone";
 import { Bot, Sparkles } from "lucide-react";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
+import { useSessionContext } from "@/contexts/SessionContext";
 
 type AttachedFile = ProcessedFile & { fileId: string | null };
 
@@ -18,6 +19,7 @@ export default function ChatPage() {
   const { messages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
+  const { recordSession } = useSessionContext();
 
   const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
@@ -39,9 +41,9 @@ export default function ChatPage() {
       if (IMAGE_EXTENSIONS.includes(ext)) {
         const dataUrl = await fileToDataUrl(file);
         const imagePrompt = buildImagePrompt(file.name);
-        // Send directly as multimodal message
         const fileUiPart = { type: "file" as const, data: dataUrl, mimeType: file.type || "image/jpeg", filename: file.name };
         sendMessage({ text: imagePrompt, files: [fileUiPart] as unknown as FileList });
+        recordSession(file.name, "image");
         return;
       }
 
@@ -64,17 +66,20 @@ export default function ChatPage() {
         const processed = data as unknown as AttachedFile;
         setAttachedFile(processed);
         sendMessage({ text: buildFilePrompt(processed) });
+        const fileTypeForSession = processed.type === "dwg_unsupported" ? undefined : processed.type;
+        recordSession(processed.fileName, fileTypeForSession as Parameters<typeof recordSession>[1]);
       } catch {
         setUploadError("No se pudo conectar con el servidor.");
       } finally {
         setIsUploading(false);
       }
     },
-    [sendMessage],
+    [sendMessage, recordSession],
   );
 
   function handleSubmit() {
     if (!input.trim() || isStreaming) return;
+    recordSession(input.trim().slice(0, 50));
     sendMessage({ text: input.trim() });
     setInput("");
   }
@@ -248,7 +253,7 @@ function EmptyState() {
         <Bot className="h-7 w-7 text-primary" />
       </div>
       <div className="space-y-1.5">
-        <h2 className="text-base font-semibold">Gemini Construcción listo</h2>
+        <h2 className="text-base font-semibold">EdificIA listo para auditar</h2>
         <p className="max-w-sm text-sm text-muted-foreground">
           Arrastrá cualquier documento de obra: Excel, PDF, DXF, DOCX o foto de una planilla.
         </p>

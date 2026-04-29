@@ -1,4 +1,4 @@
-# Roadmap de Visión Futura — Gemini Construcción
+# Roadmap de Visión Futura — EdificIA
 
 Este documento captura las ideas de mayor impacto que **NO están en el MVP actual**, ordenadas por viabilidad técnica y valor de negocio.
 

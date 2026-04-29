@@ -7,7 +7,7 @@ import { Providers } from "@/components/providers";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Gemini Construcción",
+  title: "EdificIA",
   description: "Plataforma empresarial de auditoría e IA para la construcción",
 };
 

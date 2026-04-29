@@ -72,7 +72,10 @@
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && git add -A && git status --short\")",
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install pdf-parse mammoth 2>&1\")",
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install --save-dev @types/pdf-parse @types/mammoth 2>&1\")",
-      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install --save-dev @types/pdf-parse 2>&1\")"
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install --save-dev @types/pdf-parse 2>&1\")",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia npm install next-themes)",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia npm run type-check 2>&1)",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia git add -A)"
     ]
   }
 }
