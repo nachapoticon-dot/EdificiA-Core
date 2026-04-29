@@ -1,15 +1,68 @@
-# Gemini para la Construcción
+# Edificia
 
-Plataforma empresarial de nivel corporativo impulsada por Inteligencia Artificial para la automatización, cálculo y auditoría de cómputos métricos y presupuestos de obra.
+> Plataforma de inteligencia artificial conversacional para empresas constructoras.
 
-## Punto de Partida para la IA
-Si eres un agente de IA que acaba de abrir este repositorio, tu **primera obligación** es leer la documentación interna para entender tu rol y las restricciones arquitectónicas.
+Edificia es un SaaS B2B multi-tenant que permite a equipos de ingeniería y arquitectura auditar presupuestos de obra, procesar legajos técnicos y consultar normativa mediante lenguaje natural. El sistema actúa como un asistente especializado que entiende el contexto de cada empresa y devuelve resultados en el formato que el equipo necesita.
 
-1. Lee `CLAUDE.md` en la raíz del proyecto para entender tus instrucciones operativas y reglas de comportamiento.
-2. Lee `docs/01_vision_and_stack.md` para entender el modelo de negocio y las tecnologías requeridas.
-3. Lee `docs/02_phases_and_workflow.md` para saber exactamente en qué fase nos encontramos y qué código debes escribir a continuación.
+## Stack
 
-## Directorios Actuales
-- `/docs`: Documentación maestra del sistema y de arquitectura.
-- `/_referencias_legadas/Auditoria_Presupuesto_Construccion`: Código legado (Motor en Python). Sirve únicamente como referencia de lógica de dominio. **No ejecutar**.
-- `/_referencias_legadas/Futuro`: Código legado (Frontend web MVP). Sirve como referencia de UI/UX para el sector arquitectura. **No ejecutar**.
+| Capa | Tecnología |
+|---|---|
+| Frontend | Next.js 16 (App Router) · TypeScript strict |
+| UI | Shadcn UI · Tailwind CSS v4 |
+| Data fetching | TanStack Query v5 |
+| Validación | Zod v3 — schemas compartidos E2E |
+| AI | Vercel AI SDK v6 · Claude (Anthropic) |
+| Backend / Auth / Storage | InsForge BaaS |
+| Base de datos | PostgreSQL con Row-Level Security multi-tenant |
+
+## Desarrollo local
+
+**Requisitos:** Node.js 22 LTS · npm 10+
+
+```bash
+# 1. Clonar e instalar dependencias
+git clone https://github.com/nachapoticon-dot/edificia.git
+cd edificia
+npm install
+
+# 2. Configurar variables de entorno
+cp .env.local.example .env.local
+# Completar ANTHROPIC_API_KEY, INSFORGE_SERVICE_ROLE_KEY y NEXT_PUBLIC_INSFORGE_PROJECT_ID
+
+# 3. Levantar servidor de desarrollo
+npm run dev
+```
+
+El servidor queda disponible en `http://localhost:3000`.
+
+## Scripts
+
+```bash
+npm run dev          # Servidor de desarrollo con Turbopack
+npm run build        # Build de producción
+npm run type-check   # Verificación de tipos TypeScript
+npm run lint         # ESLint
+```
+
+## Estructura del proyecto
+
+```
+src/
+├── app/
+│   ├── (auth)/login/         # Autenticación
+│   ├── (dashboard)/chat/     # Interfaz conversacional principal
+│   └── api/chat/             # Route handler del agente AI
+├── components/
+│   └── ui/                   # Componentes Shadcn
+├── lib/
+│   ├── ai/agent.ts           # Configuración del agente conversacional
+│   ├── insforge/client.ts    # Cliente BaaS centralizado
+│   ├── math-engine/          # Motor de auditoría de presupuestos
+│   └── validators/           # Schemas Zod compartidos
+└── types/index.ts            # Tipos de dominio
+```
+
+## Licencia
+
+Propietario · Todos los derechos reservados.
