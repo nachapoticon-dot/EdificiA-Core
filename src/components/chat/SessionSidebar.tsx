@@ -29,9 +29,10 @@ function formatRelative(ms: number): string {
 interface Props {
   currentSessionId: string | null;
   onNewSession: () => void;
+  onSessionSelect: (entry: SessionEntry) => void;
 }
 
-export function SessionSidebar({ currentSessionId, onNewSession }: Props) {
+export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect }: Props) {
   const { sessions, clearAll } = useSessionHistory();
 
   return (
@@ -68,7 +69,12 @@ export function SessionSidebar({ currentSessionId, onNewSession }: Props) {
         <ScrollArea className="max-h-60">
           <div className="space-y-0.5 px-1">
             {sessions.map((s) => (
-              <SessionItem key={s.id} entry={s} isActive={s.id === currentSessionId} />
+              <SessionItem
+                key={s.id}
+                entry={s}
+                isActive={s.id === currentSessionId}
+                onClick={() => onSessionSelect(s)}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -77,13 +83,22 @@ export function SessionSidebar({ currentSessionId, onNewSession }: Props) {
   );
 }
 
-function SessionItem({ entry, isActive }: { entry: SessionEntry; isActive: boolean }) {
+function SessionItem({
+  entry,
+  isActive,
+  onClick,
+}: {
+  entry: SessionEntry;
+  isActive: boolean;
+  onClick: () => void;
+}) {
   const Icon = entry.fileType ? FILE_ICONS[entry.fileType] : FileText;
 
   return (
-    <div
+    <button
+      onClick={onClick}
       className={cn(
-        "flex items-start gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+        "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-xs transition-colors text-left",
         isActive
           ? "bg-accent text-accent-foreground"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -94,6 +109,6 @@ function SessionItem({ entry, isActive }: { entry: SessionEntry; isActive: boole
         <p className="truncate font-medium leading-tight">{entry.title}</p>
         <p className="text-[10px] opacity-60">{formatRelative(entry.startedAt)}</p>
       </div>
-    </div>
+    </button>
   );
 }

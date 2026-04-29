@@ -12,14 +12,15 @@ import { Bot, Sparkles } from "lucide-react";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
+import { saveMessages, loadMessages } from "@/hooks/useMessageHistory";
 
 type AttachedFile = ProcessedFile & { fileId: string | null };
 
 export default function ChatPage() {
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, setMessages, status, stop } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
-  const { recordSession } = useSessionContext();
+  const { sessionId, recordSession } = useSessionContext();
 
   const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
@@ -27,6 +28,20 @@ export default function ChatPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
+
+  // Restore messages when session switches (new OR past session)
+  useEffect(() => {
+    setMessages(loadMessages(sessionId));
+    setAttachedFile(null);
+    setUploadError(null);
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save after each completed AI response
+  useEffect(() => {
+    if (status === "ready" && messages.length > 0) {
+      saveMessages(sessionId, messages);
+    }
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

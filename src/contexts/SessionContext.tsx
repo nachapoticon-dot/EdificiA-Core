@@ -8,6 +8,7 @@ interface SessionContextValue {
   sessionId: string;
   recordSession: (title: string, fileType?: SessionEntry["fileType"]) => void;
   resetSession: () => void;
+  switchSession: (entry: SessionEntry) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -24,7 +25,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const recordSession = useCallback(
     (title: string, fileType?: SessionEntry["fileType"]) => {
-      if (savedRef.current) return; // only save once per session
+      if (savedRef.current) return;
       savedRef.current = true;
       saveSession({ id: sessionId, title, fileType, startedAt: Date.now() });
     },
@@ -34,12 +35,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const resetSession = useCallback(() => {
     savedRef.current = false;
     setSessionId(newId());
-    // Force full page reload so useChat reinitializes cleanly
-    window.location.href = "/dashboard/chat";
+    // Chat page's useEffect watches sessionId and calls setMessages([])
+  }, []);
+
+  const switchSession = useCallback((entry: SessionEntry) => {
+    savedRef.current = true; // already recorded — don't duplicate
+    setSessionId(entry.id);
+    // Chat page's useEffect watches sessionId and calls setMessages(loadMessages(id))
   }, []);
 
   return (
-    <SessionContext value={{ sessionId, recordSession, resetSession }}>
+    <SessionContext value={{ sessionId, recordSession, resetSession, switchSession }}>
       {children}
     </SessionContext>
   );

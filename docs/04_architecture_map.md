@@ -117,3 +117,4 @@ db/
 | 2026-04-29 | Sprint 3.5 | Universal File Processor: PDF (pdf-parse, detección escaneado), DXF (parser custom), DOCX (mammoth), Imágenes (Claude multimodal directo), DWG (rechazado con guía), roadmap CAD futuro (docs/05_future_roadmap.md) |
 | 2026-04-29 | Rebrand | "Gemini Construcción" → "EdificIA" en todos los archivos. SYSTEM_PROMPT optimizado con flujo obligatorio y formato de resumen ejecutivo. v0.4.0 |
 | 2026-04-29 | Sprint 4 | QoL: Dark/Light mode (next-themes + ThemeToggle), Session History sidebar (localStorage + custom event, SessionContext, SessionSidebar, DashboardSidebar), auto-registro de sesión al primer mensaje o archivo |
+| 2026-04-29 | Sprint 7 | Persistencia de conversaciones: useMessageHistory (localStorage por sessionId), SessionContext agrega switchSession + resetSession sin reload, SessionSidebar items clickeables restauran conversaciones, auto-save post-streaming |
