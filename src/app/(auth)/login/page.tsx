@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getInsForgeClient } from "@/lib/insforge/client";
 import { loginSchema, type LoginInput } from "@/lib/validators";
@@ -115,6 +116,12 @@ function LoginForm() {
           {loading ? "Ingresando..." : "Ingresar"}
         </Button>
       </div>
+      <p className="text-center text-sm text-muted-foreground">
+        ¿Primera vez?{" "}
+        <Link href="/register" className="font-medium text-primary hover:underline">
+          Crear cuenta
+        </Link>
+      </p>
     </form>
   );
 }

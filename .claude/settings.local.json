@@ -86,7 +86,8 @@
       "PowerShell(wsl --cd /home/nachapoticon/edificia rm -rf \"src/app/\\(dashboard\\)\"; ls src/app/)",
       "PowerShell(wsl -e bash -c \"rm -rf '/home/nachapoticon/edificia/src/app/\\(dashboard\\)'\")",
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1\")",
-      "PowerShell(wsl -e bash -c \"rm /home/nachapoticon/edificia/src/middleware.ts\")"
+      "PowerShell(wsl -e bash -c \"rm /home/nachapoticon/edificia/src/middleware.ts\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run dev > /tmp/edificia-dev.log 2>&1 &\"; Start-Sleep -Seconds 4; Start-Process \"http://localhost:3000\")"
     ]
   }
 }
