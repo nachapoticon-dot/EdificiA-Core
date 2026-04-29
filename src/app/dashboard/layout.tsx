@@ -4,6 +4,7 @@ import { Building2, MessageSquare } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { DashboardSidebar } from "@/components/chat/DashboardSidebar";
+import { UserMenu } from "@/components/chat/UserMenu";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -34,9 +35,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t px-4 py-3">
-            <p className="text-[11px] text-muted-foreground">EdificIA · v0.4.0</p>
-            <ThemeToggle />
+          <div className="flex flex-col gap-2 border-t px-3 py-3">
+            <UserMenu />
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[10px] text-muted-foreground">EdificIA · v0.5.0</p>
+              <ThemeToggle />
+            </div>
           </div>
         </aside>
 
