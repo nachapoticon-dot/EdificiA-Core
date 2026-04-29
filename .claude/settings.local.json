@@ -20,7 +20,14 @@
       "PowerShell(gh *)",
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git init -b main && git config user.name 'nachapoticon-dot' && git config user.email 'pedroluisfuentesprieto@gmail.com' && git add . && git status --short | head -20\")",
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git status --short\")",
-      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add . && git status --short\")"
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add . && git status --short\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git log --oneline && echo '---' && git show --stat HEAD | head -5\")",
+      "PowerShell(wsl bash -c \"gh auth status 2>&1\")",
+      "PowerShell(wsl bash -c \"cat ~/.config/gh/hosts.yml 2>/dev/null || echo 'no config found'; ls ~/.config/gh/ 2>/dev/null || echo 'no gh config dir'\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && gh repo create edificia --private --source=. --remote=origin --push 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add README.md .env.local.example && git commit -m 'docs: README profesional + .env.local.example' && git push\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git pull --rebase origin main && git push\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add .claude/settings.local.json && git commit -m 'chore: update claude settings' && git pull --rebase origin main && git push\")"
     ]
   }
 }
