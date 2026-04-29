@@ -61,7 +61,13 @@
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest storage create-bucket legajos --help 2>&1\")",
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest storage create-bucket legajos --private 2>&1\")",
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git log --oneline -3\")",
-      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add -A && git commit -m 'feat: schema completo — projects, uploaded_files, audit_sessions, chat_messages + bucket legajos'\")"
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add -A && git commit -m 'feat: schema completo — projects, uploaded_files, audit_sessions, chat_messages + bucket legajos'\")",
+      "PowerShell(wsl -d Ubuntu -- bash -c \"cd /home/nachapoticon/edificia && node node_modules/typescript/bin/tsc --noEmit 2>&1\")",
+      "PowerShell(wsl -d Ubuntu -- bash -c \"cd /home/nachapoticon/edificia && git add db/migrations/003_hardening.sql db/migrations/004_new_tables.sql src/middleware.ts src/lib/insforge/server.ts src/types/index.ts docs/04_architecture_map.md\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install @ai-sdk/react 2>&1\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npx shadcn add textarea scroll-area --yes 2>&1\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && timeout 15 npx next dev --turbopack 2>&1 | head -30 || true\" 2>&1)",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && git add -A && git status\")"
     ]
   }
 }
