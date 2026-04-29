@@ -8,7 +8,9 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { FileCard } from "@/components/chat/FileCard";
 import { DropZone } from "@/components/chat/DropZone";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot, Sparkles, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { exportAuditPdf } from "@/lib/export/generate-pdf";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
@@ -110,6 +112,11 @@ export default function ChatPage() {
   const fileLabel = attachedFile?.type === "excel" ? attachedFile.fileName
     : attachedFile?.fileName ?? null;
 
+  const exportTitle = fileLabel ?? "Auditoría EdificIA";
+  function handleExport() {
+    exportAuditPdf(exportTitle, messages);
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -121,9 +128,23 @@ export default function ChatPage() {
             {fileLabel}
           </span>
         )}
-        <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-          claude-sonnet-4-6
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              onClick={handleExport}
+              title="Exportar auditoría a PDF"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar PDF
+            </Button>
+          )}
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+            claude-sonnet-4-6
+          </span>
+        </div>
       </header>
 
       {/* Messages + Drop Zone */}
