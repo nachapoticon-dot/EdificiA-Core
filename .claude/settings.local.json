@@ -76,7 +76,11 @@
       "PowerShell(wsl --cd /home/nachapoticon/edificia npm install next-themes)",
       "PowerShell(wsl --cd /home/nachapoticon/edificia npm run type-check 2>&1)",
       "PowerShell(wsl --cd /home/nachapoticon/edificia git add -A)",
-      "PowerShell(head *)"
+      "PowerShell(head *)",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia npm show dxf-viewer version 2>&1; wsl --cd /home/nachapoticon/edificia npm show @tarikjabiri/dxf-parser version 2>&1)",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia npm show dxf-viewer description 2>&1)",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia npm install dxf-viewer 2>&1)",
+      "PowerShell(wsl --cd /home/nachapoticon/edificia npm install --save-dev @types/three 2>&1)"
     ]
   }
 }

@@ -11,6 +11,7 @@ import { DropZone } from "@/components/chat/DropZone";
 import { Bot, Sparkles, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
+import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
@@ -26,6 +27,8 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+  const [dxfBlobUrl, setDxfBlobUrl] = useState<string | null>(null);
+  const [showDxfViewer, setShowDxfViewer] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -36,6 +39,9 @@ export default function ChatPage() {
     setMessages(loadMessages(sessionId));
     setAttachedFile(null);
     setUploadError(null);
+    // Revoke old blob URL to free memory
+    setDxfBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+    setShowDxfViewer(false);
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save after each completed AI response
@@ -81,6 +87,11 @@ export default function ChatPage() {
 
         const processed = data as unknown as AttachedFile;
         setAttachedFile(processed);
+
+        // DXF: create blob URL for the in-browser WebGL viewer
+        if (processed.type === "dxf") {
+          setDxfBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
+        }
 
         // Scanned PDFs: send the raw PDF to Claude for native visual reading
         if (processed.type === "pdf" && processed.isScanned) {
@@ -167,7 +178,20 @@ export default function ChatPage() {
       {attachedFile && attachedFile.type !== "image" && (
         <FileCard
           file={attachedFile}
-          onRemove={() => setAttachedFile(null)}
+          onRemove={() => {
+            setAttachedFile(null);
+            setDxfBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+          }}
+          onPreview={attachedFile.type === "dxf" && dxfBlobUrl ? () => setShowDxfViewer(true) : undefined}
+        />
+      )}
+
+      {/* DXF viewer modal */}
+      {showDxfViewer && dxfBlobUrl && attachedFile?.type === "dxf" && (
+        <DxfViewerModal
+          blobUrl={dxfBlobUrl}
+          fileName={attachedFile.fileName}
+          onClose={() => setShowDxfViewer(false)}
         />
       )}
 

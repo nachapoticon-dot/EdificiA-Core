@@ -118,3 +118,4 @@ db/
 | 2026-04-29 | Rebrand | "Gemini Construcción" → "EdificIA" en todos los archivos. SYSTEM_PROMPT optimizado con flujo obligatorio y formato de resumen ejecutivo. v0.4.0 |
 | 2026-04-29 | Sprint 4 | QoL: Dark/Light mode (next-themes + ThemeToggle), Session History sidebar (localStorage + custom event, SessionContext, SessionSidebar, DashboardSidebar), auto-registro de sesión al primer mensaje o archivo |
 | 2026-04-29 | Sprint 7 | Persistencia de conversaciones: useMessageHistory (localStorage por sessionId), SessionContext agrega switchSession + resetSession sin reload, SessionSidebar items clickeables restauran conversaciones, auto-save post-streaming |
+| 2026-04-29 | Sprint 9 | Visor DXF WebGL: dxf-viewer + @types/three instalados, DxfViewerModal (dynamic import, blob URL, auto-fit, Escape para cerrar), boton "Ver plano" (ojo) en FileCard para DXF, blob URL lifecycle gestionado (create/revoke) |

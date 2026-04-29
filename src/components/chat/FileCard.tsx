@@ -1,12 +1,13 @@
 "use client";
 
-import { FileSpreadsheet, FileText, FileCode2, FileType2, X, CheckCircle2 } from "lucide-react";
+import { FileSpreadsheet, FileText, FileCode2, FileType2, X, CheckCircle2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 
 interface FileCardProps {
   file: ProcessedFile;
   onRemove: () => void;
+  onPreview?: () => void;
 }
 
 const TYPE_CONFIG = {
@@ -18,10 +19,9 @@ const TYPE_CONFIG = {
   dwg_unsupported: { icon: FileCode2, label: "DWG no soportado", color: "text-orange-500" },
 } satisfies Record<ProcessedFile["type"], { icon: React.ComponentType<{ className?: string }>; label: string; color: string }>;
 
-export function FileCard({ file, onRemove }: FileCardProps) {
+export function FileCard({ file, onRemove, onPreview }: FileCardProps) {
   const config = TYPE_CONFIG[file.type];
   const Icon = config.icon;
-
   const subtitle = getSubtitle(file);
 
   return (
@@ -36,6 +36,18 @@ export function FileCard({ file, onRemove }: FileCardProps) {
           {subtitle && <span className="text-foreground">· {subtitle}</span>}
         </div>
       </div>
+
+      {onPreview && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-blue-500"
+          onClick={onPreview}
+          title="Ver plano"
+        >
+          <Eye className="h-3.5 w-3.5" />
+        </Button>
+      )}
 
       <Button
         variant="ghost"
