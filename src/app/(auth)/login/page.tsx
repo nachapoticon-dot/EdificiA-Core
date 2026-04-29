@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getInsForgeClient } from "@/lib/insforge/client";
@@ -9,6 +9,14 @@ import { loginSchema, type LoginInput } from "@/lib/validators";
 type FieldErrors = Partial<Record<keyof LoginInput, string>>;
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState<LoginInput>({ email: "", password: "" });

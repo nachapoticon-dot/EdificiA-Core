@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 const PROTECTED_PATHS = ["/dashboard"];
 const AUTH_COOKIE = "insforge_csrf_token";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
   const isAuthPage = pathname.startsWith("/login");
