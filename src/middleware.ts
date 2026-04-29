@@ -16,7 +16,9 @@ export function middleware(request: NextRequest) {
   }
 
   if (isAuthPage && hasSession) {
-    return NextResponse.redirect(new URL("/dashboard/chat", request.url));
+    const rawNext = request.nextUrl.searchParams.get("next") ?? "";
+    const safePath = rawNext.startsWith("/dashboard/") ? rawNext : "/dashboard/chat";
+    return NextResponse.redirect(new URL(safePath, request.url));
   }
 
   return NextResponse.next();

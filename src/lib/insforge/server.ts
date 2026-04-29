@@ -1,7 +1,10 @@
 import { createClient } from "@insforge/sdk";
 
-const BASE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-const SERVICE_ROLE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY!;
+const BASE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL;
+const SERVICE_ROLE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY;
+
+if (!BASE_URL) throw new Error("Missing NEXT_PUBLIC_INSFORGE_URL — set it in .env.local");
+if (!SERVICE_ROLE_KEY) throw new Error("Missing INSFORGE_SERVICE_ROLE_KEY — set it in .env.local");
 
 /**
  * Creates an admin InsForge client for server-side operations.

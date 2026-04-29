@@ -26,7 +26,7 @@ graph TD
     InsForgeBackend[InsForge BaaS\nhttps://***INSFORGE_URL_REDACTED***]
 
     %% DB
-    DB[(PostgreSQL RLS\norganizations\norganization_members)]
+    DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\naudit_sessions · chat_messages\norganization_invitations · audit_results)]
 
     %% Tools Sprint 2+
     Parser[Parser Multimodal\nSprint 3]
@@ -49,6 +49,7 @@ graph TD
     ChatAPI -- "streamText + tools" --> AI_Agent
     AI_Agent -- "Tool: Auditar" --> MathEngine
     AI_Agent -- "Tool: Extraer Datos" --> Parser
+    AI_Agent -- "INSERT audit_results" --> AdminClient
     MathEngine -- "Valida con" --> Validators
 
     %% DB
@@ -98,7 +99,10 @@ src/
 
 db/
 └── migrations/
-    └── 001_initial_schema.sql   → organizations + organization_members + RLS
+    ├── 001_initial_schema.sql      → organizations + organization_members + RLS
+    ├── 002_files_and_sessions.sql  → projects + uploaded_files + audit_sessions + chat_messages + RLS
+    ├── 003_hardening.sql           → indexes + soft deletes + columnas faltantes + RLS fixes
+    └── 004_new_tables.sql          → organization_invitations + audit_results + RLS
 ```
 
 ## Registro de Cambios Estructurales
@@ -107,3 +111,4 @@ db/
 |---|---|---|
 | 2026-04-28 | Sprint 0 | Scaffold inicial: Next.js 16 + TS strict + Shadcn + Vercel AI SDK v6 + TanStack Query + Zod |
 | 2026-04-29 | Sprint 1 | Auth flow completo: InsForge client (browser + admin), middleware de rutas, login form, schema PostgreSQL con RLS multi-tenant |
+| 2026-04-29 | Sprint 1.5 | DB hardening: 14 indexes, soft deletes en 5 tablas, columnas faltantes, RLS fixes, 2 nuevas tablas (organization_invitations + audit_results), fix open redirect middleware, env-var validation |
