@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type FileUIPart } from "ai";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
@@ -40,9 +40,8 @@ export default function ChatPage() {
       const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
       if (IMAGE_EXTENSIONS.includes(ext)) {
         const dataUrl = await fileToDataUrl(file);
-        const imagePrompt = buildImagePrompt(file.name);
-        const fileUiPart = { type: "file" as const, data: dataUrl, mimeType: file.type || "image/jpeg", filename: file.name };
-        sendMessage({ text: imagePrompt, files: [fileUiPart] as unknown as FileList });
+        const imagePart: FileUIPart = { type: "file", mediaType: file.type || "image/jpeg", filename: file.name, url: dataUrl };
+        sendMessage({ text: buildImagePrompt(file.name), files: [imagePart] });
         recordSession(file.name, "image");
         return;
       }
@@ -65,7 +64,16 @@ export default function ChatPage() {
 
         const processed = data as unknown as AttachedFile;
         setAttachedFile(processed);
-        sendMessage({ text: buildFilePrompt(processed) });
+
+        // Scanned PDFs: send the raw PDF to Claude for native visual reading
+        if (processed.type === "pdf" && processed.isScanned) {
+          const dataUrl = await fileToDataUrl(file);
+          const pdfPart: FileUIPart = { type: "file", mediaType: "application/pdf", filename: file.name, url: dataUrl };
+          sendMessage({ text: buildFilePrompt(processed), files: [pdfPart] });
+        } else {
+          sendMessage({ text: buildFilePrompt(processed) });
+        }
+
         const fileTypeForSession = processed.type === "dwg_unsupported" ? undefined : processed.type;
         recordSession(processed.fileName, fileTypeForSession as Parameters<typeof recordSession>[1]);
       } catch {
@@ -175,9 +183,12 @@ Realizá una auditoría completa:
 
     case "pdf": {
       if (file.isScanned) {
-        return `Subí un PDF escaneado "${file.fileName}" (${file.pageCount} páginas). El documento no tiene texto seleccionable — es una imagen.
+        return `Subí el PDF escaneado "${file.fileName}" (${file.pageCount} páginas). No tiene texto seleccionable — te adjunto el archivo para que lo leas visualmente.
 
-Por favor analizá su contenido visualmente: ¿es un presupuesto, cómputo métrico, plano, o memoria descriptiva? Extraé todo el dato numérico que puedas leer.`;
+Por favor:
+1. Identificá de qué tipo de documento se trata (presupuesto, cómputo métrico, plano, memoria descriptiva, pliego, etc.).
+2. Extraé todos los datos numéricos que puedas leer: ítems, cantidades, unidades, precios unitarios, totales.
+3. Si encontrás datos de costos, estructurálos y hacé un análisis de auditoría.`;
       }
       return `Subí el PDF "${file.fileName}" (${file.pageCount} páginas). Aquí está el texto extraído:
 

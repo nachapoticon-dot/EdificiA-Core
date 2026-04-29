@@ -33,7 +33,9 @@ export async function processPdf(
   }
 
   const text = result.text?.trim() ?? "";
-  const isScanned = text.length < 50; // Very little text = scanned document
+  // Heuristic: fewer than 200 meaningful chars across N pages ≈ scanned/image-only PDF
+  const charsPerPage = result.numpages > 0 ? text.length / result.numpages : text.length;
+  const isScanned = charsPerPage < 100;
 
   return {
     type: "pdf",
