@@ -37,3 +37,17 @@ next-env.d.ts
 
 # Referencias legadas (binarios y scripts de auditoría, solo referencia histórica)
 _referencias_legadas/
+
+# InsForge & AI agent skills (excepto Claude Code settings que sí se versiona)
+.insforge
+.agent
+.agents
+.augment
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf

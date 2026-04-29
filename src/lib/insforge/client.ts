@@ -1,7 +1,17 @@
-/**
- * Cliente InsForge centralizado.
- * Todas las interacciones con el BaaS pasan por este módulo.
- * Se expande en Sprint 1 cuando el MCP de InsForge esté activo.
- */
+import { createClient, type InsForgeClient } from "@insforge/sdk";
 
-export const INSFORGE_PROJECT_ID = process.env.NEXT_PUBLIC_INSFORGE_PROJECT_ID;
+const BASE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
+
+let _client: InsForgeClient | null = null;
+
+/**
+ * Returns the singleton browser InsForge client.
+ * Session is managed via httpOnly cookies set by the InsForge backend.
+ * Only call from Client Components or browser-side code.
+ */
+export function getInsForgeClient(): InsForgeClient {
+  if (!_client) {
+    _client = createClient({ baseUrl: BASE_URL });
+  }
+  return _client;
+}

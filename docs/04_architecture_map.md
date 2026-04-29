@@ -5,40 +5,58 @@ Este documento contiene el mapa estructural del proyecto.
 
 ```mermaid
 graph TD
-    %% Nodos Principales
+    %% Entidades externas
     User[Usuario / Ingeniero]
-    ChatUI[Next.js Chat UI\nsrc/app/dashboard/chat]
-    AI_Agent[Vercel AI SDK Agent\nsrc/lib/ai/agent.ts]
-    InsForge[InsForge BaaS MCP\nsrc/lib/insforge/client.ts]
-    
-    %% Herramientas (Tools)
-    Parser[Parser Multimodal\nSprint 3]
-    MathEngine[Motor Matemático Agnóstico\nsrc/lib/math-engine/]
-    DB[(PostgreSQL RLS\nInsForge)]
-    Storage[Storage Legajos\nInsForge]
 
-    %% Auth
-    Auth[Auth Flow\nsrc/app/auth/login]
+    %% Auth Flow
+    LoginPage[Login Page\nsrc/app/auth/login]
+    Middleware[Next.js Middleware\nsrc/middleware.ts]
+    AuthLayout[Auth Layout\nsrc/app/auth/layout.tsx]
+
+    %% Dashboard
+    ChatUI[Next.js Chat UI\nsrc/app/dashboard/chat]
+    ChatAPI[API Route /api/chat\nsrc/app/api/chat/route.ts]
+
+    %% AI
+    AI_Agent[Vercel AI SDK Agent\nsrc/lib/ai/agent.ts]
+
+    %% InsForge
+    BrowserClient[InsForge Browser Client\nsrc/lib/insforge/client.ts]
+    AdminClient[InsForge Admin Client\nsrc/lib/insforge/server.ts]
+    InsForgeBackend[InsForge BaaS\nhttps://***INSFORGE_URL_REDACTED***]
+
+    %% DB
+    DB[(PostgreSQL RLS\norganizations\norganization_members)]
+
+    %% Tools Sprint 2+
+    Parser[Parser Multimodal\nSprint 3]
+    MathEngine[Motor Matemático\nsrc/lib/math-engine/]
 
     %% Validators
     Validators[Zod Schemas\nsrc/lib/validators/]
 
-    %% Conexiones
+    %% Conexiones Auth
+    User -- "GET /login" --> Middleware
+    Middleware -- "No cookie → redirect" --> LoginPage
+    Middleware -- "Cookie ok → pass" --> ChatUI
+    LoginPage -- "signInWithPassword" --> BrowserClient
+    BrowserClient -- "Auth API" --> InsForgeBackend
+    InsForgeBackend -- "httpOnly cookie" --> LoginPage
+
+    %% Conexiones Chat
     User -- "Sube Archivos / Pregunta" --> ChatUI
-    User -- "Login" --> Auth
-    Auth -- "Session Token" --> InsForge
-    ChatUI -- "POST /api/chat" --> AI_Agent
-    AI_Agent -- "Guarda/Lee" --> InsForge
-    InsForge -- "Gestiona" --> DB
-    InsForge -- "Almacena" --> Storage
-    
-    %% Uso de Herramientas
-    AI_Agent -- "Tool: Extraer Datos" --> Parser
+    ChatUI -- "POST /api/chat" --> ChatAPI
+    ChatAPI -- "streamText + tools" --> AI_Agent
     AI_Agent -- "Tool: Auditar" --> MathEngine
+    AI_Agent -- "Tool: Extraer Datos" --> Parser
     MathEngine -- "Valida con" --> Validators
+
+    %% DB
+    AdminClient -- "Queries RLS" --> InsForgeBackend
+    InsForgeBackend -- "PostgREST" --> DB
 ```
 
-## Stack de Dependencias (2026-04-28)
+## Stack de Dependencias (2026-04-29)
 
 | Paquete | Versión | Rol |
 |---|---|---|
@@ -49,27 +67,38 @@ graph TD
 | shadcn/ui | ^4.6.0 | Componentes UI premium |
 | @tanstack/react-query | ^5.74.4 | Data fetching / cache del cliente |
 | zod | ^3.24.3 | Validación de schemas E2E |
-| ai | latest (v6) | Vercel AI SDK — streaming + tools |
-| @ai-sdk/anthropic | latest | Provider Claude para el SDK |
+| @insforge/sdk | ^1.2.5 | BaaS client — auth, database, storage |
+| ai | ^6 | Vercel AI SDK — streaming + tools |
+| @ai-sdk/anthropic | ^3 | Provider Claude para el SDK |
 
 ## Estructura de Carpetas (`src/`)
 
 ```
 src/
 ├── app/
-│   ├── (auth)/login/         → Flujo de autenticación InsForge
-│   ├── (dashboard)/chat/     → Chat principal con el agente
-│   ├── api/chat/             → Route handler streaming del agente
-│   ├── layout.tsx            → Root layout (Geist font, dark mode)
-│   └── globals.css           → Variables Shadcn + Tailwind v4
+│   ├── (auth)/
+│   │   ├── layout.tsx            → Layout centrado para auth
+│   │   └── login/page.tsx        → Formulario de login (Client Component)
+│   ├── (dashboard)/chat/         → Chat principal con el agente (Sprint 2)
+│   ├── api/chat/route.ts         → Route handler streaming (Sprint 2)
+│   ├── layout.tsx                → Root layout (Geist font, QueryClientProvider)
+│   └── globals.css               → Variables Shadcn + Tailwind v4
 ├── components/
-│   └── ui/                   → Componentes Shadcn (auto-generados)
+│   ├── providers.tsx             → QueryClientProvider wrapper
+│   └── ui/                       → Componentes Shadcn (auto-generados)
 ├── lib/
-│   ├── insforge/client.ts    → Cliente BaaS centralizado
-│   ├── ai/agent.ts           → Config del agente (modelo, tools)
-│   ├── math-engine/          → Motor de auditoría (Sprint 2)
-│   └── validators/           → Schemas Zod compartidos E2E
-└── types/index.ts            → Tipos branded del dominio
+│   ├── insforge/
+│   │   ├── client.ts             → Browser client singleton
+│   │   └── server.ts             → Admin client (service role key)
+│   ├── ai/agent.ts               → Config del agente (Sprint 2)
+│   ├── math-engine/              → Motor de auditoría (Sprint 2)
+│   └── validators/               → Schemas Zod compartidos E2E
+├── middleware.ts                 → Protección de rutas via cookie
+└── types/index.ts                → Tipos branded del dominio
+
+db/
+└── migrations/
+    └── 001_initial_schema.sql   → organizations + organization_members + RLS
 ```
 
 ## Registro de Cambios Estructurales
@@ -77,3 +106,4 @@ src/
 | Fecha | Sprint | Cambio |
 |---|---|---|
 | 2026-04-28 | Sprint 0 | Scaffold inicial: Next.js 16 + TS strict + Shadcn + Vercel AI SDK v6 + TanStack Query + Zod |
+| 2026-04-29 | Sprint 1 | Auth flow completo: InsForge client (browser + admin), middleware de rutas, login form, schema PostgreSQL con RLS multi-tenant |
