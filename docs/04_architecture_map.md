@@ -113,3 +113,4 @@ db/
 | 2026-04-29 | Sprint 1 | Auth flow completo: InsForge client (browser + admin), middleware de rutas, login form, schema PostgreSQL con RLS multi-tenant |
 | 2026-04-29 | Sprint 1.5 | DB hardening: 14 indexes, soft deletes en 5 tablas, columnas faltantes, RLS fixes, 2 nuevas tablas (organization_invitations + audit_results), fix open redirect middleware, env-var validation |
 | 2026-04-29 | Sprint 2 | Chat UI + Motor Matemático: math-engine (calculator + auditor + validators), AI agent con 4 tools, API route streamText (AI SDK v6), dashboard layout + chat page (useChat de @ai-sdk/react), componentes MessageBubble + ChatInput, Shadcn textarea + scroll-area |
+| 2026-04-29 | Sprint 3 | Excel Upload + Parser: xlsx parser con detección dinámica de columnas y formato argentino ($32.500), /api/upload con InsForge storage + DB record, DropZone drag-and-drop, FileCard preview, auto-auditoría al subir archivo, ChatInput con botón de adjuntar |

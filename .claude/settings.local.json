@@ -67,7 +67,9 @@
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install @ai-sdk/react 2>&1\")",
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npx shadcn add textarea scroll-area --yes 2>&1\")",
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && timeout 15 npx next dev --turbopack 2>&1 | head -30 || true\" 2>&1)",
-      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && git add -A && git status\")"
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && git add -A && git status\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install xlsx 2>&1\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && git add -A && git status --short\")"
     ]
   }
 }
