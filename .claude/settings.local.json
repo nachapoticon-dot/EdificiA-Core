@@ -53,7 +53,15 @@
       "PowerShell(wsl bash -c \"grep -i 'httponly\\\\|HttpOnly\\\\|session\\\\|insforge_refresh\\\\|insforge_access\\\\|insforge_session' /home/nachapoticon/edificia/node_modules/@insforge/sdk/dist/index.mjs | head -20\")",
       "PowerShell(wsl bash -c \"cat /home/nachapoticon/.insforge/project.json 2>/dev/null; cat /home/nachapoticon/edificia/.insforge/project.json 2>/dev/null\")",
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest metadata 2>&1 | head -60\")",
-      "PowerShell(wsl bash -c \"mkdir -p /home/nachapoticon/edificia/db/migrations\")"
+      "PowerShell(wsl bash -c \"mkdir -p /home/nachapoticon/edificia/db/migrations\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest db import db/migrations/001_initial_schema.sql 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest db tables 2>&1; npx @insforge/cli@latest db policies 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest db import db/migrations/002_files_and_sessions.sql 2>&1\")",
+      "PowerShell(wsl bash -c \"npx @insforge/cli@latest storage --help 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest storage create-bucket legajos --help 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npx @insforge/cli@latest storage create-bucket legajos --private 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git log --oneline -3\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add -A && git commit -m 'feat: schema completo — projects, uploaded_files, audit_sessions, chat_messages + bucket legajos'\")"
     ]
   }
 }
