@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm audit *)",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && rm -rf node_modules .next tsconfig.tsbuildinfo && echo 'LIMPIEZA OK'\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm install 2>&1 | tail -5\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run type-check 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && ./node_modules/.bin/tsc --noEmit 2>&1\")",
+      "PowerShell(wsl bash -c \"chmod +x /home/nachapoticon/edificia/node_modules/.bin/tsc && cd /home/nachapoticon/edificia && node /home/nachapoticon/edificia/node_modules/typescript/bin/tsc --noEmit 2>&1\")",
+      "PowerShell(wsl bash -c \"which node || echo 'node not found'; which npm || echo 'npm not found'; echo \\\\$PATH; ls /usr/local/bin/ | grep -E 'node|npm' 2>/dev/null; ls ~/.nvm/versions/ 2>/dev/null || echo 'no nvm'\")",
+      "PowerShell(wsl bash -c \"cat /etc/os-release | head -5; which curl; which wget\")",
+      "PowerShell(wsl bash -c \"sudo -n apt-get install -y nodejs 2>&1 | tail -3; node --version 2>/dev/null || echo 'node aun no disponible'\")",
+      "PowerShell(wsl bash -c \"node --version && npm --version\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && rm -rf node_modules && npm install 2>&1 | tail -5\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && node node_modules/typescript/bin/tsc --noEmit 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && timeout 15 npm run dev 2>&1\")",
+      "PowerShell(wsl bash -c \"which gh 2>/dev/null || echo 'gh not found'; git --version; git -C /home/nachapoticon/edificia status 2>&1 | head -3\")",
+      "PowerShell(wsl bash -c \"git config --global user.name 2>/dev/null || echo 'no config'; git config --global user.email 2>/dev/null || echo 'no email'\")",
+      "PowerShell(wsl bash -c \"ls /mnt/c/Users/pedro/AppData/Local/GitHubDesktop/ 2>/dev/null | head -3; /mnt/c/Program\\\\ Files/GitHub\\\\ CLI/gh.exe --version 2>/dev/null || echo 'gh.exe not found in default path'\")",
+      "PowerShell(gh *)",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git init -b main && git config user.name 'nachapoticon-dot' && git config user.email 'pedroluisfuentesprieto@gmail.com' && git add . && git status --short | head -20\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git status --short\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && git add . && git status --short\")"
+    ]
+  }
+}
