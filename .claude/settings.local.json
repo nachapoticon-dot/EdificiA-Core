@@ -87,7 +87,32 @@
       "PowerShell(wsl -e bash -c \"rm -rf '/home/nachapoticon/edificia/src/app/\\(dashboard\\)'\")",
       "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1\")",
       "PowerShell(wsl -e bash -c \"rm /home/nachapoticon/edificia/src/middleware.ts\")",
-      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run dev > /tmp/edificia-dev.log 2>&1 &\"; Start-Sleep -Seconds 4; Start-Process \"http://localhost:3000\")"
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run dev > /tmp/edificia-dev.log 2>&1 &\"; Start-Sleep -Seconds 4; Start-Process \"http://localhost:3000\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && node scripts/seed-demo.mjs 2>&1\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && node scripts/test-api.mjs 2>&1\")",
+      "PowerShell(wsl -e bash -c \"pkill -f 'next dev' 2>/dev/null; sleep 1; cd /home/nachapoticon/edificia && nohup npm run dev > /tmp/edificia-dev.log 2>&1 &\"; Start-Sleep -Seconds 6; Write-Host \"Dev server started\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run dev > /tmp/dev.log 2>&1 &\"; Start-Sleep -Seconds 8; Write-Host \"Server launched\")",
+      "PowerShell(wsl -e bash -c \"curl -s -X POST http://localhost:3000/api/seed-demo 2>&1\")",
+      "PowerShell(wsl -e bash -c \"cat /tmp/dev.log 2>&1 | tail -20\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run dev > /tmp/edificia.log 2>&1 & sleep 10 && curl -s http://localhost:3000/login | head -5\")",
+      "PowerShell(wsl -e bash -c \"curl -s -X POST http://localhost:3000/api/seed-demo -H 'Content-Type: application/json' 2>&1\")",
+      "PowerShell(wsl -e bash -c \"ss -tlnp | grep 3000; ps aux | grep 'next dev' | grep -v grep\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run dev > /tmp/edificia.log 2>&1 &\"; Start-Sleep -Seconds 12; wsl -e bash -c \"ss -tlnp | grep 3000 || echo 'no port 3000'\")",
+      "PowerShell(wsl -e bash -c \"cat /tmp/edificia.log 2>&1\")",
+      "PowerShell(wsl bash -c \"curl -s -X POST http://localhost:3000/api/seed-demo\")",
+      "PowerShell(wsl bash -c \"curl -sv http://localhost:3000/login 2>&1 | head -20\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && nohup npm run dev >/tmp/edificia.log 2>&1 & echo \\\\$!\")",
+      "PowerShell(wsl bash -c \"ps aux | grep 'next dev' | grep -v grep; cat /tmp/edificia.log | tail -15\")",
+      "PowerShell(wsl bash -c \"ps -p 34389 -o pid,cmd 2>/dev/null || echo 'dead'; ss -tlnp | grep 3000 || echo 'no port 3000'\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && node scripts/seed-demo.mjs 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && nohup npm run dev >/tmp/edificia.log 2>&1 & sleep 8 && curl -s -X POST http://localhost:3000/api/auth/register -H 'Content-Type: application/json' -d '{\\\\\"email\\\\\":\\\\\"admin@edificia.demo\\\\\",\\\\\"password\\\\\":\\\\\"123456\\\\\",\\\\\"confirmPassword\\\\\":\\\\\"123456\\\\\",\\\\\"name\\\\\":\\\\\"Admin Demo\\\\\"}' 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && node scripts/test-login.mjs 2>&1\")",
+      "PowerShell(wsl bash -c \"grep -n 'admin\\\\|verify\\\\|confirm' /home/nachapoticon/edificia/node_modules/@insforge/sdk/dist/index.js | head -30\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && node scripts/seed-demo.mjs pedroluisfuentesprieto@gmail.com 123456 2>&1\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && nohup npm run dev >/tmp/edificia.log 2>&1 &\"; Start-Sleep -Seconds 5; Start-Process \"http://localhost:3000/login\")",
+      "PowerShell(Start-Process wsl -ArgumentList \"bash\", \"-c\", \"cd /home/nachapoticon/edificia && npm run dev\" -WindowStyle Normal)",
+      "PowerShell(Start-Sleep -Seconds 8; Start-Process \"http://localhost:3000\")",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1 | tail -30\")"
     ]
   }
 }

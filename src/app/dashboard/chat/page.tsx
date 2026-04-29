@@ -6,18 +6,25 @@ import { DefaultChatTransport, type FileUIPart } from "ai";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { FileCard } from "@/components/chat/FileCard";
 import { DropZone } from "@/components/chat/DropZone";
+import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
 import { Bot, Sparkles, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
-import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
 import { saveMessages, loadMessages } from "@/hooks/useMessageHistory";
 
 type AttachedFile = ProcessedFile & { fileId: string | null };
+
+// Pending state: the full context to send when the user submits
+interface PendingFile {
+  processed: AttachedFile;
+  prompt: string;
+  fileParts?: FileUIPart[];  // only for images / scanned PDFs
+  dxfBlobUrl?: string;
+}
 
 export default function ChatPage() {
   const { messages, sendMessage, setMessages, status, stop } = useChat({
@@ -26,21 +33,21 @@ export default function ChatPage() {
   const { sessionId, recordSession } = useSessionContext();
 
   const [input, setInput] = useState("");
-  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
-  const [dxfBlobUrl, setDxfBlobUrl] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingFile | null>(null);
   const [showDxfViewer, setShowDxfViewer] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
 
-  // Restore messages when session switches (new OR past session)
+  // Restore messages when session switches
   useEffect(() => {
     setMessages(loadMessages(sessionId));
-    setAttachedFile(null);
+    setPending((prev) => {
+      if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
+      return null;
+    });
     setUploadError(null);
-    // Revoke old blob URL to free memory
-    setDxfBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
     setShowDxfViewer(false);
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -55,78 +62,106 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleFileSelect = useCallback(
-    async (file: File) => {
-      setUploadError(null);
+  const handleFileSelect = useCallback(async (file: File) => {
+    setUploadError(null);
 
-      // Images → handled via Claude multimodal, no upload needed
-      const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
-      if (IMAGE_EXTENSIONS.includes(ext)) {
-        const dataUrl = await fileToDataUrl(file);
-        const imagePart: FileUIPart = { type: "file", mediaType: file.type || "image/jpeg", filename: file.name, url: dataUrl };
-        sendMessage({ text: buildImagePrompt(file.name), files: [imagePart] });
-        recordSession(file.name, "image");
+    // Images → send immediately with multimodal (no text data to embed)
+    const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
+    if (IMAGE_EXTENSIONS.includes(ext)) {
+      const dataUrl = await fileToDataUrl(file);
+      const imagePart: FileUIPart = { type: "file", mediaType: file.type || "image/jpeg", filename: file.name, url: dataUrl };
+      sendMessage({ text: buildImagePrompt(file.name), files: [imagePart] });
+      recordSession(file.name, "image");
+      return;
+    }
+
+    // Structured files → process server-side, then wait for user to send
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json() as Record<string, unknown>;
+
+      if (!res.ok) {
+        const msg = data.error as string ?? "Error al procesar el archivo.";
+        const suggestion = data.suggestion as string | undefined;
+        setUploadError(suggestion ? `${msg} ${suggestion}` : msg);
         return;
       }
 
-      // Structured files (Excel, PDF, DXF, DOCX) → server-side processing
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append("file", file);
+      const processed = data as unknown as AttachedFile;
+      let fileParts: FileUIPart[] | undefined;
+      let dxfBlobUrl: string | undefined;
 
-      try {
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        const data = await res.json() as Record<string, unknown>;
-
-        if (!res.ok) {
-          const msg = data.error as string ?? "Error al procesar el archivo.";
-          const suggestion = data.suggestion as string | undefined;
-          setUploadError(suggestion ? `${msg} ${suggestion}` : msg);
-          return;
-        }
-
-        const processed = data as unknown as AttachedFile;
-        setAttachedFile(processed);
-
-        // DXF: create blob URL for the in-browser WebGL viewer
-        if (processed.type === "dxf") {
-          setDxfBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
-        }
-
-        // Scanned PDFs: send the raw PDF to Claude for native visual reading
-        if (processed.type === "pdf" && processed.isScanned) {
-          const dataUrl = await fileToDataUrl(file);
-          const pdfPart: FileUIPart = { type: "file", mediaType: "application/pdf", filename: file.name, url: dataUrl };
-          sendMessage({ text: buildFilePrompt(processed), files: [pdfPart] });
-        } else {
-          sendMessage({ text: buildFilePrompt(processed) });
-        }
-
-        const fileTypeForSession = processed.type === "dwg_unsupported" ? undefined : processed.type;
-        recordSession(processed.fileName, fileTypeForSession as Parameters<typeof recordSession>[1]);
-      } catch {
-        setUploadError("No se pudo conectar con el servidor.");
-      } finally {
-        setIsUploading(false);
+      // Scanned PDF: prepare the PDF FileUIPart (sent alongside the text prompt)
+      if (processed.type === "pdf" && processed.isScanned) {
+        const dataUrl = await fileToDataUrl(file);
+        fileParts = [{ type: "file", mediaType: "application/pdf", filename: file.name, url: dataUrl }];
       }
-    },
-    [sendMessage, recordSession],
-  );
+
+      // DXF: create blob URL for the WebGL viewer
+      if (processed.type === "dxf") {
+        dxfBlobUrl = URL.createObjectURL(file);
+      }
+
+      // Revoke any previous DXF blob URL
+      setPending((prev) => {
+        if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
+        return null;
+      });
+
+      setPending({ processed, prompt: buildFilePrompt(processed), fileParts, dxfBlobUrl });
+    } catch {
+      setUploadError("No se pudo conectar con el servidor.");
+    } finally {
+      setIsUploading(false);
+    }
+  }, [sendMessage, recordSession]);
 
   function handleSubmit() {
-    if (!input.trim() || isStreaming) return;
+    if (isStreaming) return;
+
+    if (pending) {
+      // Combine user's custom question (if any) with the full file context
+      const userText = input.trim();
+      const finalText = userText
+        ? `${userText}\n\n---\n${pending.prompt}`
+        : pending.prompt;
+
+      sendMessage({ text: finalText, files: pending.fileParts });
+
+      const fileType = pending.processed.type === "dwg_unsupported"
+        ? undefined
+        : pending.processed.type as Parameters<typeof recordSession>[1];
+      recordSession(pending.processed.fileName, fileType);
+
+      // Clean up DXF blob URL when the file leaves the input
+      if (pending.dxfBlobUrl) URL.revokeObjectURL(pending.dxfBlobUrl);
+      setPending(null);
+      setInput("");
+      return;
+    }
+
+    if (!input.trim()) return;
     recordSession(input.trim().slice(0, 50));
     sendMessage({ text: input.trim() });
     setInput("");
   }
 
-  const fileLabel = attachedFile?.type === "excel" ? attachedFile.fileName
-    : attachedFile?.fileName ?? null;
-
-  const exportTitle = fileLabel ?? "Auditoría EdificIA";
-  function handleExport() {
-    exportAuditPdf(exportTitle, messages);
+  function handleRemoveFile() {
+    setPending((prev) => {
+      if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
+      return null;
+    });
+    setUploadError(null);
   }
+
+  // Build the chip shown inside the ChatInput
+  const chip = pending ? buildChip(pending.processed) : null;
+
+  const exportTitle = pending?.processed.fileName ?? messages[0]?.id ?? "Auditoría EdificIA";
 
   return (
     <div className="flex h-full flex-col">
@@ -134,18 +169,13 @@ export default function ChatPage() {
       <header className="flex items-center gap-2 border-b px-6 py-3.5">
         <Sparkles className="h-4 w-4 text-primary" />
         <h1 className="text-sm font-semibold">Auditoría IA</h1>
-        {fileLabel && (
-          <span className="ml-2 rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-medium text-green-600">
-            {fileLabel}
-          </span>
-        )}
         <div className="ml-auto flex items-center gap-2">
           {messages.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-              onClick={handleExport}
+              onClick={() => exportAuditPdf(exportTitle, messages)}
               title="Exportar auditoría a PDF"
             >
               <Download className="h-3.5 w-3.5" />
@@ -174,33 +204,20 @@ export default function ChatPage() {
         </ScrollArea>
       </DropZone>
 
-      {/* File card (Excel / PDF / DXF / DOCX) */}
-      {attachedFile && attachedFile.type !== "image" && (
-        <FileCard
-          file={attachedFile}
-          onRemove={() => {
-            setAttachedFile(null);
-            setDxfBlobUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
-          }}
-          onPreview={attachedFile.type === "dxf" && dxfBlobUrl ? () => setShowDxfViewer(true) : undefined}
-        />
-      )}
-
       {/* DXF viewer modal */}
-      {showDxfViewer && dxfBlobUrl && attachedFile?.type === "dxf" && (
+      {showDxfViewer && pending?.dxfBlobUrl && (
         <DxfViewerModal
-          blobUrl={dxfBlobUrl}
-          fileName={attachedFile.fileName}
+          blobUrl={pending.dxfBlobUrl}
+          fileName={pending.processed.fileName}
           onClose={() => setShowDxfViewer(false)}
         />
       )}
 
-      {uploadError && (
-        <p className="px-4 pb-1 text-xs text-destructive">{uploadError}</p>
-      )}
-
-      {/* Input */}
+      {/* Input area */}
       <div className="border-t bg-background px-4 py-3">
+        {uploadError && (
+          <p className="mb-2 text-xs text-destructive">{uploadError}</p>
+        )}
         <ChatInput
           value={input}
           onChange={setInput}
@@ -209,6 +226,11 @@ export default function ChatPage() {
           onFileSelect={handleFileSelect}
           isStreaming={isStreaming}
           isUploading={isUploading}
+          attachedChip={chip}
+          onRemoveFile={handleRemoveFile}
+          onPreviewDxf={pending?.processed.type === "dxf" && pending.dxfBlobUrl
+            ? () => setShowDxfViewer(true)
+            : undefined}
         />
         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
           Enter para enviar · Arrastrá Excel, PDF, DXF, DOCX o imagen
@@ -218,7 +240,23 @@ export default function ChatPage() {
   );
 }
 
-// ── Auto-prompts by file type ─────────────────────────────────────────────────
+// ── Chip builder ──────────────────────────────────────────────────────────────
+
+function buildChip(file: ProcessedFile) {
+  let subtitle = "";
+  if (file.type === "excel") {
+    subtitle = `${file.itemCount} ítems${file.detectedTotal != null ? ` · $${file.detectedTotal.toLocaleString("es-AR")}` : ""}`;
+  } else if (file.type === "pdf") {
+    subtitle = `${file.pageCount} pág${file.isScanned ? " · escaneado" : ""}`;
+  } else if (file.type === "dxf") {
+    subtitle = `${file.layers.length} capas`;
+  } else if (file.type === "docx") {
+    subtitle = `${file.wordCount.toLocaleString()} palabras`;
+  }
+  return { name: file.fileName, subtitle, fileType: file.type };
+}
+
+// ── Auto-prompts ──────────────────────────────────────────────────────────────
 
 function buildFilePrompt(file: ProcessedFile): string {
   switch (file.type) {
@@ -226,8 +264,7 @@ function buildFilePrompt(file: ProcessedFile): string {
       const totalLine = file.detectedTotal != null
         ? `\nTotal declarado en el archivo: $${file.detectedTotal.toLocaleString("es-AR")}`
         : "";
-      return `Acabo de subir el archivo Excel "${file.fileName}" (hoja: "${file.sheetName}").
-Extraje ${file.itemCount} ítems del presupuesto.${totalLine}
+      return `Archivo Excel "${file.fileName}" (hoja: "${file.sheetName}") — ${file.itemCount} ítems.${totalLine}
 
 Datos estructurados:
 \`\`\`json
@@ -243,68 +280,29 @@ Realizá una auditoría completa:
 
     case "pdf": {
       if (file.isScanned) {
-        return `Subí el PDF escaneado "${file.fileName}" (${file.pageCount} páginas). No tiene texto seleccionable — te adjunto el archivo para que lo leas visualmente.
-
-Por favor:
-1. Identificá de qué tipo de documento se trata (presupuesto, cómputo métrico, plano, memoria descriptiva, pliego, etc.).
-2. Extraé todos los datos numéricos que puedas leer: ítems, cantidades, unidades, precios unitarios, totales.
-3. Si encontrás datos de costos, estructurálos y hacé un análisis de auditoría.`;
+        return `PDF escaneado "${file.fileName}" (${file.pageCount} páginas) — adjunto el archivo para lectura visual.\n\nIdentificá el tipo de documento, extraé todos los datos numéricos (ítems, cantidades, precios, totales) y si hay costos hacé un análisis de auditoría.`;
       }
-      return `Subí el PDF "${file.fileName}" (${file.pageCount} páginas). Aquí está el texto extraído:
-
----
-${file.text.slice(0, 8000)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
----
-
-¿Podés identificar si esto es un presupuesto, cómputo métrico, o memoria descriptiva? Si encontrás datos de costos o cantidades, extraélos y analizálos.`;
+      return `PDF "${file.fileName}" (${file.pageCount} páginas). Texto extraído:\n\n---\n${file.text.slice(0, 8000)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}\n---\n\n¿Es un presupuesto, cómputo métrico o memoria descriptiva? Si hay datos de costos o cantidades, extraélos y analizálos.`;
     }
 
     case "dxf": {
-      const entitiesStr = Object.entries(file.entitySummary)
-        .filter(([, v]) => v > 0)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(", ");
-      const dimsStr = file.dimensions.slice(0, 20)
-        .map((d) => `  - ${d.layer}: "${d.text}" ${d.value != null ? `= ${d.value}` : ""}`)
-        .join("\n");
-      const textsStr = file.textAnnotations.slice(0, 30).join(", ");
-
-      return `Subí el archivo CAD DXF "${file.fileName}".
-
-**Capas detectadas**: ${file.layers.join(", ") || "ninguna"}
-**Entidades**: ${entitiesStr || "ninguna"}
-**Dimensiones anotadas** (primeras 20):
-${dimsStr || "  - Ninguna detectada"}
-**Textos y anotaciones**: ${textsStr || "ninguno"}
-**Bloques**: ${file.blockNames.slice(0, 15).join(", ") || "ninguno"}
-
-¿Podés interpretar qué tipo de plano es (estructura, arquitectura, instalaciones, etc.)? ¿Qué elementos constructivos identificás? Si hay dimensiones, ¿podés estimar cómputos métricos básicos?`;
+      const entitiesStr = Object.entries(file.entitySummary).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ");
+      const dimsStr = file.dimensions.slice(0, 20).map((d) => `  - ${d.layer}: "${d.text}"${d.value != null ? ` = ${d.value}` : ""}`).join("\n");
+      return `Archivo CAD DXF "${file.fileName}".\n\nCapas: ${file.layers.join(", ") || "ninguna"}\nEntidades: ${entitiesStr || "ninguna"}\nDimensiones (primeras 20):\n${dimsStr || "  - Ninguna"}\nTextos: ${file.textAnnotations.slice(0, 30).join(", ") || "ninguno"}\nBloques: ${file.blockNames.slice(0, 15).join(", ") || "ninguno"}\n\n¿Qué tipo de plano es? ¿Qué elementos constructivos identificás? Si hay dimensiones, estimá cómputos métricos básicos.`;
     }
 
     case "docx": {
-      return `Subí el documento Word "${file.fileName}" (${file.wordCount} palabras).
-
-Contenido:
----
-${file.text.slice(0, 8000)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
----
-
-¿Este documento es relevante para un presupuesto de construcción? Identificá especificaciones técnicas, listados de materiales, memorias descriptivas o cualquier dato de costos.`;
+      return `Documento Word "${file.fileName}" (${file.wordCount} palabras).\n\nContenido:\n---\n${file.text.slice(0, 8000)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}\n---\n\n¿Es relevante para un presupuesto de construcción? Identificá especificaciones técnicas, listados de materiales, memorias descriptivas o datos de costos.`;
     }
 
     default:
-      return `Subí el archivo "${file.fileName}". Por favor analizá su contenido.`;
+      return `Archivo "${file.fileName}" adjunto. Por favor analizá su contenido.`;
   }
 }
 
 function buildImagePrompt(fileName: string): string {
-  return `Subí la imagen "${fileName}". Por favor analizá su contenido:
-- Si es una planilla o presupuesto impreso/fotografiado: extraé todos los ítems, cantidades y precios que puedas leer.
-- Si es un plano de arquitectura o estructura: describí los elementos constructivos, dimensiones y anotaciones visibles.
-- Si es otra cosa: describí qué ves y cómo podría ser relevante para una auditoría de construcción.`;
+  return `Imagen "${fileName}" adjunta. Si es una planilla o presupuesto: extraé ítems, cantidades y precios. Si es un plano: describí elementos constructivos y dimensiones visibles. Si es otra cosa: describí qué ves y su relevancia para auditoría de construcción.`;
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -330,19 +328,10 @@ function EmptyState() {
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
-        {SUGGESTIONS.map((s) => (
-          <span key={s} className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
-            {s}
-          </span>
+        {["Arrastrá un Excel de presupuesto", "Subí un PDF de pliego", "Adjuntá un DXF de plano", "Fotografiá una planilla"].map((s) => (
+          <span key={s} className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{s}</span>
         ))}
       </div>
     </div>
   );
 }
-
-const SUGGESTIONS = [
-  "Arrastrá un Excel de presupuesto",
-  "Subí un PDF de pliego",
-  "Adjuntá un DXF de plano",
-  "Fotografiá una planilla impresa",
-];
