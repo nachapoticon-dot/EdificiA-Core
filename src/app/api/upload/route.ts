@@ -1,9 +1,17 @@
-import { parseExcelBudget } from "@/lib/excel/parser";
+import { processFile } from "@/lib/file-processor";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 
 export const runtime = "nodejs";
 
 const STORAGE_BUCKET = "presupuestos";
+
+const ACCEPTED_EXTENSIONS = [
+  ".xlsx", ".xls", ".csv",
+  ".pdf",
+  ".dxf",
+  ".docx", ".doc",
+  ".png", ".jpg", ".jpeg", ".gif", ".webp",
+];
 
 export async function POST(req: Request) {
   let formData: FormData;
@@ -18,28 +26,27 @@ export async function POST(req: Request) {
     return Response.json({ error: "No se recibió ningún archivo." }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (!ext || !["xlsx", "xls", "csv"].includes(ext)) {
+  const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
+  if (!ACCEPTED_EXTENSIONS.includes(ext)) {
     return Response.json(
-      { error: "Formato no soportado. Subí un archivo .xlsx, .xls o .csv." },
+      {
+        error: `Formato "${ext}" no soportado.`,
+        supported: ACCEPTED_EXTENSIONS.join(", "),
+      },
       { status: 400 },
     );
   }
 
   const buffer = await file.arrayBuffer();
-  const parsed = parseExcelBudget(buffer, file.name);
+  const processed = await processFile(buffer, file.name, file.type || undefined);
 
-  if (parsed.items.length === 0) {
-    return Response.json(
-      { error: "No se encontraron ítems válidos en el archivo. Verificá que tenga la estructura de presupuesto correcta." },
-      { status: 422 },
-    );
+  // DWG: return early with the guidance message
+  if (processed.type === "dwg_unsupported") {
+    return Response.json({ error: processed.message, suggestion: processed.suggestion }, { status: 422 });
   }
 
-  // Persist to InsForge storage + DB (best-effort — don't block on failure)
-  let storagePath: string | null = null;
+  // Persist to InsForge (best-effort)
   let fileId: string | null = null;
-
   try {
     const client = getInsForgeAdminClient();
     const blob = new Blob([buffer], { type: file.type || "application/octet-stream" });
@@ -48,16 +55,20 @@ export async function POST(req: Request) {
       .from(STORAGE_BUCKET)
       .upload(`${Date.now()}_${file.name}`, blob);
 
-    if (storageResult.data) {
-      storagePath = storageResult.data.key ?? null;
-    }
+    const storagePath = storageResult.data?.key ?? `local/${file.name}`;
+
+    const fileTypeForDb =
+      processed.type === "excel" ? "excel"
+      : processed.type === "pdf" ? "pdf"
+      : processed.type === "image" ? "image"
+      : "other";
 
     const dbResult = await client.database
       .from("uploaded_files")
       .insert({
         file_name: file.name,
-        file_type: ext === "xlsx" || ext === "xls" ? "excel" : "other",
-        storage_path: storagePath ?? `local/${file.name}`,
+        file_type: fileTypeForDb,
+        storage_path: storagePath,
         file_size_bytes: file.size,
         processing_status: "ready",
       })
@@ -68,16 +79,8 @@ export async function POST(req: Request) {
       fileId = (dbResult.data as { id: string }).id;
     }
   } catch {
-    // Non-fatal: we still return the parsed data even if persistence fails
+    // Non-fatal
   }
 
-  return Response.json({
-    fileName: parsed.fileName,
-    sheetName: parsed.sheetName,
-    itemCount: parsed.items.length,
-    detectedTotal: parsed.detectedTotal,
-    items: parsed.items,
-    fileId,
-    storagePath,
-  });
+  return Response.json({ ...processed, fileId });
 }

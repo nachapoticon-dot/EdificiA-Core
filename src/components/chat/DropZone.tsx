@@ -10,7 +10,11 @@ interface DropZoneProps {
   children: ReactNode;
 }
 
-export function DropZone({ onFileDrop, accept = [".xlsx", ".xls", ".csv"], children }: DropZoneProps) {
+export function DropZone({
+  onFileDrop,
+  accept = [".xlsx", ".xls", ".csv", ".pdf", ".dxf", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp"],
+  children,
+}: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -65,7 +69,7 @@ export function DropZone({ onFileDrop, accept = [".xlsx", ".xls", ".csv"], child
             Soltá el archivo Excel aquí
           </p>
           <p className="text-xs text-muted-foreground">
-            {accept.join(", ")}
+            Excel · PDF · DXF · DOCX · Imágenes
           </p>
         </div>
       )}
