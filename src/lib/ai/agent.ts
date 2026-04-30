@@ -24,6 +24,8 @@ export const AI_MODEL = "claude-sonnet-4-6";
 export function buildSystemPrompt(ctx?: {
   companyName?: string;
   agentName?: string;
+  /** Injected so the agent can supply the correct organizationId to tools that require it. */
+  organizationId?: string;
   learnedPatterns?: Record<string, unknown>;
 }): string {
   const agentName = ctx?.agentName ?? "EdificIA";
@@ -33,11 +35,16 @@ export function buildSystemPrompt(ctx?: {
     ? `\n## Empresa activa\nEstás trabajando para **${companyName}**. Todas las auditorías corresponden a esta organización.`
     : "";
 
+  // Critical: agent must know its orgId to call buscar_en_base_documental / sugerir_formato / generar_archivo
+  const orgIdSection = ctx?.organizationId
+    ? `\n\n**ID de organización activa**: \`${ctx.organizationId}\` — usá este valor exacto en el campo \`organizationId\` de las herramientas \`buscar_en_base_documental\`, \`sugerir_formato\` y \`generar_archivo\`.`
+    : "";
+
   const patternsSection = ctx?.learnedPatterns
     ? `\n## Patrones aprendidos de esta empresa\n${formatLearnedPatterns(ctx.learnedPatterns)}`
     : "";
 
-  return `Sos ${agentName}, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.${companySection}${patternsSection}
+  return `Sos ${agentName}, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.${companySection}${orgIdSection}${patternsSection}
 
 ## Tu estilo de trabajo
 - Sos preciso y directo. Los ingenieros no quieren rodeos.

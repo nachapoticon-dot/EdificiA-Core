@@ -7,14 +7,16 @@ export interface DocumentChunk {
 }
 
 const MAX_CHUNK_CHARS = 1200;
+/** Carry the last N chars into the next chunk so context isn't lost at boundaries. */
+const CHUNK_OVERLAP = 150;
 
 /**
  * Splits a processed file into indexable text chunks.
  * Strategy per type:
  *   excel  → groups of 20 budget items
- *   pdf    → one chunk per page (up to MAX_CHUNK_CHARS)
+ *   pdf    → sliding-window over paragraphs (with overlap, no silent truncation)
  *   dxf    → single metadata chunk (layers + annotations)
- *   docx   → one chunk per paragraph group
+ *   docx   → sliding-window over paragraphs (with overlap)
  *   image  → single descriptive chunk
  */
 export function chunkDocument(file: ProcessedFile): DocumentChunk[] {
@@ -55,20 +57,21 @@ function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentCh
     : [{ text: `Presupuesto vacío: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
 }
 
+/**
+ * PDF chunker — uses sliding window over paragraph segments.
+ * Fixes the previous bug where `.slice(0, MAX_CHUNK_CHARS)` silently discarded
+ * everything past 1200 chars per page. Now every byte of text becomes a chunk.
+ */
 function chunkPdf(file: Extract<ProcessedFile, { type: "pdf" }>): DocumentChunk[] {
   if (file.isScanned || !file.text.trim()) {
-    return [{ text: `PDF escaneado: ${file.fileName} (${file.pageCount} páginas)`, chunkIndex: 0, metadata: { isScanned: true, pageCount: file.pageCount } }];
+    return [{
+      text: `PDF escaneado: ${file.fileName} (${file.pageCount} páginas)`,
+      chunkIndex: 0,
+      metadata: { isScanned: true, pageCount: file.pageCount },
+    }];
   }
 
-  const pages = file.text.split(/\f|\n{4,}/);
-  return pages
-    .map((page, i) => page.trim())
-    .filter((page) => page.length > 20)
-    .map((page, i) => ({
-      text: page.slice(0, MAX_CHUNK_CHARS),
-      chunkIndex: i,
-      metadata: { pageHint: i + 1 },
-    }));
+  return slidingWindowChunk(file.text, { pageCount: file.pageCount });
 }
 
 function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[] {
@@ -87,30 +90,74 @@ function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[
 }
 
 function chunkDocx(file: Extract<ProcessedFile, { type: "docx" }>): DocumentChunk[] {
-  const paragraphs = file.text
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 20);
-
-  if (paragraphs.length === 0) {
+  if (!file.text.trim()) {
     return [{ text: `Documento: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
   }
+  return slidingWindowChunk(file.text, {});
+}
+
+/**
+ * Generic sliding-window chunker that splits on paragraph boundaries and
+ * carries a CHUNK_OVERLAP tail into the next window to preserve cross-boundary context.
+ * Falls back to word-by-word splitting for paragraphs that exceed MAX_CHUNK_CHARS.
+ */
+function slidingWindowChunk(text: string, meta: Record<string, unknown>): DocumentChunk[] {
+  const segments = text.split(/\n{2,}/).map((s) => s.trim()).filter((s) => s.length > 20);
+
+  // If no paragraph structure, treat entire text as one block
+  const source = segments.length > 0 ? segments : [text.trim()].filter((s) => s.length > 20);
+  if (source.length === 0) return [];
 
   const chunks: DocumentChunk[] = [];
   let current = "";
   let idx = 0;
 
-  for (const paragraph of paragraphs) {
-    if (current.length + paragraph.length > MAX_CHUNK_CHARS) {
-      if (current) {
-        chunks.push({ text: current.trim(), chunkIndex: idx++, metadata: {} });
+  for (const seg of source) {
+    const addition = current ? "\n\n" + seg : seg;
+
+    if (current.length + addition.length > MAX_CHUNK_CHARS) {
+      if (current.trim()) {
+        chunks.push({ text: current.trim(), chunkIndex: idx++, metadata: meta });
+        // Carry the tail into the next chunk for cross-boundary context
+        const tail = current.slice(-CHUNK_OVERLAP).trimStart();
+        current = tail ? tail + "\n\n" + seg : seg;
+      } else {
+        // Single segment is too long — split word-by-word
+        const wordChunks = splitByWords(seg, meta);
+        for (const wc of wordChunks) {
+          chunks.push({ ...wc, chunkIndex: idx++ });
+        }
         current = "";
       }
+    } else {
+      current += addition;
     }
-    current += (current ? "\n\n" : "") + paragraph;
   }
+
   if (current.trim()) {
-    chunks.push({ text: current.trim(), chunkIndex: idx, metadata: {} });
+    chunks.push({ text: current.trim(), chunkIndex: idx, metadata: meta });
+  }
+
+  return chunks;
+}
+
+function splitByWords(text: string, meta: Record<string, unknown>): DocumentChunk[] {
+  const words = text.split(/\s+/);
+  const chunks: DocumentChunk[] = [];
+  let buf = "";
+  let idx = 0;
+
+  for (const word of words) {
+    if (buf.length + word.length + 1 > MAX_CHUNK_CHARS && buf) {
+      chunks.push({ text: buf.trim(), chunkIndex: idx++, metadata: meta });
+      buf = word;
+    } else {
+      buf += (buf ? " " : "") + word;
+    }
+  }
+
+  if (buf.trim()) {
+    chunks.push({ text: buf.trim(), chunkIndex: idx, metadata: meta });
   }
 
   return chunks;

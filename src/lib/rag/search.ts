@@ -44,8 +44,10 @@ export async function searchDocuments(
           with_payload: true,
         });
 
-        if (results.length > 0) {
-          return results.map((r) => ({
+        // Fix #3: Filter out semantically irrelevant results below score threshold
+        const relevant = results.filter((r) => r.score >= 0.65);
+        if (relevant.length > 0) {
+          return relevant.map((r) => ({
             fileId: (r.payload?.file_id as string) ?? null,
             fileName: (r.payload?.file_name as string) ?? "",
             documentType: (r.payload?.document_type as string) ?? "",

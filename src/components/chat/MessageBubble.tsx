@@ -121,6 +121,7 @@ function MessagePart({
       comparar_computo_con_plano:      "Comparando presupuesto con plano",
       generar_grafica:                 "Generando gráfica",
       buscar_en_base_documental:       "Buscando en base documental",
+      sugerir_formato:                 "Comparando con estándares del sector",
       generar_archivo:                 "Generando archivo",
     };
 

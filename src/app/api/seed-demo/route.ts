@@ -1,7 +1,12 @@
 /**
- * Endpoint de solo uso para crear las credenciales de demo.
- * Llamar una sola vez: POST http://localhost:3000/api/seed-demo
- * Eliminar o proteger antes de producción.
+ * Endpoint de solo uso para vincular un usuario existente como admin de la org demo.
+ *
+ * POST /api/seed-demo  { "email": "tu@email.com", "password": "tu-password" }
+ *   → Crea la organización "EdificIA Demo" (si no existe).
+ *   → Hace signIn con tus credenciales para obtener tu user ID.
+ *   → Te agrega como admin de la org.
+ *
+ * Si no tenés cuenta aún, primero registrate en /register o /login.
  */
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 
@@ -9,15 +14,22 @@ export const runtime = "nodejs";
 
 const DEMO_ORG_NAME = "EdificIA Demo";
 const DEMO_ORG_SLUG = "edificia-demo";
-const DEMO_EMAIL    = "admin@edificia.demo";
-const DEMO_PASSWORD = "1234";
-const DEMO_NAME     = "Admin Demo";
 
-export async function POST() {
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({})) as { email?: string; password?: string };
+  const email = body.email?.trim().toLowerCase();
+  const password = body.password;
+
+  if (!email || !password) {
+    return Response.json({
+      error: "Necesito email y password: { \"email\": \"tu@email.com\", \"password\": \"tu-password\" }",
+    }, { status: 400 });
+  }
+
   const admin = getInsForgeAdminClient();
   const log: string[] = [];
 
-  // 1. Crear o recuperar organización
+  // 1. Crear o recuperar organización demo
   let orgId: string;
   const { data: existingOrgs } = await admin.database
     .from("organizations")
@@ -42,46 +54,39 @@ export async function POST() {
     log.push(`[org] Creada: ${DEMO_ORG_NAME} (${orgId})`);
   }
 
-  // 2. Crear usuario
-  let userId: string;
-  const { data: signUpData, error: signUpErr } = await admin.auth.signUp({
-    email:       DEMO_EMAIL,
-    password:    DEMO_PASSWORD,
-    name:        DEMO_NAME,
-    autoConfirm: true,
-  });
-
-  if (signUpErr) {
-    const msg = signUpErr.message ?? "";
-    if (msg.includes("already") || msg.includes("exists")) {
-      log.push(`[auth] Usuario ya existe, continuando...`);
-      // Intentar login para obtener el user ID
-      const { data: loginData, error: loginErr } = await admin.auth.signInWithPassword({
-        email: DEMO_EMAIL, password: DEMO_PASSWORD,
-      });
-      if (loginErr || !loginData?.user?.id) {
-        return Response.json({ error: "Usuario ya existe pero no se pudo obtener su ID", log }, { status: 500 });
-      }
-      userId = loginData.user.id;
-    } else {
-      return Response.json({ error: "Error creando usuario", detail: signUpErr, log }, { status: 500 });
-    }
-  } else {
-    userId = signUpData?.user?.id ?? "";
-    if (!userId) return Response.json({ error: "signUp no retornó user ID", log }, { status: 500 });
-    log.push(`[auth] Usuario creado: ${DEMO_EMAIL} (${userId})`);
+  // 2. Obtener user ID via signIn
+  const { data: loginData, error: loginErr } = await admin.auth.signInWithPassword({ email, password });
+  if (loginErr || !loginData?.user?.id) {
+    return Response.json({
+      error: "No se pudo hacer signIn. Verificá tu email y password.",
+      detail: loginErr,
+      log,
+    }, { status: 401 });
   }
 
-  // 3. Vincular a la organización como admin
+  const userId = loginData.user.id;
+  log.push(`[auth] SignIn OK: ${email} (${userId})`);
+
+  // 3. Vincular como admin (upsert por si ya es miembro con otro rol)
   const { data: existingMember } = await admin.database
     .from("organization_members")
-    .select("id")
+    .select("id, role")
     .eq("organization_id", orgId)
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .limit(1);
 
   if (existingMember && existingMember.length > 0) {
-    log.push(`[member] Ya es miembro`);
+    const member = existingMember[0] as { id: string; role: string };
+    if (member.role !== "admin") {
+      await admin.database
+        .from("organization_members")
+        .update({ role: "admin" })
+        .eq("id", member.id);
+      log.push(`[member] Rol actualizado a admin`);
+    } else {
+      log.push(`[member] Ya es admin`);
+    }
   } else {
     const { error: memberErr } = await admin.database
       .from("organization_members")
@@ -95,13 +100,10 @@ export async function POST() {
 
   return Response.json({
     ok: true,
-    credentials: {
-      url:      "http://localhost:3000/login",
-      email:    DEMO_EMAIL,
-      password: DEMO_PASSWORD,
-      role:     "admin",
-      org:      DEMO_ORG_NAME,
-    },
+    message: "Listo. Ahora podés entrar a http://localhost:3000/login con tus credenciales.",
+    email,
+    role: "admin",
+    org: DEMO_ORG_NAME,
     log,
   });
 }

@@ -90,6 +90,7 @@ async function resolveSystemPrompt(accessToken: string | null): Promise<string> 
     return buildSystemPrompt({
       companyName: org?.name,
       agentName: org?.agent_name ?? "EdificIA",
+      organizationId: orgId,
       learnedPatterns: Object.keys(learnedPatterns).length > 0 ? learnedPatterns : undefined,
     });
   } catch {
