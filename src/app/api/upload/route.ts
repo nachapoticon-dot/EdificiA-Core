@@ -1,6 +1,7 @@
 import { processFile } from "@/lib/file-processor";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { extractPatterns } from "@/lib/pattern-extractor";
+import { ingestDocument } from "@/lib/rag/ingest";
 
 export const runtime = "nodejs";
 
@@ -83,10 +84,10 @@ export async function POST(req: Request) {
     // Non-fatal
   }
 
-  // Extract and persist learning patterns (best-effort, non-fatal)
+  // Extract patterns + ingest into RAG (both best-effort, non-fatal)
   const authHeader = req.headers.get("authorization") ?? "";
   const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  void persistPatterns(processed, accessToken);
+  void persistPatternsAndIngest(processed, accessToken, fileId);
 
   return Response.json({ ...processed, fileId });
 }
@@ -104,9 +105,10 @@ function decodeUserId(jwt: string): string | null {
   }
 }
 
-async function persistPatterns(
+async function persistPatternsAndIngest(
   processed: Awaited<ReturnType<typeof processFile>>,
   accessToken: string | null,
+  fileId: string | null,
 ): Promise<void> {
   try {
     const extracted = extractPatterns(processed);
@@ -128,6 +130,9 @@ async function persistPatterns(
 
     const orgId = (memberResult.data as { organization_id: string } | null)?.organization_id;
     if (!orgId) return;
+
+    // Ingest into RAG (Qdrant + document_chunks)
+    void ingestDocument(processed, { organizationId: orgId, fileId });
 
     // Upsert each extracted pattern key
     for (const [key, value] of Object.entries(extracted.patterns)) {

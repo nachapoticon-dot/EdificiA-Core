@@ -79,11 +79,18 @@ export function buildSystemPrompt(ctx?: {
 2. generar_grafica → distribución de áreas.
 3. Interpretación del tipo de plano y elementos constructivos.
 
+## Base documental — reglas de la base sagrada
+- La base documental es **SOLO LECTURA**. No podés borrar ni modificar archivos de la empresa.
+- Para buscar información sobre proyectos anteriores, planos o documentos: usá **buscar_en_base_documental**.
+- Si el usuario pide que borres o modifiques un archivo existente: respondé que eso no es una función del agente. Los archivos de la empresa son intocables.
+- Si generás un archivo nuevo (cómputo, remito, tabla), **no lo guardés sin confirmación del usuario**. Usá **generar_archivo** para proponer el archivo, y el sistema pedirá confirmación antes de guardarlo.
+
 ## Reglas de oro
 1. NUNCA inventes números. Si no tenés los datos, pedílos.
 2. SIEMPRE usá las herramientas matemáticas. Nunca calcules mentalmente.
 3. El motor es agnóstico: no existe "un solo valor correcto" de incidencia. Vos analizás en contexto.
-4. Cuando detectés una "Fuga de Rentabilidad", cuantificala en pesos.`;
+4. Cuando detectés una "Fuga de Rentabilidad", cuantificala en pesos.
+5. La base documental es sagrada: NUNCA la modifiques sin confirmación explícita del usuario.`;
 }
 
 /** Formats learned patterns into a readable context block. */
@@ -338,6 +345,67 @@ export const agentTools = {
         data: input.data.slice(0, 12),
         unit: input.unit ?? "",
         rendered: true,
+      };
+    },
+  }),
+
+  buscar_en_base_documental: tool({
+    description:
+      "Busca información en la base documental de la empresa (planos, presupuestos, remitos, memorias, etc.). Úsala antes de responder preguntas sobre proyectos anteriores, formatos que usa la empresa, o cualquier dato que pueda estar en documentos subidos. La búsqueda es semántica cuando hay embeddings disponibles, o por texto si no.",
+    inputSchema: z.object({
+      query: z.string().describe("Consulta de búsqueda en lenguaje natural"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      topK: z.number().int().min(1).max(10).optional().describe("Cantidad de resultados (default 5)"),
+    }),
+    execute: async (input: { query: string; organizationId: string; topK?: number }) => {
+      // Dynamic import to avoid bundling server-only code in edge runtime
+      const { searchDocuments } = await import("@/lib/rag/search");
+      const results = await searchDocuments(input.query, {
+        organizationId: input.organizationId,
+        topK: input.topK ?? 5,
+      });
+
+      if (results.length === 0) {
+        return {
+          found: false,
+          message: "No se encontraron documentos relevantes en la base documental para esa consulta.",
+          results: [],
+        };
+      }
+
+      return {
+        found: true,
+        count: results.length,
+        results: results.map((r) => ({
+          fileName: r.fileName,
+          documentType: r.documentType,
+          excerpt: r.chunkText.slice(0, 400),
+          score: Math.round(r.score * 100) / 100,
+        })),
+      };
+    },
+  }),
+
+  generar_archivo: tool({
+    description:
+      "Propone guardar un archivo generado por el agente en la base documental de la empresa. IMPORTANTE: esto NO guarda el archivo directamente — el usuario debe revisar y confirmar. Usá esta herramienta cuando hayas generado un cómputo, remito, tabla o cualquier documento listo para guardar.",
+    inputSchema: z.object({
+      fileName: z.string().describe("Nombre del archivo propuesto (con extensión, ej. 'computo_yeso_planta_baja.txt')"),
+      content: z.string().describe("Contenido del archivo en texto plano"),
+      description: z.string().describe("Descripción breve de qué contiene el archivo y por qué se generó"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input: { fileName: string; content: string; description: string; organizationId: string }) => {
+      // Returns a proposal spec — the frontend (MessageBubble) intercepts this
+      // and renders a DocumentProposalCard for the user to accept or reject.
+      return {
+        type: "file_proposal",
+        fileName: input.fileName,
+        content: Buffer.from(input.content).toString("base64"),
+        contentType: "text/plain",
+        description: input.description,
+        organizationId: input.organizationId,
+        awaiting_confirmation: true,
       };
     },
   }),

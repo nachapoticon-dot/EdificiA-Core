@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Bot, User, Wrench, CheckCircle2, Loader2 } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./ChartBlock";
+import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -87,6 +88,30 @@ function MessagePart({
       }
     }
 
+    // generar_archivo: render an approval card — user must confirm before saving
+    if (toolName === "generar_archivo" && !isPending && toolPart.output) {
+      const output = toolPart.output as Record<string, unknown>;
+      if (output.type === "file_proposal") {
+        const proposal: FileProposal = {
+          fileName: output.fileName as string,
+          content: output.content as string,
+          contentType: (output.contentType as string) ?? "text/plain",
+          description: output.description as string,
+          organizationId: output.organizationId as string,
+        };
+        return (
+          <DocumentProposalCard
+            proposal={proposal}
+            onDecision={(accepted, name) => {
+              // Decision is self-contained in the card — no parent state needed
+              void accepted;
+              void name;
+            }}
+          />
+        );
+      }
+    }
+
     const labels: Record<string, string> = {
       calcular_totales:                "Calculando totales del presupuesto",
       validar_cierre_de_total:         "Validando cierre de totales",
@@ -95,6 +120,8 @@ function MessagePart({
       analizar_geometria_plano:        "Analizando geometría del plano",
       comparar_computo_con_plano:      "Comparando presupuesto con plano",
       generar_grafica:                 "Generando gráfica",
+      buscar_en_base_documental:       "Buscando en base documental",
+      generar_archivo:                 "Generando archivo",
     };
 
     return (
