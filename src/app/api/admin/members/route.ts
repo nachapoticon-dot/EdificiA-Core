@@ -1,4 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { sendInvitationEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
@@ -70,6 +71,14 @@ export async function POST(req: Request): Promise<Response> {
 
   const client = getInsForgeAdminClient();
 
+  // Fetch org name for the email template
+  const orgResult = await client.database
+    .from("organizations")
+    .select("name")
+    .eq("id", auth.orgId)
+    .single();
+  const orgName = (orgResult.data as { name?: string } | null)?.name ?? "tu empresa";
+
   // Revoke any existing pending invite for this email in this org
   await client.database
     .from("organization_invitations")
@@ -93,7 +102,14 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "Failed to create invitation" }, { status: 500 });
   }
 
-  return Response.json({ invitation: insertResult.data }, { status: 201 });
+  const { token } = insertResult.data as { id: string; token: string };
+
+  // Send invitation email — non-blocking: don't fail the request if email fails
+  sendInvitationEmail({ toEmail: email, orgName, role, token }).catch((err: unknown) => {
+    console.error("[invite] Failed to send invitation email:", err);
+  });
+
+  return Response.json({ invitation: insertResult.data, emailSent: true }, { status: 201 });
 }
 
 // ── PATCH /api/admin/members — change member role ─────────────────────────────

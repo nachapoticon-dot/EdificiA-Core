@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus } from "lucide-react";
+import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { getInsForgeClient } from "@/lib/insforge/client";
@@ -46,6 +46,7 @@ export default function AdminMembersPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("engineer");
   const [inviting, setInviting] = useState(false);
+  const [lastInvited, setLastInvited] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   // Redirect non-admins
@@ -79,15 +80,18 @@ export default function AdminMembersPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    const emailToInvite = inviteEmail.trim();
+    if (!emailToInvite) return;
     setInviting(true);
     try {
       await fetch("/api/admin/members", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+        body: JSON.stringify({ email: emailToInvite, role: inviteRole }),
       });
       setInviteEmail("");
+      setLastInvited(emailToInvite);
+      setTimeout(() => setLastInvited(null), 5000);
       await fetchMembers();
     } finally {
       setInviting(false);
@@ -179,6 +183,12 @@ export default function AdminMembersPage() {
             {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Invitar"}
           </Button>
         </form>
+        {lastInvited && (
+          <p className="mt-3 flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-4 w-4" />
+            Email de invitación enviado a <strong>{lastInvited}</strong>
+          </p>
+        )}
       </section>
 
       {/* Members list */}
