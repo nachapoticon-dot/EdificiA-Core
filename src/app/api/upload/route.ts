@@ -31,23 +31,42 @@ export async function POST(req: Request) {
   const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
   if (!ACCEPTED_EXTENSIONS.includes(ext)) {
     return Response.json(
-      {
-        error: `Formato "${ext}" no soportado.`,
-        supported: ACCEPTED_EXTENSIONS.join(", "),
-      },
+      { error: `Formato "${ext}" no soportado.`, supported: ACCEPTED_EXTENSIONS.join(", ") },
       { status: 400 },
     );
+  }
+
+  // Decode auth early — needed to populate uploaded_by + organization_id
+  const authHeader = req.headers.get("authorization") ?? "";
+  const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const userId = accessToken ? decodeUserId(accessToken) : null;
+
+  // Get org membership (best-effort — upload still works without it for local dev)
+  let orgId: string | null = null;
+  if (userId) {
+    try {
+      const client = getInsForgeAdminClient();
+      const memberResult = await client.database
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", userId)
+        .is("deleted_at", null)
+        .limit(1)
+        .single();
+      orgId = (memberResult.data as { organization_id: string } | null)?.organization_id ?? null;
+    } catch {
+      // Non-fatal
+    }
   }
 
   const buffer = await file.arrayBuffer();
   const processed = await processFile(buffer, file.name, file.type || undefined);
 
-  // DWG: return early with the guidance message
   if (processed.type === "dwg_unsupported") {
     return Response.json({ error: processed.message, suggestion: processed.suggestion }, { status: 422 });
   }
 
-  // Persist to InsForge storage (best-effort)
+  // Persist to InsForge storage + DB (best-effort)
   let fileId: string | null = null;
   try {
     const client = getInsForgeAdminClient();
@@ -65,29 +84,34 @@ export async function POST(req: Request) {
       : processed.type === "image" ? "image"
       : "other";
 
-    const dbResult = await client.database
-      .from("uploaded_files")
-      .insert({
-        file_name: file.name,
-        file_type: fileTypeForDb,
-        storage_path: storagePath,
-        file_size_bytes: file.size,
-        processing_status: "ready",
-      })
-      .select("id")
-      .single();
+    // Only insert if we have the required NOT NULL fields
+    if (orgId && userId) {
+      const dbResult = await client.database
+        .from("uploaded_files")
+        .insert({
+          organization_id: orgId,
+          uploaded_by: userId,
+          file_name: file.name,
+          file_type: fileTypeForDb,
+          storage_path: storagePath,
+          file_size_bytes: file.size,
+          processing_status: "ready",
+        })
+        .select("id")
+        .single();
 
-    if (dbResult.data) {
-      fileId = (dbResult.data as { id: string }).id;
+      if (dbResult.data) {
+        fileId = (dbResult.data as { id: string }).id;
+      }
     }
   } catch {
     // Non-fatal
   }
 
-  // Extract patterns + ingest into RAG (both best-effort, non-fatal)
-  const authHeader = req.headers.get("authorization") ?? "";
-  const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  void persistPatternsAndIngest(processed, accessToken, fileId);
+  // Patterns + RAG ingest (best-effort, non-fatal)
+  if (orgId) {
+    void persistPatternsAndIngest(processed, userId, orgId, fileId);
+  }
 
   return Response.json({ ...processed, fileId });
 }
@@ -107,34 +131,19 @@ function decodeUserId(jwt: string): string | null {
 
 async function persistPatternsAndIngest(
   processed: Awaited<ReturnType<typeof processFile>>,
-  accessToken: string | null,
+  userId: string | null,
+  orgId: string,
   fileId: string | null,
 ): Promise<void> {
   try {
-    const extracted = extractPatterns(processed);
-    if (!extracted) return;
-
-    if (!accessToken) return;
-    const userId = decodeUserId(accessToken);
-    if (!userId) return;
-
-    const client = getInsForgeAdminClient();
-
-    const memberResult = await client.database
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .is("deleted_at", null)
-      .limit(1)
-      .single();
-
-    const orgId = (memberResult.data as { organization_id: string } | null)?.organization_id;
-    if (!orgId) return;
-
     // Ingest into RAG (Qdrant + document_chunks)
     void ingestDocument(processed, { organizationId: orgId, fileId });
 
-    // Upsert each extracted pattern key
+    // Pattern extraction + upsert
+    const extracted = extractPatterns(processed);
+    if (!extracted) return;
+
+    const client = getInsForgeAdminClient();
     for (const [key, value] of Object.entries(extracted.patterns)) {
       await client.database
         .from("company_learned_patterns")
@@ -147,6 +156,6 @@ async function persistPatternsAndIngest(
         }, { onConflict: "organization_id,document_type,pattern_key" });
     }
   } catch {
-    // Non-fatal: learning failures never block the upload response
+    // Non-fatal
   }
 }

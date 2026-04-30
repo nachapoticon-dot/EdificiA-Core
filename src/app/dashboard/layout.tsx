@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Building2, MessageSquare } from "lucide-react";
+import { Building2, MessageSquare, Shield } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { DashboardSidebar } from "@/components/chat/DashboardSidebar";
 import { UserMenu } from "@/components/chat/UserMenu";
+import { AdminNavLink } from "@/components/chat/AdminNavLink";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -27,6 +28,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <MessageSquare className="h-4 w-4" />
               Auditoría IA
             </Link>
+            {/* Admin link — only visible when role === 'admin' */}
+            <AdminNavLink />
           </nav>
 
           {/* Session history — client component */}
@@ -38,7 +41,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-2 border-t px-3 py-3">
             <UserMenu />
             <div className="flex items-center justify-between px-1">
-              <p className="text-[10px] text-muted-foreground">EdificIA · v0.5.0</p>
+              <p className="text-[10px] text-muted-foreground">EdificIA · v0.6.0</p>
               <ThemeToggle />
             </div>
           </div>
