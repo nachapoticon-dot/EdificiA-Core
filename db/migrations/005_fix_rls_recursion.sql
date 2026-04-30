@@ -22,7 +22,6 @@ AS $$
   SELECT organization_id
   FROM   organization_members
   WHERE  user_id = auth.uid()
-    AND  deleted_at IS NULL
 $$;
 
 -- 3. Nuevo policy: sin recursión
