@@ -51,12 +51,21 @@ export interface DxfProcessedFile extends BaseFile {
   dimensions: DxfDimension[];
   blockNames: string[];
   entitySummary: Record<string, number>;
+  geometrySummary: DxfGeometrySummary;
 }
 
 export interface DxfDimension {
   text: string;
   value: number | null;
   layer: string;
+}
+
+export interface DxfGeometrySummary {
+  totalAreaM2: number;
+  totalLinearM: number;
+  areasByLayer: { layer: string; areaM2: number }[];
+  linearByLayer: { layer: string; totalM: number }[];
+  unitFactor: number;
 }
 
 export interface ImageProcessedFile extends BaseFile {

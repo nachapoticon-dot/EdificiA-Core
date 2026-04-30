@@ -8,7 +8,9 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { DropZone } from "@/components/chat/DropZone";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
-import { Bot, Sparkles, Download } from "lucide-react";
+import { Sparkles, Download } from "lucide-react";
+import { AgentGreeting } from "@/components/chat/AgentGreeting";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
 import type { ProcessedFile } from "@/lib/file-processor/types";
@@ -28,9 +30,19 @@ interface PendingFile {
 
 export default function ChatPage() {
   const { messages, sendMessage, setMessages, status, stop } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      // Forward the InsForge access token so the server can build a org-specific system prompt
+      headers: async (): Promise<Record<string, string>> => {
+        const { getInsForgeClient } = await import("@/lib/insforge/client");
+        const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
+        return allHeaders.Authorization ? { Authorization: allHeaders.Authorization } : {};
+      },
+    }),
   });
   const { sessionId, recordSession } = useSessionContext();
+  const currentUserState = useCurrentUser();
+  const currentUser = currentUserState.status === "ok" ? currentUserState.user : null;
 
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<PendingFile | null>(null);
@@ -81,7 +93,10 @@ export default function ChatPage() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const { getInsForgeClient } = await import("@/lib/insforge/client");
+      const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
+      const uploadHeaders: HeadersInit = allHeaders.Authorization ? { Authorization: allHeaders.Authorization } : {};
+      const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
       const data = await res.json() as Record<string, unknown>;
 
       if (!res.ok) {
@@ -192,7 +207,10 @@ export default function ChatPage() {
       <DropZone onFileDrop={handleFileSelect}>
         <ScrollArea className="flex-1">
           {messages.length === 0 ? (
-            <EmptyState />
+            <AgentGreeting
+              userName={currentUser?.profile?.name ?? currentUser?.email}
+              onQuickAction={(text) => setInput(text)}
+            />
           ) : (
             <div className="pb-4">
               {messages.map((m) => (
@@ -313,25 +331,3 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-function EmptyState() {
-  return (
-    <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-4 px-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-        <Bot className="h-7 w-7 text-primary" />
-      </div>
-      <div className="space-y-1.5">
-        <h2 className="text-base font-semibold">EdificIA listo para auditar</h2>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Arrastrá cualquier documento de obra: Excel, PDF, DXF, DOCX o foto de una planilla.
-        </p>
-      </div>
-      <div className="flex flex-wrap justify-center gap-2">
-        {["Arrastrá un Excel de presupuesto", "Subí un PDF de pliego", "Adjuntá un DXF de plano", "Fotografiá una planilla"].map((s) => (
-          <span key={s} className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{s}</span>
-        ))}
-      </div>
-    </div>
-  );
-}

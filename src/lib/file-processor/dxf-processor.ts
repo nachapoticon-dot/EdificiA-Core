@@ -1,4 +1,5 @@
 import type { DxfProcessedFile, DxfDimension } from "./types";
+import { extractDxfGeometry } from "./dxf-geometry";
 
 /**
  * Lightweight DXF parser — no external library needed.
@@ -98,6 +99,8 @@ export function processDxf(
     }
   }
 
+  const geometrySummary = extractDxfGeometry(lines);
+
   return {
     type: "dxf",
     fileName,
@@ -107,6 +110,7 @@ export function processDxf(
     dimensions: dimensions.slice(0, 100),
     blockNames: dedup(blockNames).slice(0, 50),
     entitySummary: entityCounts,
+    geometrySummary,
   };
 }
 

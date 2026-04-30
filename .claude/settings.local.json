@@ -112,7 +112,18 @@
       "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && nohup npm run dev >/tmp/edificia.log 2>&1 &\"; Start-Sleep -Seconds 5; Start-Process \"http://localhost:3000/login\")",
       "PowerShell(Start-Process wsl -ArgumentList \"bash\", \"-c\", \"cd /home/nachapoticon/edificia && npm run dev\" -WindowStyle Normal)",
       "PowerShell(Start-Sleep -Seconds 8; Start-Process \"http://localhost:3000\")",
-      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1 | tail -30\")"
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1 | tail -30\")",
+      "PowerShell(Start-Process wsl -ArgumentList \"bash\", \"-c\", \"cd /home/nachapoticon/edificia && npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 7; Start-Process \"http://localhost:3000\")",
+      "PowerShell(wc *)",
+      "PowerShell(\\(Get-Content /home/nachapoticon/edificia/src/app/dashboard/chat/page.tsx | Measure-Object -Line\\).Lines)",
+      "PowerShell(wsl wc -l /home/nachapoticon/edificia/src/app/dashboard/chat/page.tsx)",
+      "PowerShell(wsl bash -c \"cd /home/nachapoticon/edificia && npm install framer-motion recharts dxf-parser 2>&1 | tail -5\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1 | tail -80\")",
+      "PowerShell(wsl -e bash -c \"grep -r 'cookie\\\\|csrf_token\\\\|access_token\\\\|refresh_token' /home/nachapoticon/edificia/node_modules/@insforge/sdk/dist/index.js 2>/dev/null | head -40\")",
+      "PowerShell(wsl -e bash -c \"grep -A5 -B2 'CSRF_TOKEN\\\\|csrf_token\\\\|encodeURI' /home/nachapoticon/edificia/node_modules/@insforge/sdk/dist/index.js 2>/dev/null | head -50\")",
+      "PowerShell(wsl -e bash -c \"grep -A3 'Authorization\\\\|x-csrf\\\\|accessToken\\\\|Bearer' /home/nachapoticon/edificia/node_modules/@insforge/sdk/dist/index.js 2>/dev/null | head -40\")",
+      "PowerShell(wsl -e bash -c \"grep -B2 -A10 'csrfToken\\\\|csrf_token' /home/nachapoticon/edificia/node_modules/@insforge/sdk/dist/index.js 2>/dev/null | head -60\")",
+      "PowerShell(wsl -e bash -c \"cd /home/nachapoticon/edificia && npm run build 2>&1 | tail -60\")"
     ]
   }
 }

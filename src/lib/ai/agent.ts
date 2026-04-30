@@ -1,4 +1,5 @@
 import { tool } from "ai";
+import { z } from "zod";
 import {
   calcularTotalesInputSchema,
   validarCierreInputSchema,
@@ -15,10 +16,28 @@ import {
   detectarExclusionesLogicas,
   calcularIncidenciaDeSubgrupo,
 } from "@/lib/math-engine/auditor";
+import type { DxfGeometrySummary } from "@/lib/file-processor/types";
 
 export const AI_MODEL = "claude-sonnet-4-6";
 
-export const SYSTEM_PROMPT = `Sos EdificIA, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.
+/** Builds a dynamic system prompt that incorporates company context. */
+export function buildSystemPrompt(ctx?: {
+  companyName?: string;
+  agentName?: string;
+  learnedPatterns?: Record<string, unknown>;
+}): string {
+  const agentName = ctx?.agentName ?? "EdificIA";
+  const companyName = ctx?.companyName;
+
+  const companySection = companyName
+    ? `\n## Empresa activa\nEstás trabajando para **${companyName}**. Todas las auditorías corresponden a esta organización.`
+    : "";
+
+  const patternsSection = ctx?.learnedPatterns
+    ? `\n## Patrones aprendidos de esta empresa\n${formatLearnedPatterns(ctx.learnedPatterns)}`
+    : "";
+
+  return `Sos ${agentName}, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.${companySection}${patternsSection}
 
 ## Tu estilo de trabajo
 - Sos preciso y directo. Los ingenieros no quieren rodeos.
@@ -27,35 +46,100 @@ export const SYSTEM_PROMPT = `Sos EdificIA, el auditor de obras de Argentina. Tr
 - Si los datos son incompletos, identificás exactamente qué falta antes de proceder.
 - Usás los términos del sector: "costo directo", "incidencia", "rubros", "subcontratistas", "mano de obra", "materiales", "cómputo métrico".
 
-## Tus herramientas matemáticas — úsalas SIEMPRE
-Tenés un motor matemático certificado. Jamás calcules mentalmente:
-- **calcular_totales** → Primer paso obligatorio: calcula totales línea por línea y el costo directo.
-- **validar_cierre_de_total** → Solo después de calcular_totales: verifica que los subtotales cierren con el total declarado.
-- **detectar_exclusiones_logicas** → Encuentra inconsistencias estructurales (ej. ítem subcontratado que declara mano de obra propia).
-- **calcular_incidencia_de_subgrupo** → Calcula el peso porcentual de un grupo de ítems sobre el total.
+## Tus herramientas — úsalas SIEMPRE, en orden
+**Para Excel y presupuestos:**
+1. **calcular_totales** → Primer paso: calcula totales y costo directo.
+2. **validar_cierre_de_total** → Verifica que el presupuesto cierre.
+3. **detectar_exclusiones_logicas** → Encuentra los 9 tipos de inconsistencias estructurales.
+4. **calcular_incidencia_de_subgrupo** → Peso porcentual de cada rubro.
+5. **generar_grafica** → Visualiza los rubros más pesados o las anomalías detectadas.
 
-## Flujo obligatorio cuando recibís un Excel
-1. **calcular_totales** → verificá el costo directo real vs declarado.
-2. **validar_cierre_de_total** (si hay total declarado) → detectá brechas.
-3. **detectar_exclusiones_logicas** → encontrá errores estructurales.
-4. **calcular_incidencia_de_subgrupo** → analizá los rubros más pesados (≥10% del total).
-5. Entregá el resumen ejecutivo con este formato:
+**Para planos DXF:**
+1. **analizar_geometria_plano** → Extrae cómputo métrico de coordenadas reales.
+2. **generar_grafica** → Muestra distribución de áreas por capa.
+
+**Para cruzar presupuesto y plano:**
+1. **comparar_computo_con_plano** → Detecta diferencias entre cantidades del presupuesto y geometría del plano.
+
+## Flujo obligatorio — Excel
+1. calcular_totales → verificá costo directo real vs declarado.
+2. validar_cierre_de_total (si hay total) → detectá brechas.
+3. detectar_exclusiones_logicas → 9 reglas de auditoría.
+4. calcular_incidencia_de_subgrupo → analizá rubros ≥ 10%.
+5. generar_grafica → gráfico de incidencia de rubros.
+6. Resumen ejecutivo:
    - **Veredicto**: [✓ Aprobado / ✗ Observado / ⚠ Requiere revisión]
    - **Costo directo calculado**: $X.XXX.XXX
    - **Brecha detectada**: $X.XXX (si aplica)
-   - **Hallazgos** (lista numerada)
+   - **Hallazgos** (lista numerada por severidad: error → warning → info)
    - **Recomendación**
 
-## Flujo para PDFs, DXF y documentos
-- Leé el contenido extraído y respondé si es un presupuesto, cómputo, plano o memoria descriptiva.
-- Extraé todos los datos numéricos que puedas identificar.
-- Si el PDF está escaneado (sin texto), analizá la imagen visualmente.
+## Flujo obligatorio — DXF
+1. analizar_geometria_plano → cómputo métrico.
+2. generar_grafica → distribución de áreas.
+3. Interpretación del tipo de plano y elementos constructivos.
 
 ## Reglas de oro
 1. NUNCA inventes números. Si no tenés los datos, pedílos.
 2. SIEMPRE usá las herramientas matemáticas. Nunca calcules mentalmente.
 3. El motor es agnóstico: no existe "un solo valor correcto" de incidencia. Vos analizás en contexto.
-4. Cuando detectés una "Fuga de Rentabilidad" (dinero o tiempo perdido por errores administrativos), cuantificala en pesos y horas.`;
+4. Cuando detectés una "Fuga de Rentabilidad", cuantificala en pesos.`;
+}
+
+/** Formats learned patterns into a readable context block. */
+function formatLearnedPatterns(patterns: Record<string, unknown>): string {
+  const lines: string[] = [];
+
+  const excel = patterns["excel"] as Record<string, unknown> | undefined;
+  if (excel) {
+    const colAliases = excel["column_aliases"] as { units?: string[]; code_prefix_set?: string[] } | undefined;
+    if (colAliases?.units?.length) {
+      lines.push(`- Unidades de medida típicas: ${(colAliases.units as string[]).join(", ")}`);
+    }
+    if (colAliases?.code_prefix_set?.length) {
+      lines.push(`- Prefijos de código de rubros: ${(colAliases.code_prefix_set as string[]).join(", ")}`);
+    }
+    const priceRanges = excel["price_ranges"] as { min?: number; max?: number; avg?: number } | undefined;
+    if (priceRanges?.avg) {
+      lines.push(`- Rango de precios unitarios: $${Math.round(priceRanges.min ?? 0).toLocaleString("es-AR")} – $${Math.round(priceRanges.max ?? 0).toLocaleString("es-AR")} (promedio $${Math.round(priceRanges.avg).toLocaleString("es-AR")})`);
+    }
+  }
+
+  const dxf = patterns["dxf"] as Record<string, unknown> | undefined;
+  if (dxf) {
+    const layers = dxf["layer_conventions"] as string[] | undefined;
+    if (layers?.length) {
+      lines.push(`- Capas DXF conocidas: ${layers.slice(0, 10).join(", ")}`);
+    }
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "Sin patrones previos registrados.";
+}
+
+// Default system prompt (no company context)
+export const SYSTEM_PROMPT = buildSystemPrompt();
+
+// ── Tool schemas ─────────────────────────────────────────────────────────────
+
+const geometrySummarySchema = z.object({
+  totalAreaM2: z.number(),
+  totalLinearM: z.number(),
+  areasByLayer: z.array(z.object({ layer: z.string(), areaM2: z.number() })),
+  linearByLayer: z.array(z.object({ layer: z.string(), totalM: z.number() })),
+  unitFactor: z.number(),
+});
+
+const chartDataSchema = z.object({
+  type: z.enum(["bar", "pie", "line"]).describe("Tipo de gráfica"),
+  title: z.string().describe("Título de la gráfica"),
+  data: z.array(z.object({
+    label: z.string(),
+    value: z.number(),
+  })).describe("Datos de la gráfica (máx 12 puntos para legibilidad)"),
+  unit: z.string().optional().describe("Unidad de los valores (ej. '%', '$', 'm²')"),
+});
+
+// ── Tool implementations ──────────────────────────────────────────────────────
 
 export const agentTools = {
   calcular_totales: tool({
@@ -98,18 +182,23 @@ export const agentTools = {
 
   detectar_exclusiones_logicas: tool({
     description:
-      "Encuentra inconsistencias estructurales en el presupuesto. Ejemplo: un ítem marcado como subcontratado que también declara mano de obra interna (doble contabilización). Úsalo en toda auditoría de calidad.",
+      "Encuentra inconsistencias estructurales en el presupuesto. Ejecuta 9 reglas: subcontrato+mano de obra, precio cero, total mal calculado, cantidad cero, códigos duplicados, ítems de porcentaje, valores negativos, precios redondos sospechosos, y outliers estadísticos de precio. Úsalo en toda auditoría.",
     inputSchema: detectarExclusionesInputSchema,
     execute: async (input: { items: BudgetItem[] }) => {
-      const exclusiones = detectarExclusionesLogicas(input.items);
+      const issues = detectarExclusionesLogicas(input.items);
+      const byseverity = {
+        error:   issues.filter((i) => i.severity === "error"),
+        warning: issues.filter((i) => i.severity === "warning"),
+        info:    issues.filter((i) => i.severity === "info"),
+      };
       return {
-        erroresEncontrados: exclusiones.length,
-        exclusiones,
-        ok: exclusiones.length === 0,
+        totalIssues: issues.length,
+        byseverity,
+        ok: issues.filter((i) => i.severity !== "info").length === 0,
         resumen:
-          exclusiones.length === 0
-            ? "✓ No se detectaron exclusiones lógicas en el presupuesto."
-            : `✗ Se encontraron ${exclusiones.length} ítem(s) con inconsistencias lógicas.`,
+          issues.length === 0
+            ? "✓ No se detectaron inconsistencias en el presupuesto."
+            : `Encontradas ${byseverity.error.length} errores, ${byseverity.warning.length} advertencias, ${byseverity.info.length} observaciones.`,
       };
     },
   }),
@@ -130,4 +219,141 @@ export const agentTools = {
       );
     },
   }),
+
+  analizar_geometria_plano: tool({
+    description:
+      "Analiza la geometría real de un plano DXF (áreas y longitudes por capa) y produce un cómputo métrico básico. Úsalo cuando el usuario sube un archivo DXF para extraer metros cuadrados de locales, perímetros de cerramientos, etc.",
+    inputSchema: z.object({
+      layers: z.array(z.string()).describe("Capas del plano"),
+      geometrySummary: geometrySummarySchema.describe("Resumen geométrico extraído del DXF"),
+    }),
+    execute: async (input: { layers: string[]; geometrySummary: DxfGeometrySummary }) => {
+      const { geometrySummary, layers } = input;
+
+      const quantityTakeoff = geometrySummary.areasByLayer.map((e) => ({
+        element: interpretLayerName(e.layer),
+        layer: e.layer,
+        qty: e.areaM2,
+        unit: "m²",
+      })).concat(
+        geometrySummary.linearByLayer.map((e) => ({
+          element: interpretLayerName(e.layer),
+          layer: e.layer,
+          qty: e.totalM,
+          unit: "ml",
+        }))
+      );
+
+      const hasGeometry = geometrySummary.totalAreaM2 > 0 || geometrySummary.totalLinearM > 0;
+
+      return {
+        hasGeometry,
+        totalAreaM2: geometrySummary.totalAreaM2,
+        totalLinearM: geometrySummary.totalLinearM,
+        unitFactor: geometrySummary.unitFactor,
+        unitDescription: geometrySummary.unitFactor === 1 ? "metros" : "milímetros (convertido a metros)",
+        quantityTakeoff,
+        layerCount: layers.length,
+        interpretation: hasGeometry
+          ? `Plano con ${geometrySummary.totalAreaM2.toFixed(2)} m² de área total en ${geometrySummary.areasByLayer.length} capa(s), y ${geometrySummary.totalLinearM.toFixed(2)} ml de elementos lineales.`
+          : "No se detectaron polígonos cerrados ni líneas con coordenadas. El plano puede contener solo bloques o símbolos sin geometría vectorial extraíble.",
+      };
+    },
+  }),
+
+  comparar_computo_con_plano: tool({
+    description:
+      "Cruza las cantidades declaradas en un presupuesto con las medidas reales extraídas del plano DXF. Detecta discrepancias entre lo que dice el presupuesto y lo que mide el plano.",
+    inputSchema: z.object({
+      budgetItems: z.array(z.object({
+        code: z.string(),
+        description: z.string(),
+        unit: z.string(),
+        quantity: z.number(),
+      })).describe("Ítems del presupuesto con sus cantidades"),
+      planGeometry: geometrySummarySchema.describe("Geometría extraída del plano DXF"),
+    }),
+    execute: async (input: {
+      budgetItems: { code: string; description: string; unit: string; quantity: number }[];
+      planGeometry: DxfGeometrySummary;
+    }) => {
+      const { budgetItems, planGeometry } = input;
+
+      const areaItems = budgetItems.filter((i) =>
+        ["m2", "m²", "M2", "M²"].includes(i.unit)
+      );
+      const linearItems = budgetItems.filter((i) =>
+        ["ml", "m", "ML", "M"].includes(i.unit)
+      );
+
+      const totalBudgetArea = areaItems.reduce((s, i) => s + i.quantity, 0);
+      const totalBudgetLinear = linearItems.reduce((s, i) => s + i.quantity, 0);
+
+      const areaDelta = planGeometry.totalAreaM2 > 0
+        ? totalBudgetArea - planGeometry.totalAreaM2
+        : null;
+      const linearDelta = planGeometry.totalLinearM > 0
+        ? totalBudgetLinear - planGeometry.totalLinearM
+        : null;
+
+      const discrepancies: string[] = [];
+      if (areaDelta !== null && Math.abs(areaDelta) / (planGeometry.totalAreaM2 || 1) > 0.05) {
+        discrepancies.push(
+          `Área: presupuesto declara ${totalBudgetArea.toFixed(2)} m², plano mide ${planGeometry.totalAreaM2.toFixed(2)} m² (diferencia: ${areaDelta > 0 ? "+" : ""}${areaDelta.toFixed(2)} m²)`
+        );
+      }
+      if (linearDelta !== null && Math.abs(linearDelta) / (planGeometry.totalLinearM || 1) > 0.05) {
+        discrepancies.push(
+          `Longitud: presupuesto declara ${totalBudgetLinear.toFixed(2)} ml, plano mide ${planGeometry.totalLinearM.toFixed(2)} ml (diferencia: ${linearDelta > 0 ? "+" : ""}${linearDelta.toFixed(2)} ml)`
+        );
+      }
+
+      const coveragePct = planGeometry.totalAreaM2 > 0
+        ? Math.round((totalBudgetArea / planGeometry.totalAreaM2) * 100)
+        : null;
+
+      return {
+        budgetAreaItems: areaItems.length,
+        budgetLinearItems: linearItems.length,
+        totalBudgetAreaM2: totalBudgetArea,
+        totalBudgetLinearM: totalBudgetLinear,
+        totalPlanAreaM2: planGeometry.totalAreaM2,
+        totalPlanLinearM: planGeometry.totalLinearM,
+        coveragePct,
+        discrepancies,
+        ok: discrepancies.length === 0,
+      };
+    },
+  }),
+
+  generar_grafica: tool({
+    description:
+      "Genera una gráfica animada con los datos especificados. Úsala para mostrar: incidencia de rubros (pie o bar), comparativa de precios (bar), evolución de costos (line). El frontend renderiza la gráfica automáticamente. Máximo 12 puntos de datos.",
+    inputSchema: chartDataSchema,
+    execute: async (input) => {
+      // The agent just returns the spec — frontend intercepts and renders it with Recharts.
+      return {
+        chartType: input.type,
+        title: input.title,
+        data: input.data.slice(0, 12),
+        unit: input.unit ?? "",
+        rendered: true,
+      };
+    },
+  }),
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function interpretLayerName(layer: string): string {
+  const lower = layer.toLowerCase();
+  if (lower.includes("muro") || lower.includes("wall") || lower.includes("pared")) return "Muros";
+  if (lower.includes("losa") || lower.includes("slab") || lower.includes("techo")) return "Losas/Techos";
+  if (lower.includes("piso") || lower.includes("floor")) return "Pisos";
+  if (lower.includes("local") || lower.includes("habitación") || lower.includes("room")) return "Locales";
+  if (lower.includes("viga") || lower.includes("beam")) return "Vigas";
+  if (lower.includes("column")) return "Columnas";
+  if (lower.includes("puerta") || lower.includes("door") || lower.includes("ventana") || lower.includes("window")) return "Aberturas";
+  if (lower.includes("exterior") || lower.includes("fachada")) return "Fachada/Exterior";
+  return layer;
+}
