@@ -61,6 +61,9 @@ export function buildSystemPrompt(ctx?: {
 **Para cruzar presupuesto y plano:**
 1. **comparar_computo_con_plano** → Detecta diferencias entre cantidades del presupuesto y geometría del plano.
 
+**Para mejorar el formato:**
+1. **sugerir_formato** → Compara el formato del presupuesto con el estándar del sector (datos anónimos de otras empresas).
+
 ## Flujo obligatorio — Excel
 1. calcular_totales → verificá costo directo real vs declarado.
 2. validar_cierre_de_total (si hay total) → detectá brechas.
@@ -383,6 +386,24 @@ export const agentTools = {
           score: Math.round(r.score * 100) / 100,
         })),
       };
+    },
+  }),
+
+  sugerir_formato: tool({
+    description:
+      "Sugiere mejoras de formato basadas en patrones aprendidos de otras empresas constructoras (datos anónimos). Úsalo cuando el usuario quiera saber si su formato de presupuesto es estándar, si le falta algún rubro típico del sector, o si sus precios están en el rango esperado. Requiere que la empresa haya subido al menos un Excel previamente.",
+    inputSchema: z.object({
+      documentType: z.enum(["excel", "pdf", "dxf", "docx"]).describe("Tipo de documento a comparar"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      currentPatterns: z.record(z.unknown()).optional().describe("Patrones del documento actual (price_ranges, column_aliases, etc.)"),
+    }),
+    execute: async (input: {
+      documentType: "excel" | "pdf" | "dxf" | "docx";
+      organizationId: string;
+      currentPatterns?: Record<string, unknown>;
+    }) => {
+      const { searchCrossCompanyPatterns } = await import("@/lib/pattern-extractor/benchmarks");
+      return searchCrossCompanyPatterns(input.documentType, input.organizationId, input.currentPatterns);
     },
   }),
 

@@ -139,21 +139,45 @@ async function persistPatternsAndIngest(
     // Ingest into RAG (Qdrant + document_chunks)
     void ingestDocument(processed, { organizationId: orgId, fileId });
 
-    // Pattern extraction + upsert
     const extracted = extractPatterns(processed);
     if (!extracted) return;
 
     const client = getInsForgeAdminClient();
+
+    // Fetch existing patterns for this org + document_type in one query
+    const existingResult = await client.database
+      .from("company_learned_patterns")
+      .select("id, pattern_key, sample_count")
+      .eq("organization_id", orgId)
+      .eq("document_type", extracted.documentType);
+
+    const existingMap = new Map(
+      ((existingResult.data ?? []) as { id: string; pattern_key: string; sample_count: number }[])
+        .map((row) => [row.pattern_key, row]),
+    );
+
     for (const [key, value] of Object.entries(extracted.patterns)) {
-      await client.database
-        .from("company_learned_patterns")
-        .upsert({
-          organization_id: orgId,
-          document_type: extracted.documentType,
-          pattern_key: key,
-          pattern_value: value,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "organization_id,document_type,pattern_key" });
+      const existing = existingMap.get(key);
+      if (existing) {
+        // Increment sample_count so confidence grows with each upload
+        await client.database
+          .from("company_learned_patterns")
+          .update({
+            pattern_value: value,
+            sample_count: existing.sample_count + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+      } else {
+        await client.database
+          .from("company_learned_patterns")
+          .insert({
+            organization_id: orgId,
+            document_type: extracted.documentType,
+            pattern_key: key,
+            pattern_value: value,
+          });
+      }
     }
   } catch {
     // Non-fatal

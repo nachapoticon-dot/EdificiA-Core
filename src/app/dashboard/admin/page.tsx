@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus, CheckCircle2 } from "lucide-react";
+import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus, CheckCircle2, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { getInsForgeClient } from "@/lib/insforge/client";
@@ -286,8 +286,15 @@ export default function AdminMembersPage() {
         </section>
       )}
 
-      {/* Link to settings */}
-      <div className="flex justify-end">
+      {/* Quick links */}
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          onClick={() => router.push("/dashboard/admin/patterns" as never)}
+          className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Brain className="h-4 w-4" />
+          Lo que EdificIA aprendió
+        </button>
         <button
           onClick={() => router.push("/dashboard/admin/settings")}
           className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
