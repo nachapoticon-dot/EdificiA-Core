@@ -32,8 +32,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Claude Code runtime
+# Claude Code runtime (settings.local.json tiene permisos aprobados — no versionar)
+.claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Scripts de debugging one-off (contienen datos de prueba, no van al repo)
+scripts/test-*.mjs
+scripts/test-*.js
 
 # Referencias legadas (binarios y scripts de auditoría, solo referencia histórica)
 _referencias_legadas/

@@ -2,19 +2,25 @@
  * Seed de demo: crea el usuario admin.
  * Uso: node scripts/seed-demo.mjs [email] [password]
  *
- * Ejemplo: node scripts/seed-demo.mjs pedro@tuempresa.com 123456
+ * Requiere variables de entorno (cargá desde .env.local):
+ *   NEXT_PUBLIC_INSFORGE_URL
+ *   INSFORGE_SERVICE_ROLE_KEY
  *
- * IMPORTANTE: InsForge requiere verificación de email.
- * Después de correr este script, revisá el inbox del email que pusiste
- * y hacé click en el link de verificación antes de intentar login.
+ * Ejemplo:
+ *   node --env-file=.env.local scripts/seed-demo.mjs pedro@tuempresa.com MiPassword123
  */
 import { createClient } from "@insforge/sdk";
 
-const BASE_URL    = "https://***INSFORGE_URL_REDACTED***";
-const SERVICE_KEY = "***INSFORGE_SERVICE_KEY_REDACTED***";
+const BASE_URL    = process.env.NEXT_PUBLIC_INSFORGE_URL;
+const SERVICE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY;
 
-const email    = process.argv[2] ?? "pedroluisfuentesprieto@gmail.com";
-const password = process.argv[3] ?? "123456";
+if (!BASE_URL || !SERVICE_KEY) {
+  console.error("✗ Faltan variables de entorno. Corré con: node --env-file=.env.local scripts/seed-demo.mjs");
+  process.exit(1);
+}
+
+const email    = process.argv[2] ?? "admin@tuempresa.com";
+const password = process.argv[3] ?? "cambiar-esto";
 const name     = "Admin Demo";
 
 if (password.length < 6) {
@@ -37,7 +43,6 @@ if (error) {
   const msg = (error.message ?? "").toLowerCase();
   if (msg.includes("already") || msg.includes("exists")) {
     console.log("El usuario ya existe. Intentá iniciar sesión directamente.");
-    console.log("Si da error de verificación, revisá tu inbox.");
   } else {
     console.error("✗ Error:", error.message);
     process.exit(1);
@@ -47,10 +52,9 @@ if (error) {
   console.log("\n⚠ PASO NECESARIO:");
   console.log(`  Revisá el inbox de ${email}`);
   console.log("  Hacé click en el link de verificación que te mandó InsForge.");
-  console.log("  Después de eso, ya podés iniciar sesión.\n");
 }
 
-console.log("Credenciales:");
+console.log("\nCredenciales:");
 console.log(`  URL:      http://localhost:3000/login`);
 console.log(`  Email:    ${email}`);
 console.log(`  Password: ${password}`);
