@@ -184,7 +184,7 @@ export default function ChatPage() {
       {/* Header */}
       <header className="flex items-center gap-2 border-b px-6 py-3.5">
         <Sparkles className="h-4 w-4 text-primary" />
-        <h1 className="text-sm font-semibold">Auditoría IA</h1>
+        <h1 className="text-sm font-semibold">Asistente de Obra</h1>
         <div className="ml-auto flex items-center gap-2">
           {messages.length > 0 && (
             <>

@@ -44,5 +44,13 @@ export function useSessionHistory() {
     window.dispatchEvent(new Event(UPDATE_EVENT));
   }, []);
 
-  return { sessions, clearAll };
+  const deleteSession = useCallback((id: string) => {
+    const updated = loadSessions().filter((s) => s.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    // Also remove the messages for that session
+    localStorage.removeItem(`edificia_messages_${id}`);
+    window.dispatchEvent(new Event(UPDATE_EVENT));
+  }, []);
+
+  return { sessions, clearAll, deleteSession };
 }

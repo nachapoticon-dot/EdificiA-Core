@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { FileSpreadsheet, FileText, FileCode2, FileType2, Image, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,7 +34,7 @@ interface Props {
 }
 
 export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect }: Props) {
-  const { sessions, clearAll } = useSessionHistory();
+  const { sessions, clearAll, deleteSession } = useSessionHistory();
 
   return (
     <div className="flex flex-col gap-1">
@@ -45,7 +46,7 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
         {sessions.length > 0 && (
           <button
             onClick={clearAll}
-            title="Limpiar historial"
+            title="Limpiar todo el historial"
             className="text-muted-foreground/50 hover:text-destructive transition-colors"
           >
             <Trash2 className="h-3 w-3" />
@@ -61,7 +62,7 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
         onClick={onNewSession}
       >
         <Plus className="h-3.5 w-3.5" />
-        Nueva auditoría
+        Nueva conversación
       </Button>
 
       {/* Session list */}
@@ -74,6 +75,12 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
                 entry={s}
                 isActive={s.id === currentSessionId}
                 onClick={() => onSessionSelect(s)}
+                onDelete={(e) => {
+                  e.stopPropagation();
+                  deleteSession(s.id);
+                  // If deleting the active session, start a new one
+                  if (s.id === currentSessionId) onNewSession();
+                }}
               />
             ))}
           </div>
@@ -87,18 +94,23 @@ function SessionItem({
   entry,
   isActive,
   onClick,
+  onDelete,
 }: {
   entry: SessionEntry;
   isActive: boolean;
   onClick: () => void;
+  onDelete: (e: React.MouseEvent) => void;
 }) {
   const Icon = entry.fileType ? FILE_ICONS[entry.fileType] : FileText;
+  const [hovered, setHovered] = useState(false);
 
   return (
     <button
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className={cn(
-        "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-xs transition-colors text-left",
+        "group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-xs transition-colors text-left",
         isActive
           ? "bg-accent text-accent-foreground"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -109,6 +121,17 @@ function SessionItem({
         <p className="truncate font-medium leading-tight">{entry.title}</p>
         <p className="text-[10px] opacity-60">{formatRelative(entry.startedAt)}</p>
       </div>
+      {/* Delete button — visible on hover */}
+      {hovered && (
+        <span
+          role="button"
+          onClick={onDelete}
+          className="shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+          title="Eliminar conversación"
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </span>
+      )}
     </button>
   );
 }
