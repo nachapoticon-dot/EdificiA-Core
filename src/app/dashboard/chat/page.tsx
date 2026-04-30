@@ -8,11 +8,12 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { DropZone } from "@/components/chat/DropZone";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
-import { Sparkles, Download } from "lucide-react";
+import { Sparkles, Download, Sheet } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
+import { exportAuditXlsx } from "@/lib/export/generate-xlsx";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
@@ -186,16 +187,28 @@ export default function ChatPage() {
         <h1 className="text-sm font-semibold">Auditoría IA</h1>
         <div className="ml-auto flex items-center gap-2">
           {messages.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-              onClick={() => exportAuditPdf(exportTitle, messages)}
-              title="Exportar auditoría a PDF"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar PDF
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => exportAuditXlsx(exportTitle, messages)}
+                title="Exportar auditoría a Excel"
+              >
+                <Sheet className="h-3.5 w-3.5" />
+                Exportar Excel
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => { void exportAuditPdf(exportTitle, messages); }}
+                title="Exportar auditoría a PDF"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Exportar PDF
+              </Button>
+            </>
           )}
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
             claude-sonnet-4-6

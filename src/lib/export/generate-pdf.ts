@@ -1,101 +1,324 @@
 import type { UIMessage } from "ai";
-import { markdownToHtml } from "./markdown-to-html";
+import type { BudgetItem } from "@/lib/math-engine/validators";
+
+interface ToolPart {
+  type: "tool-invocation";
+  toolInvocation: {
+    toolName: string;
+    input: Record<string, unknown>;
+    state: "call" | "result" | "partial-call";
+    output?: unknown;
+  };
+}
+
+interface TotalesOutput {
+  computedTotal: number;
+  declaredTotal: number | null;
+  difference: number | null;
+  lineTotals: number[];
+}
+
+interface Issue {
+  severity: "error" | "warning" | "info";
+  code: string;
+  itemCode?: string;
+  message: string;
+  value?: number;
+}
+
+interface ExclusionesOutput {
+  totalIssues: number;
+  byseverity: { error: Issue[]; warning: Issue[]; info: Issue[] };
+  ok: boolean;
+}
+
+function extractToolCalls(messages: UIMessage[]): Map<string, { input: Record<string, unknown>; output: unknown }[]> {
+  const calls = new Map<string, { input: Record<string, unknown>; output: unknown }[]>();
+  for (const msg of messages) {
+    if (msg.role !== "assistant") continue;
+    for (const part of msg.parts) {
+      const p = part as unknown as ToolPart;
+      if (p.type === "tool-invocation" && p.toolInvocation.state === "result") {
+        const name = p.toolInvocation.toolName;
+        if (!calls.has(name)) calls.set(name, []);
+        calls.get(name)!.push({ input: p.toolInvocation.input, output: p.toolInvocation.output });
+      }
+    }
+  }
+  return calls;
+}
 
 function getTextFromMessage(msg: UIMessage): string {
   return msg.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .filter((p): p is { type: "text"; text: string } => (p as { type: string }).type === "text")
     .map((p) => p.text)
     .join("\n");
 }
 
-export function exportAuditPdf(title: string, messages: UIMessage[]): void {
-  const now = new Date().toLocaleDateString("es-AR", {
-    day: "2-digit", month: "long", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+const COLORS = {
+  black: [24, 24, 27] as [number, number, number],
+  gray:  [113, 113, 122] as [number, number, number],
+  light: [244, 244, 245] as [number, number, number],
+  white: [255, 255, 255] as [number, number, number],
+  amber: [245, 158, 11] as [number, number, number],
+  red:   [239, 68, 68] as [number, number, number],
+  green: [34, 197, 94] as [number, number, number],
+};
 
-  const messagesHtml = messages
-    .map((msg) => {
-      const text = getTextFromMessage(msg);
-      if (!text.trim()) return "";
-      if (msg.role === "user") {
-        return `<div class="msg user"><span class="label">Auditor</span><p>${escapeHtml(text)}</p></div>`;
-      }
-      return `<div class="msg assistant"><span class="label">EdificIA</span>${markdownToHtml(text)}</div>`;
-    })
-    .filter(Boolean)
-    .join("\n");
+/**
+ * Generates and downloads a professional PDF audit report using jsPDF.
+ * No popup — direct browser download.
+ */
+export async function exportAuditPdf(title: string, messages: UIMessage[]): Promise<void> {
+  // Dynamic import to avoid SSR issues and keep initial bundle lean
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
 
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Auditoría EdificIA — ${escapeHtml(title)}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1a1a1a; background: #fff; }
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginL = 20;
+  const marginR = 20;
+  const contentW = pageW - marginL - marginR;
+  const now = new Date().toLocaleString("es-AR");
+  const safeTitle = title.replace(/[/\\?%*:|"<>]/g, "-");
 
-  header { border-bottom: 2px solid #1a1a1a; padding: 16px 32px 12px; display: flex; justify-content: space-between; align-items: flex-end; }
-  header .brand { font-size: 18pt; font-weight: 700; letter-spacing: -0.5px; }
-  header .brand span { color: #555; font-weight: 400; font-size: 10pt; }
-  header .meta { text-align: right; font-size: 9pt; color: #555; }
+  const toolCalls = extractToolCalls(messages);
+  const totalsCalls = toolCalls.get("calcular_totales") ?? [];
+  const exclusionCalls = toolCalls.get("detectar_exclusiones_logicas") ?? [];
+  const lastTotal = totalsCalls[totalsCalls.length - 1];
+  const lastExclusion = exclusionCalls[exclusionCalls.length - 1];
+  const totalesOutput = lastTotal?.output as TotalesOutput | undefined;
+  const exclusionesOutput = lastExclusion?.output as ExclusionesOutput | undefined;
 
-  .doc-title { padding: 20px 32px 8px; font-size: 14pt; font-weight: 700; }
-  .doc-subtitle { padding: 0 32px 20px; font-size: 9pt; color: #777; border-bottom: 1px solid #e5e5e5; }
+  let y = 0;
 
-  main { padding: 20px 32px; }
+  // ── Header band ───────────────────────────────────────────────────────────
+  doc.setFillColor(...COLORS.black);
+  doc.rect(0, 0, pageW, 28, "F");
 
-  .msg { margin-bottom: 16px; break-inside: avoid; }
-  .label { display: inline-block; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
-  .msg.user { padding: 10px 14px; background: #f5f5f5; border-radius: 6px; }
-  .msg.user p { color: #444; font-size: 10pt; }
-  .msg.assistant { padding: 10px 14px; border-left: 3px solid #1a1a1a; }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(...COLORS.white);
+  doc.text("EdificIA", marginL, 13);
 
-  h1 { font-size: 14pt; font-weight: 700; margin: 14px 0 6px; }
-  h2 { font-size: 12pt; font-weight: 700; margin: 12px 0 5px; }
-  h3 { font-size: 11pt; font-weight: 700; margin: 10px 0 4px; }
-  h4 { font-size: 10pt; font-weight: 700; margin: 8px 0 3px; }
-  p { line-height: 1.6; margin: 6px 0; }
-  ul, ol { padding-left: 20px; margin: 6px 0; }
-  li { line-height: 1.6; margin: 2px 0; }
-  strong { font-weight: 700; }
-  em { font-style: italic; }
-  code { font-family: 'Courier New', monospace; font-size: 9pt; background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }
-  pre { background: #f0f0f0; padding: 10px; border-radius: 4px; overflow: auto; margin: 8px 0; }
-  pre code { background: none; padding: 0; }
-  hr { border: none; border-top: 1px solid #e5e5e5; margin: 12px 0; }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.gray);
+  doc.text("Plataforma de auditoría para la construcción", marginL, 20);
 
-  footer { position: fixed; bottom: 0; left: 0; right: 0; padding: 8px 32px; border-top: 1px solid #e5e5e5; font-size: 8pt; color: #aaa; display: flex; justify-content: space-between; }
+  doc.setTextColor(...COLORS.gray);
+  doc.text(now, pageW - marginR, 13, { align: "right" });
 
-  @media print {
-    body { font-size: 10pt; }
-    footer { position: fixed; }
-    .msg { break-inside: avoid; }
+  // ── Title ────────────────────────────────────────────────────────────────
+  y = 38;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(...COLORS.black);
+  doc.text(title.slice(0, 60), marginL, y);
+
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.gray);
+  doc.text("Informe de auditoría generado automáticamente", marginL, y);
+
+  y += 3;
+  doc.setDrawColor(...COLORS.light);
+  doc.setLineWidth(0.5);
+  doc.line(marginL, y + 2, pageW - marginR, y + 2);
+  y += 8;
+
+  // ── KPI Summary box ───────────────────────────────────────────────────────
+  if (totalesOutput ?? exclusionesOutput) {
+    const kpis: { label: string; value: string; color: [number, number, number] }[] = [];
+
+    if (totalesOutput?.computedTotal != null) {
+      kpis.push({
+        label: "Costo directo calculado",
+        value: `$${Math.round(totalesOutput.computedTotal).toLocaleString("es-AR")}`,
+        color: COLORS.black,
+      });
+    }
+    if (totalesOutput?.difference != null && Math.abs(totalesOutput.difference) > 0) {
+      kpis.push({
+        label: "Brecha detectada",
+        value: `$${Math.round(Math.abs(totalesOutput.difference)).toLocaleString("es-AR")}`,
+        color: COLORS.red,
+      });
+    }
+    if (exclusionesOutput) {
+      const errorCount = exclusionesOutput.byseverity.error.length;
+      kpis.push({
+        label: "Errores críticos",
+        value: String(errorCount),
+        color: errorCount > 0 ? COLORS.red : COLORS.green,
+      });
+      kpis.push({
+        label: "Veredicto",
+        value: exclusionesOutput.ok ? "Aprobado" : "Requiere revisión",
+        color: exclusionesOutput.ok ? COLORS.green : COLORS.red,
+      });
+    }
+
+    if (kpis.length > 0) {
+      const boxW = contentW / kpis.length - 2;
+      kpis.forEach((kpi, i) => {
+        const bx = marginL + i * (boxW + 2);
+        doc.setFillColor(...COLORS.light);
+        doc.roundedRect(bx, y, boxW, 18, 2, 2, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.setTextColor(...kpi.color);
+        doc.text(kpi.value, bx + boxW / 2, y + 8, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...COLORS.gray);
+        doc.text(kpi.label, bx + boxW / 2, y + 14, { align: "center" });
+      });
+      y += 24;
+    }
   }
-</style>
-</head>
-<body>
-<header>
-  <div class="brand">EdificIA <span>Plataforma de Auditoría para la Construcción</span></div>
-  <div class="meta">${now}</div>
-</header>
-<div class="doc-title">${escapeHtml(title)}</div>
-<div class="doc-subtitle">Informe de auditoría generado automáticamente · EdificIA v0.5.2</div>
-<main>${messagesHtml}</main>
-<footer>
-  <span>EdificIA — Auditoría IA para la Construcción</span>
-  <span>${escapeHtml(title)} · ${now}</span>
-</footer>
-<script>window.onload = () => { window.print(); }</script>
-</body>
-</html>`;
 
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-}
+  // ── Items table ───────────────────────────────────────────────────────────
+  if (lastTotal) {
+    const items = (lastTotal.input.items as BudgetItem[]) ?? [];
+    const lineTotals = totalesOutput?.lineTotals ?? [];
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.black);
+    doc.text("Ítems del Presupuesto", marginL, y + 4);
+    y += 8;
+
+    const itemRows = items.map((item, i) => [
+      item.code,
+      item.description.slice(0, 55),
+      item.quantity.toLocaleString("es-AR"),
+      item.unit,
+      `$${item.unitPrice.toLocaleString("es-AR")}`,
+      `$${(lineTotals[i] ?? item.quantity * item.unitPrice).toLocaleString("es-AR")}`,
+    ]);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Código", "Descripción", "Cant.", "Unid.", "P. Unit.", "Total"]],
+      body: itemRows,
+      margin: { left: marginL, right: marginR },
+      styles: { fontSize: 7.5, cellPadding: 2 },
+      headStyles: { fillColor: COLORS.black, textColor: COLORS.white, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: "auto" },
+        2: { cellWidth: 14, halign: "right" },
+        3: { cellWidth: 12 },
+        4: { cellWidth: 24, halign: "right" },
+        5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+      },
+    });
+
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+  }
+
+  // ── Findings table ────────────────────────────────────────────────────────
+  if (lastExclusion && exclusionesOutput) {
+    const allIssues: Issue[] = [
+      ...exclusionesOutput.byseverity.error,
+      ...exclusionesOutput.byseverity.warning,
+      ...exclusionesOutput.byseverity.info,
+    ];
+
+    if (allIssues.length > 0) {
+      if (y > pageH - 60) { doc.addPage(); y = 20; }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...COLORS.black);
+      doc.text("Hallazgos de la Auditoría", marginL, y + 4);
+      y += 8;
+
+      const severityColor = (s: string): [number, number, number] =>
+        s === "error" ? COLORS.red : s === "warning" ? COLORS.amber : COLORS.gray;
+
+      autoTable(doc, {
+        startY: y,
+        head: [["Sev.", "Regla", "Ítem", "Descripción"]],
+        body: allIssues.map((issue) => [
+          issue.severity.toUpperCase(),
+          issue.code,
+          issue.itemCode ?? "-",
+          issue.message.slice(0, 100),
+        ]),
+        margin: { left: marginL, right: marginR },
+        styles: { fontSize: 7.5, cellPadding: 2 },
+        headStyles: { fillColor: COLORS.black, textColor: COLORS.white, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        columnStyles: {
+          0: { cellWidth: 16 },
+          1: { cellWidth: 28 },
+          2: { cellWidth: 18 },
+          3: { cellWidth: "auto" },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 0) {
+            const sev = allIssues[data.row.index]?.severity ?? "info";
+            data.cell.styles.textColor = severityColor(sev);
+            data.cell.styles.fontStyle = "bold";
+          }
+        },
+      });
+
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+    }
+  }
+
+  // ── Conversation fallback (no structured data) ────────────────────────────
+  if (!lastTotal && !lastExclusion) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.black);
+    doc.text("Conversación", marginL, y + 4);
+    y += 10;
+
+    for (const msg of messages) {
+      const text = getTextFromMessage(msg).trim();
+      if (!text) continue;
+
+      const label = msg.role === "user" ? "Usuario" : "EdificIA";
+      if (y > pageH - 30) { doc.addPage(); y = 20; }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...COLORS.gray);
+      doc.text(label.toUpperCase(), marginL, y);
+      y += 4;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...COLORS.black);
+      const lines = doc.splitTextToSize(text.slice(0, 600), contentW) as string[];
+      for (const line of lines) {
+        if (y > pageH - 20) { doc.addPage(); y = 20; }
+        doc.text(line, marginL, y);
+        y += 5;
+      }
+      y += 4;
+    }
+  }
+
+  // ── Footer on every page ──────────────────────────────────────────────────
+  const totalPages = (doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(...COLORS.light);
+    doc.rect(0, pageH - 10, pageW, 10, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...COLORS.gray);
+    doc.text("EdificIA — Auditoría IA para la Construcción", marginL, pageH - 3.5);
+    doc.text(`Pág. ${p} / ${totalPages}`, pageW - marginR, pageH - 3.5, { align: "right" });
+  }
+
+  doc.save(`Auditoria EdificIA — ${safeTitle}.pdf`);
 }
