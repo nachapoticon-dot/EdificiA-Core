@@ -40,7 +40,7 @@ export async function GET(
   if (!access) return Response.json({ messages: [] });
 
   const result = await client.database
-    .from("chat_messages")
+    .from("chat_snapshots")
     .select("messages")
     .eq("session_id", sessionId)
     .limit(1)
@@ -68,7 +68,7 @@ export async function PUT(
   const access = await verifySessionAccess(client, sessionId, userId);
   if (!access) return Response.json({ error: "Not found" }, { status: 404 });
 
-  await client.database.from("chat_messages").upsert(
+  await client.database.from("chat_snapshots").upsert(
     {
       session_id: sessionId,
       organization_id: access.orgId,
