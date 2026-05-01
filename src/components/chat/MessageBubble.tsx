@@ -38,6 +38,7 @@ const TOOL_LABELS: Record<string, string> = {
   reportar_hallazgo:               "Registrando hallazgo",
   comparar_presupuestos:           "Generando tabla comparativa",
   analizar_estado_obra:            "Analizando estado documental de la obra",
+  comparar_con_indices:            "Comparando precios con índices de mercado",
 };
 
 const SPECIAL_TOOLS = new Set([

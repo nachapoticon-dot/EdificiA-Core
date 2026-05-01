@@ -91,6 +91,9 @@ Cuando el usuario pide generar un presupuesto, planilla, tabla o memoria descrip
 **Para mejorar el formato:**
 1. **sugerir_formato** → Compara el formato del presupuesto con el estándar del sector (datos anónimos de otras empresas).
 
+**Para validar precios contra índices de mercado:**
+1. **comparar_con_indices** → Cruza precios del presupuesto con los índices de la empresa, CAC e INDEC. Mostrá siempre las tres capas disponibles.
+
 ## Flujo obligatorio — Excel
 1. calcular_totales → verificá costo directo real vs declarado.
 2. validar_cierre_de_total (si hay total) → detectá brechas.
@@ -132,7 +135,8 @@ Cuando tengas dos conjuntos de datos, usa **comparar_presupuestos** en vez de li
 2. SIEMPRE usá las herramientas matemáticas. Nunca calcules mentalmente.
 3. El motor es agnóstico: no existe "un solo valor correcto" de incidencia. Vos analizás en contexto.
 4. Cuando detectés una "Fuga de Rentabilidad", cuantificala en pesos.
-5. La base documental es sagrada: NUNCA la modifiques sin confirmación explícita del usuario.`;
+5. La base documental es sagrada: NUNCA la modifiques sin confirmación explícita del usuario.
+6. Los índices de precio son registros históricos inmutables. NUNCA podés modificarlos, reemplazarlos ni eliminarlos. Si el usuario pide corregir un precio, decile que debe subir la versión nueva desde el panel de administración — el sistema resuelve la precedencia por fecha automáticamente. Tus herramientas de índices son SOLO de lectura y comparación.`;
 }
 
 /** Formats learned patterns into a readable context block. */
@@ -562,6 +566,58 @@ export const agentTools = {
           redactor:  input.redactor,
         },
         organizationId: input.organizationId,
+      };
+    },
+  }),
+
+  comparar_con_indices: tool({
+    description:
+      "Compara los precios del presupuesto actual con los índices de referencia disponibles: lista de precios propia de la empresa, índice CAC e índice INDEC. Agrupa los ítems por categoría de obra y detecta desviaciones significativas. Úsalo cuando el usuario pregunte si los precios son correctos, están actualizados o en línea con el mercado.",
+    inputSchema: z.object({
+      items: z.array(z.object({
+        code:        z.string(),
+        description: z.string(),
+        unit:        z.string(),
+        unitPrice:   z.number(),
+        quantity:    z.number(),
+      })).describe("Ítems del presupuesto a comparar"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const { compareItemsWithIndices } = await import("@/lib/indices/compare");
+      const comparisons = await compareItemsWithIndices(input.items, input.organizationId);
+
+      if (comparisons.length === 0) {
+        return {
+          found: false,
+          message: "No hay índices de referencia cargados para las categorías de este presupuesto. Podés cargar listas de precios desde el panel de Administración → Índices de Precio.",
+          comparisons: [],
+        };
+      }
+
+      const hasAlerts = comparisons.some(c => c.alert === "over" || c.alert === "under");
+      const overCount = comparisons.filter(c => c.alert === "over").length;
+      const underCount = comparisons.filter(c => c.alert === "under").length;
+
+      return {
+        found: true,
+        categoryCount: comparisons.length,
+        hasAlerts,
+        overCount,
+        underCount,
+        comparisons: comparisons.map(c => ({
+          category:       c.categoryLabel,
+          itemCount:      c.itemCount,
+          avgBudgetPrice: c.avgBudgetPrice,
+          companyRef:     c.companyIndex ? { avg: c.companyIndex.value_avg, source: c.companyIndex.source, period: `${c.companyIndex.period_month ?? "?"}/${c.companyIndex.period_year}` } : null,
+          cacRef:         c.cacIndex     ? { avg: c.cacIndex.value_avg,     period: `${c.cacIndex.period_month ?? "?"}/${c.cacIndex.period_year}` }     : null,
+          indecRef:       c.indecIndex   ? { avg: c.indecIndex.value_avg,   period: `${c.indecIndex.period_month ?? "?"}/${c.indecIndex.period_year}` } : null,
+          deviationPct:   c.deviationPct,
+          alert:          c.alert,
+        })),
+        summary: hasAlerts
+          ? `${overCount > 0 ? `${overCount} categoría(s) con precios por encima del índice de referencia` : ""}${overCount > 0 && underCount > 0 ? " y " : ""}${underCount > 0 ? `${underCount} categoría(s) por debajo` : ""}. Revisá las categorías marcadas.`
+          : "Todos los precios están dentro del rango de referencia (±15%).",
       };
     },
   }),
