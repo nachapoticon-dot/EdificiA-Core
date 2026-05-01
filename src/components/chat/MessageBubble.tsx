@@ -15,6 +15,7 @@ import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard"
 import { FindingCallout, type FindingSpec } from "./FindingCallout";
 import { ComparisonTable, type ComparisonTableSpec } from "./ComparisonTable";
 import { GeneratedDocCard, type DocGenerationProposal } from "./GeneratedDocCard";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -52,8 +53,8 @@ const SPECIAL_TOOLS = new Set([
 ]);
 
 /* ── Segment types for the grouped renderer ── */
-type TextSegment  = { kind: "text";  part: UIMessagePart<UIDataTypes, UITools> };
-type SpecialSegment = { kind: "special"; part: UIMessagePart<UIDataTypes, UITools> };
+type TextSegment     = { kind: "text";       part: UIMessagePart<UIDataTypes, UITools> };
+type SpecialSegment  = { kind: "special";    part: UIMessagePart<UIDataTypes, UITools> };
 type ToolGroupSegment = { kind: "tool-group"; parts: UIMessagePart<UIDataTypes, UITools>[] };
 
 type Segment = TextSegment | SpecialSegment | ToolGroupSegment;
@@ -76,7 +77,6 @@ function buildSegments(parts: UIMessagePart<UIDataTypes, UITools>[]): Segment[] 
         continue;
       }
 
-      // Regular tool → append to last tool-group or create one
       const last = segments[segments.length - 1];
       if (last?.kind === "tool-group") {
         last.parts.push(part);
@@ -112,12 +112,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
         {segments.map((seg, i) => {
           if (seg.kind === "text") {
-            return <TextPart key={i} part={seg.part} isUser={isUser} />;
+            return (
+              <ErrorBoundary key={i}>
+                <TextPart part={seg.part} isUser={isUser} />
+              </ErrorBoundary>
+            );
           }
           if (seg.kind === "special") {
-            return <SpecialToolPart key={i} part={seg.part} />;
+            const toolName = (seg.part as { toolName?: string }).toolName ?? "";
+            return (
+              <ErrorBoundary key={i} label={TOOL_LABELS[toolName] ?? toolName}>
+                <SpecialToolPart part={seg.part} />
+              </ErrorBoundary>
+            );
           }
-          return <ToolGroupCard key={i} parts={seg.parts} />;
+          return (
+            <ErrorBoundary key={i} label="herramientas">
+              <ToolGroupCard parts={seg.parts} />
+            </ErrorBoundary>
+          );
         })}
       </div>
     </div>
@@ -148,7 +161,7 @@ function TextPart({
   );
 }
 
-/* ── Special tool parts (chart / document proposal) ── */
+/* ── Special tool parts (chart / document proposal / etc.) ── */
 
 function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
   if (!isToolUIPart(part)) return null;
@@ -181,7 +194,9 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
   }
 
   if (
-    (toolName === "generar_presupuesto_excel" || toolName === "generar_memoria_descriptiva" || toolName === "generar_informe_pdf") &&
+    (toolName === "generar_presupuesto_excel" ||
+      toolName === "generar_memoria_descriptiva" ||
+      toolName === "generar_informe_pdf") &&
     !isPending &&
     toolPart.output
   ) {
