@@ -19,7 +19,7 @@ import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
 import { useProjectContext } from "@/contexts/ProjectContext";
-import { saveMessages, loadMessages } from "@/hooks/useMessageHistory";
+import { saveMessages, loadMessages, fetchRemoteMessages } from "@/hooks/useMessageHistory";
 
 type AttachedFile = ProcessedFile & { fileId: string | null };
 
@@ -68,13 +68,24 @@ export default function ChatPage() {
 
   // Restore messages when session switches
   useEffect(() => {
-    setMessages(loadMessages(sessionId));
+    const local = loadMessages(sessionId);
+    setMessages(local);
     setPending((prev) => {
       if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
       return null;
     });
     setUploadError(null);
     setShowDxfViewer(false);
+
+    // If localStorage has nothing, try fetching from DB (cross-device access)
+    if (local.length === 0) {
+      void fetchRemoteMessages(sessionId).then((remote) => {
+        if (remote.length > 0) {
+          setMessages(remote);
+          saveMessages(sessionId, remote); // populate local cache
+        }
+      });
+    }
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save after each completed AI response
