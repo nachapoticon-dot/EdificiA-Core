@@ -45,8 +45,9 @@ export default function ChatPage() {
         const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
         const headers: Record<string, string> = {};
         if (allHeaders.Authorization) headers.Authorization = allHeaders.Authorization;
-        const projectName = activeProjectRef.current?.name;
-        if (projectName) headers["x-project-name"] = projectName;
+        const project = activeProjectRef.current;
+        if (project?.name) headers["x-project-name"] = project.name;
+        if (project?.id)   headers["x-project-id"]   = project.id;
         return headers;
       },
     }),
@@ -106,7 +107,11 @@ export default function ChatPage() {
     try {
       const { getInsForgeClient } = await import("@/lib/insforge/client");
       const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
-      const uploadHeaders: HeadersInit = allHeaders.Authorization ? { Authorization: allHeaders.Authorization } : {};
+      const uploadHeaders: Record<string, string> = allHeaders.Authorization
+        ? { Authorization: allHeaders.Authorization }
+        : {};
+      const activeProject = activeProjectRef.current;
+      if (activeProject?.id) uploadHeaders["x-project-id"] = activeProject.id;
       const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
       const data = await res.json() as Record<string, unknown>;
 

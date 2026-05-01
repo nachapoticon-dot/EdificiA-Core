@@ -7,6 +7,7 @@ import type { ProcessedFile } from "@/lib/file-processor/types";
 interface IngestOptions {
   organizationId: string;
   fileId: string | null;
+  projectId?: string | null;
   accessToken?: string;
 }
 
@@ -77,6 +78,7 @@ export async function ingestDocument(
                 vector: embeddings[i]!,
                 payload: {
                   org_id: opts.organizationId,
+                  project_id: opts.projectId ?? null,
                   file_id: opts.fileId,
                   file_name: file.fileName,
                   document_type: documentType,
@@ -103,6 +105,7 @@ export async function ingestDocument(
 
     const rows = chunks.map((chunk, i) => ({
       organization_id: opts.organizationId,
+      project_id: opts.projectId ?? null,
       file_id: opts.fileId,
       file_name: file.fileName,
       document_type: documentType,

@@ -14,8 +14,9 @@ export async function POST(req: Request) {
 
   // Active project sent by the client (selected in the UI, stored in localStorage)
   const projectName = req.headers.get("x-project-name") ?? undefined;
+  const projectId   = req.headers.get("x-project-id")   ?? undefined;
 
-  const systemPrompt = await resolveSystemPrompt(accessToken, projectName);
+  const systemPrompt = await resolveSystemPrompt(accessToken, projectName, projectId);
 
   const result = streamText({
     model: anthropic(AI_MODEL),
@@ -44,8 +45,8 @@ function decodeUserId(jwt: string): string | null {
   }
 }
 
-async function resolveSystemPrompt(accessToken: string | null, projectName?: string): Promise<string> {
-  if (!accessToken) return buildSystemPrompt({ projectName });
+async function resolveSystemPrompt(accessToken: string | null, projectName?: string, projectId?: string): Promise<string> {
+  if (!accessToken) return buildSystemPrompt({ projectName, projectId });
 
   const userId = decodeUserId(accessToken);
   if (!userId) return buildSystemPrompt();
@@ -96,6 +97,7 @@ async function resolveSystemPrompt(accessToken: string | null, projectName?: str
       organizationId: orgId,
       learnedPatterns: Object.keys(learnedPatterns).length > 0 ? learnedPatterns : undefined,
       projectName,
+      projectId,
     });
   } catch {
     return buildSystemPrompt();

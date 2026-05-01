@@ -13,6 +13,7 @@ export interface SearchResult {
 
 interface SearchOptions {
   organizationId: string;
+  projectId?: string;
   topK?: number;
 }
 
@@ -35,12 +36,17 @@ export async function searchDocuments(
     const embedding = await embedText(query);
     if (embedding) {
       try {
+        const mustClauses: object[] = [
+          { key: "org_id", match: { value: opts.organizationId } },
+        ];
+        if (opts.projectId) {
+          mustClauses.push({ key: "project_id", match: { value: opts.projectId } });
+        }
+
         const results = await getQdrantClient().search(COLLECTION_NAME, {
           vector: embedding,
           limit: topK,
-          filter: {
-            must: [{ key: "org_id", match: { value: opts.organizationId } }],
-          },
+          filter: { must: mustClauses },
           with_payload: true,
         });
 
@@ -63,25 +69,29 @@ export async function searchDocuments(
   }
 
   // Text search fallback (PostgreSQL)
-  return textSearchFallback(query, opts.organizationId, topK);
+  return textSearchFallback(query, opts.organizationId, topK, opts.projectId);
 }
 
 async function textSearchFallback(
   query: string,
   organizationId: string,
   topK: number,
+  projectId?: string,
 ): Promise<SearchResult[]> {
   const client = getInsForgeAdminClient();
+  const cols = "file_id, file_name, document_type, chunk_text, metadata";
 
   // Full-text search
   try {
     const ftsQuery = query.trim().split(/\s+/).map((w) => w + ":*").join(" & ");
-    const ftsResult = await client.database
+    let q = client.database
       .from("document_chunks")
-      .select("file_id, file_name, document_type, chunk_text, metadata")
+      .select(cols)
       .eq("organization_id", organizationId)
       .textSearch("chunk_text", ftsQuery, { config: "spanish" })
       .limit(topK);
+    if (projectId) q = q.eq("project_id", projectId);
+    const ftsResult = await q;
 
     if (ftsResult.data && ftsResult.data.length > 0) {
       return (ftsResult.data as RawChunk[]).map((r, i) => ({
@@ -99,12 +109,14 @@ async function textSearchFallback(
 
   // ILIKE fallback
   try {
-    const ilikeResult = await client.database
+    let q = client.database
       .from("document_chunks")
-      .select("file_id, file_name, document_type, chunk_text, metadata")
+      .select(cols)
       .eq("organization_id", organizationId)
       .ilike("chunk_text", `%${query.slice(0, 100)}%`)
       .limit(topK);
+    if (projectId) q = q.eq("project_id", projectId);
+    const ilikeResult = await q;
 
     return ((ilikeResult.data ?? []) as RawChunk[]).map((r, i) => ({
       fileId: r.file_id ?? null,

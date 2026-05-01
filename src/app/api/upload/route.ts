@@ -41,6 +41,9 @@ export async function POST(req: Request) {
   const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   const userId = accessToken ? decodeUserId(accessToken) : null;
 
+  // Active project — scopes the file and its chunks to this obra
+  const projectId = req.headers.get("x-project-id") ?? null;
+
   // Get org membership (best-effort — upload still works without it for local dev)
   let orgId: string | null = null;
   if (userId) {
@@ -90,6 +93,7 @@ export async function POST(req: Request) {
         .from("uploaded_files")
         .insert({
           organization_id: orgId,
+          project_id: projectId,
           uploaded_by: userId,
           file_name: file.name,
           file_type: fileTypeForDb,
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
 
   // Patterns + RAG ingest (best-effort, non-fatal)
   if (orgId) {
-    void persistPatternsAndIngest(processed, userId, orgId, fileId);
+    void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
   }
 
   return Response.json({ ...processed, fileId });
@@ -134,10 +138,11 @@ async function persistPatternsAndIngest(
   userId: string | null,
   orgId: string,
   fileId: string | null,
+  projectId: string | null,
 ): Promise<void> {
   try {
     // Ingest into RAG (Qdrant + document_chunks)
-    void ingestDocument(processed, { organizationId: orgId, fileId });
+    void ingestDocument(processed, { organizationId: orgId, fileId, projectId });
 
     const extracted = extractPatterns(processed);
     if (!extracted) return;

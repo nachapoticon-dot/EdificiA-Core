@@ -29,6 +29,8 @@ export function buildSystemPrompt(ctx?: {
   learnedPatterns?: Record<string, unknown>;
   /** Active project selected by the user in the UI. */
   projectName?: string;
+  /** UUID of the active project — pass to buscar_en_base_documental for scoped search. */
+  projectId?: string;
 }): string {
   const agentName = ctx?.agentName ?? "EdificIA";
   const companyName = ctx?.companyName;
@@ -46,11 +48,15 @@ export function buildSystemPrompt(ctx?: {
     ? `\n\n**ID de organización activa**: \`${ctx.organizationId}\` — usá este valor exacto en el campo \`organizationId\` de las herramientas \`buscar_en_base_documental\`, \`sugerir_formato\` y \`generar_archivo\`.`
     : "";
 
+  const projectIdSection = ctx?.projectId
+    ? `\n**ID del proyecto activo**: \`${ctx.projectId}\` — pasá este valor en el campo \`projectId\` de \`buscar_en_base_documental\` para limitar la búsqueda a los archivos de esta obra.`
+    : "";
+
   const patternsSection = ctx?.learnedPatterns
     ? `\n## Patrones aprendidos de esta empresa\n${formatLearnedPatterns(ctx.learnedPatterns)}`
     : "";
 
-  return `Sos ${agentName}, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.${companySection}${projectSection}${orgIdSection}${patternsSection}
+  return `Sos ${agentName}, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.${companySection}${projectSection}${orgIdSection}${projectIdSection}${patternsSection}
 
 ## Tu estilo de trabajo
 - Sos preciso y directo. Los ingenieros no quieren rodeos.
@@ -371,13 +377,15 @@ export const agentTools = {
     inputSchema: z.object({
       query: z.string().describe("Consulta de búsqueda en lenguaje natural"),
       organizationId: z.string().describe("ID de la organización activa"),
+      projectId: z.string().optional().describe("ID del proyecto activo — limita la búsqueda a documentos de esa obra"),
       topK: z.number().int().min(1).max(10).optional().describe("Cantidad de resultados (default 5)"),
     }),
-    execute: async (input: { query: string; organizationId: string; topK?: number }) => {
+    execute: async (input: { query: string; organizationId: string; projectId?: string; topK?: number }) => {
       // Dynamic import to avoid bundling server-only code in edge runtime
       const { searchDocuments } = await import("@/lib/rag/search");
       const results = await searchDocuments(input.query, {
         organizationId: input.organizationId,
+        projectId: input.projectId,
         topK: input.topK ?? 5,
       });
 
