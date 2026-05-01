@@ -20,6 +20,7 @@ export interface ProjectCoverageResult {
   emptyPhases: number;
   overallPct: number;
   nextSuggestion: string | null;
+  docCount: number;
 }
 
 interface PhaseDocRow {
@@ -34,13 +35,21 @@ export async function getCoverageForProject(
 ): Promise<ProjectCoverageResult> {
   const client = getInsForgeAdminClient();
 
-  const result = await client.database
-    .from("project_phase_docs")
-    .select("phase_key, doc_type, file_name")
-    .eq("project_id", projectId)
-    .eq("organization_id", organizationId);
+  const [phaseResult, fileCountResult] = await Promise.all([
+    client.database
+      .from("project_phase_docs")
+      .select("phase_key, doc_type, file_name")
+      .eq("project_id", projectId)
+      .eq("organization_id", organizationId),
+    client.database
+      .from("uploaded_files")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("organization_id", organizationId),
+  ]);
 
-  const rows = (result.data ?? []) as PhaseDocRow[];
+  const rows = (phaseResult.data ?? []) as PhaseDocRow[];
+  const docCount = fileCountResult.count ?? 0;
 
   // Build a map: phase_key → Set of covered doc_types
   const covered = new Map<string, Set<string>>();
@@ -94,5 +103,6 @@ export async function getCoverageForProject(
     emptyPhases,
     overallPct,
     nextSuggestion,
+    docCount,
   };
 }

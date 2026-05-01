@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { MessageSquare, Database } from "lucide-react";
+import { MessageSquare, Database, Building2 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
@@ -39,6 +39,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               >
                 <MessageSquare className="h-3.5 w-3.5" />
                 Asistente de Obra
+              </Link>
+              <Link
+                href={{ pathname: "/dashboard/obras" }}
+                className="flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                Mis Obras
               </Link>
               <Link
                 href={{ pathname: "/dashboard/documents" }}
