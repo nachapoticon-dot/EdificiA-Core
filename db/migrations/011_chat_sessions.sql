@@ -32,24 +32,5 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_started_at
   ON chat_sessions(started_at DESC)
   WHERE deleted_at IS NULL;
 
--- RLS
-ALTER TABLE chat_sessions  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_snapshots ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "chat_sessions_org_access"
-  ON chat_sessions FOR ALL
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
-    )
-  );
-
-CREATE POLICY "chat_snapshots_org_access"
-  ON chat_snapshots FOR ALL
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
-    )
-  );
+-- Access control is enforced at the API layer (admin client, server-side).
+-- RLS can be added later once the schema stabilizes.
