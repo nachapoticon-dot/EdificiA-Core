@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Building2, MessageSquare, Shield } from "lucide-react";
+import { MessageSquare, Database } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { DashboardSidebar } from "@/components/chat/DashboardSidebar";
@@ -13,26 +13,42 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Sidebar */}
         <aside className="flex w-60 shrink-0 flex-col border-r bg-card">
-          {/* Logo */}
+
+          {/* Brand block */}
           <div className="flex items-center gap-2.5 border-b px-4 py-4">
-            <Building2 className="h-5 w-5 text-primary" />
-            <span className="text-sm font-semibold tracking-tight">EdificIA</span>
+            {/* "E" mark — terracotta square, Fraunces italic */}
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-primary text-primary-foreground">
+              <span className="font-display text-[15px] font-semibold italic leading-none select-none">E</span>
+            </div>
+            <div className="flex flex-col leading-tight">
+              <span className="font-display text-[15px] font-medium tracking-[-0.01em]">EdificIA</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.05em] text-muted-foreground">
+                v0.6 · construcción
+              </span>
+            </div>
           </div>
 
           {/* Nav */}
           <nav className="space-y-0.5 p-2">
             <Link
               href={{ pathname: "/dashboard/chat" }}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <MessageSquare className="h-4 w-4" />
-              Auditoría IA
+              <MessageSquare className="h-3.5 w-3.5" />
+              Asistente de Obra
+            </Link>
+            <Link
+              href={{ pathname: "/dashboard/documents" }}
+              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Database className="h-3.5 w-3.5" />
+              Base Documental
             </Link>
             {/* Admin link — only visible when role === 'admin' */}
             <AdminNavLink />
           </nav>
 
-          {/* Session history — client component */}
+          {/* Session history */}
           <div className="flex-1 overflow-hidden border-t py-2">
             <DashboardSidebar />
           </div>
@@ -41,7 +57,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-2 border-t px-3 py-3">
             <UserMenu />
             <div className="flex items-center justify-between px-1">
-              <p className="text-[10px] text-muted-foreground">EdificIA · v0.6.0</p>
+              <p className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">EdificIA · v0.6</p>
               <ThemeToggle />
             </div>
           </div>

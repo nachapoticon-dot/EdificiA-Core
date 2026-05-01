@@ -9,7 +9,7 @@ import {
   type UITools,
 } from "ai";
 import { cn } from "@/lib/utils";
-import { Bot, User, Wrench, CheckCircle2, Loader2 } from "lucide-react";
+import { Wrench, CheckCircle2, Loader2 } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./ChartBlock";
 import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
 
@@ -21,34 +21,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   return (
-    <div
-      className={cn(
-        "flex gap-3 px-4 py-3",
-        isUser ? "justify-end" : "justify-start",
-      )}
-    >
+    <div className={cn("flex gap-3 px-6 py-3", isUser ? "justify-end" : "justify-start")}>
+      {/* Agent avatar — square terracotta, Fraunces italic "E" */}
       {!isUser && (
-        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <Bot className="h-4 w-4" />
+        <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-primary text-primary-foreground">
+          <span className="font-display text-[13px] font-semibold italic leading-none select-none">E</span>
         </div>
       )}
 
-      <div
-        className={cn(
-          "flex max-w-[75%] flex-col gap-2",
-          isUser ? "items-end" : "items-start",
-        )}
-      >
+      <div className={cn("flex max-w-[75%] flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
+        {/* Timestamp */}
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {isUser ? "vos" : "EdificIA"} · {formatTime()}
+        </span>
+
         {message.parts.map((part, i) => (
           <MessagePart key={i} part={part} isUser={isUser} />
         ))}
       </div>
-
-      {isUser && (
-        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-          <User className="h-4 w-4" />
-        </div>
-      )}
     </div>
   );
 }
@@ -64,10 +54,10 @@ function MessagePart({
     return (
       <div
         className={cn(
-          "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
+          "px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
           isUser
-            ? "bg-primary text-primary-foreground rounded-br-sm"
-            : "bg-muted text-foreground rounded-bl-sm",
+            ? "bg-foreground text-background rounded-[12px_12px_2px_12px]"
+            : "bg-card border border-border text-foreground rounded-[2px_12px_12px_12px]",
         )}
       >
         {part.text}
@@ -80,7 +70,7 @@ function MessagePart({
     const toolName = toolPart.toolName ?? "herramienta";
     const isPending = toolPart.state === "call" || toolPart.state === "partial-call";
 
-    // generar_grafica: render a full chart instead of a pill
+    // generar_grafica → full inline chart
     if (toolName === "generar_grafica" && !isPending && toolPart.output) {
       const spec = toolPart.output as ChartSpec;
       if (spec.data?.length > 0) {
@@ -88,7 +78,7 @@ function MessagePart({
       }
     }
 
-    // generar_archivo: render an approval card — user must confirm before saving
+    // generar_archivo → approval card
     if (toolName === "generar_archivo" && !isPending && toolPart.output) {
       const output = toolPart.output as Record<string, unknown>;
       if (output.type === "file_proposal") {
@@ -102,11 +92,7 @@ function MessagePart({
         return (
           <DocumentProposalCard
             proposal={proposal}
-            onDecision={(accepted, name) => {
-              // Decision is self-contained in the card — no parent state needed
-              void accepted;
-              void name;
-            }}
+            onDecision={(accepted, name) => { void accepted; void name; }}
           />
         );
       }
@@ -115,7 +101,7 @@ function MessagePart({
     const labels: Record<string, string> = {
       calcular_totales:                "Calculando totales del presupuesto",
       validar_cierre_de_total:         "Validando cierre de totales",
-      detectar_exclusiones_logicas:    "Detectando inconsistencias (9 reglas)",
+      detectar_exclusiones_logicas:    "Detectando inconsistencias · 9 reglas",
       calcular_incidencia_de_subgrupo: "Calculando incidencia del subgrupo",
       analizar_geometria_plano:        "Analizando geometría del plano",
       comparar_computo_con_plano:      "Comparando presupuesto con plano",
@@ -125,21 +111,40 @@ function MessagePart({
       generar_archivo:                 "Generando archivo",
     };
 
+    /* Tool timeline row — left-border indented card */
     return (
-      <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs text-muted-foreground">
-        {isPending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-        ) : (
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-        )}
-        <Wrench className="h-3.5 w-3.5" />
-        <span>{labels[toolName] ?? toolName}</span>
-        {!isPending && (
-          <span className="text-green-600 font-medium">listo</span>
-        )}
+      <div className="w-full rounded-[10px] border border-border bg-card overflow-hidden">
+        <div
+          className={cn(
+            "flex items-center gap-3 px-3.5 py-2.5 text-xs border-l-2",
+            isPending ? "border-l-primary/60" : "border-l-[var(--ok)]",
+          )}
+        >
+          <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+            {isPending ? (
+              <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5 text-[oklch(0.62_0.13_145)]" />
+            )}
+          </div>
+          <Wrench className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span className="font-mono text-[11px] text-foreground">{toolName}</span>
+          <span className="flex-1 text-[11px] text-muted-foreground">
+            · {labels[toolName] ?? toolName}
+          </span>
+          {isPending ? (
+            <span className="font-mono text-[10px] text-primary eb-pulse">en curso…</span>
+          ) : (
+            <span className="font-mono text-[10px] text-muted-foreground">listo</span>
+          )}
+        </div>
       </div>
     );
   }
 
   return null;
+}
+
+function formatTime() {
+  return new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }

@@ -182,35 +182,42 @@ export default function ChatPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <header className="flex items-center gap-2 border-b px-6 py-3.5">
-        <Sparkles className="h-4 w-4 text-primary" />
-        <h1 className="text-sm font-semibold">Asistente de Obra</h1>
-        <div className="ml-auto flex items-center gap-2">
+      <header className="flex items-center gap-2 border-b bg-card px-6 py-3">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
+        {isStreaming && (
+          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
+            <span className="eb-pulse h-1.5 w-1.5 rounded-full bg-primary" />
+            auditando…
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-1.5">
           {messages.length > 0 && (
             <>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                className="h-7 gap-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground"
                 onClick={() => exportAuditXlsx(exportTitle, messages)}
                 title="Exportar auditoría a Excel"
               >
-                <Sheet className="h-3.5 w-3.5" />
-                Exportar Excel
+                <Sheet className="h-3 w-3" />
+                XLSX
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                className="h-7 gap-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground"
                 onClick={() => { void exportAuditPdf(exportTitle, messages); }}
                 title="Exportar auditoría a PDF"
               >
-                <Download className="h-3.5 w-3.5" />
-                Exportar PDF
+                <Download className="h-3 w-3" />
+                PDF
               </Button>
+              <span className="h-4 w-px bg-border" />
             </>
           )}
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+          <span className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
             claude-sonnet-4-6
           </span>
         </div>
@@ -245,9 +252,9 @@ export default function ChatPage() {
       )}
 
       {/* Input area */}
-      <div className="border-t bg-background px-4 py-3">
+      <div className="border-t bg-background px-6 py-4">
         {uploadError && (
-          <p className="mb-2 text-xs text-destructive">{uploadError}</p>
+          <p className="mb-2 max-w-[720px] mx-auto text-xs text-destructive">{uploadError}</p>
         )}
         <ChatInput
           value={input}
@@ -263,9 +270,10 @@ export default function ChatPage() {
             ? () => setShowDxfViewer(true)
             : undefined}
         />
-        <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-          Enter para enviar · Arrastrá Excel, PDF, DXF, DOCX o imagen
-        </p>
+        <div className="mt-2 flex max-w-[720px] mx-auto justify-between font-mono text-[10px] text-muted-foreground">
+          <span>↩ enviar &nbsp;·&nbsp; ⇧↩ nueva línea</span>
+          <span>EdificIA puede equivocarse — verificá los cálculos</span>
+        </div>
       </div>
     </div>
   );

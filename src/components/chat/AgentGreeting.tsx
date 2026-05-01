@@ -1,131 +1,250 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Upload, Calculator, Search, FileOutput } from "lucide-react";
+import { ArrowRight, Upload, Calculator, Search, FileOutput } from "lucide-react";
 
 interface AgentGreetingProps {
   userName?: string;
-  agentName?: string;
   onQuickAction: (text: string) => void;
 }
 
-const QUICK_ACTIONS = [
+const QUICK_PROMPTS = [
+  "¿Cómo detecto errores en un presupuesto?",
+  "Calculá incidencias por rubro",
+  "Comparar dos versiones de un cómputo",
+  "Generar un informe ejecutivo de auditoría",
+  "¿Qué rubros son más riesgosos en obra gruesa?",
+];
+
+const CAPABILITIES = [
   {
+    n: "01",
     icon: Upload,
-    label: "Analizar un archivo",
-    description: "Subí planos, presupuestos, contratos o fotos de obra",
-    prompt: "Quiero subir un archivo para que lo analices. ¿Qué tipos de archivo podés procesar?",
-    color: "text-blue-600 dark:text-blue-400",
-    bg: "bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-950/50",
-    border: "border-blue-200 dark:border-blue-800",
+    label: "Analizá documentos",
+    desc: "Excel, PDF, DXF, DOCX, imágenes — cargalos y EdificIA los audita automáticamente.",
   },
   {
+    n: "02",
     icon: Calculator,
-    label: "Calcular cantidades",
-    description: "Estimá materiales, áreas y costos de cualquier proyecto",
-    prompt: "Necesito calcular cantidades de materiales y costos para un proyecto de construcción.",
-    color: "text-green-600 dark:text-green-400",
-    bg: "bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50",
-    border: "border-green-200 dark:border-green-800",
+    label: "Calculá cómputos",
+    desc: "Estimá materiales, áreas y costos directos con herramientas matemáticas certificadas.",
   },
   {
+    n: "03",
     icon: Search,
-    label: "Buscar en mis archivos",
-    description: "Consultá información de documentos que subiste antes",
-    prompt: "Quiero buscar información en los documentos que subí anteriormente. ¿Qué tenés guardado?",
-    color: "text-purple-600 dark:text-purple-400",
-    bg: "bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-950/50",
-    border: "border-purple-200 dark:border-purple-800",
+    label: "Consultá tu historial",
+    desc: "Buscá en todos los documentos de tu empresa con búsqueda semántica.",
   },
   {
+    n: "04",
     icon: FileOutput,
-    label: "Generar un documento",
-    description: "Cómputos, remitos e informes listos para usar",
-    prompt: "Necesito generar un documento para mi obra. Puede ser un cómputo, remito o informe técnico.",
-    color: "text-orange-600 dark:text-orange-400",
-    bg: "bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50",
-    border: "border-orange-200 dark:border-orange-800",
+    label: "Generá informes",
+    desc: "Cómputos, auditorías y remitos listos para exportar a PDF o Excel.",
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.2 },
-  },
-};
+const WORKFLOW = [
+  { n: "01", label: "Carga", desc: "XLSX · PDF · DXF" },
+  { n: "02", label: "Auditoría", desc: "9 reglas · cierre" },
+  { n: "03", label: "Cálculo", desc: "incidencias · costos" },
+  { n: "04", label: "Reporte", desc: "PDF · XLSX" },
+];
 
-const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } },
-};
-
-export function AgentGreeting({ userName, agentName = "EdificIA", onQuickAction }: AgentGreetingProps) {
+export function AgentGreeting({ userName, onQuickAction }: AgentGreetingProps) {
   const firstName = userName?.split(" ")[0];
-  const greeting = firstName ? `Hola ${firstName}` : "Bienvenido";
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Buenos días" : hour < 20 ? "Buenas tardes" : "Buenas noches";
+  const fullGreeting = firstName ? `${greeting}, ${firstName}.` : `${greeting}.`;
 
   return (
-    <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-6 px-6 py-10 text-center">
-      {/* Avatar */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-        className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-      >
-        <span className="text-2xl font-bold select-none">
-          {agentName.charAt(0).toUpperCase()}
-        </span>
-      </motion.div>
+    <div className="flex flex-col items-center px-6 py-12 pb-6">
+      <div className="w-full max-w-[680px]">
 
-      {/* Greeting */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.4 }}
-        className="space-y-2"
-      >
-        <h2 className="text-2xl font-semibold tracking-tight">{greeting}, ¿qué deseás hacer hoy?</h2>
-        <p className="max-w-md text-sm text-muted-foreground">
-          Soy {agentName} — automatizo procesos de obra. Analizá documentos, calculá materiales,
-          generá informes y consultá el historial de tu empresa, todo desde acá.
-        </p>
-      </motion.div>
+        {/* Eyebrow */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+          className="mb-5 flex items-center justify-center gap-3 text-primary"
+        >
+          <span className="h-px w-4 bg-primary" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+            EdificIA · v0.6 · auditoría asistida
+          </span>
+          <span className="h-px w-4 bg-primary" />
+        </motion.div>
 
-      {/* Quick action cards */}
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid w-full max-w-xl grid-cols-2 gap-2"
-      >
-        {QUICK_ACTIONS.map((action) => {
-          const Icon = action.icon;
-          return (
-            <motion.button
-              key={action.label}
-              variants={item}
-              onClick={() => onQuickAction(action.prompt)}
-              className={`flex flex-col items-start gap-1.5 rounded-xl border p-3.5 text-left transition-colors ${action.bg} ${action.border}`}
+        {/* Display headline — Fraunces */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05, duration: 0.5 }}
+          className="mb-3 text-center"
+        >
+          <h1 className="font-display text-[40px] font-normal leading-[1.05] tracking-[-0.02em] text-foreground">
+            {fullGreeting}
+          </h1>
+          <h2 className="font-display text-[40px] font-normal leading-[1.05] tracking-[-0.02em]">
+            <em className="not-italic text-primary">¿Qué obra</em>{" "}
+            <span className="text-foreground">auditamos hoy?</span>
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+            Cargá un presupuesto, plano DXF o memoria descriptiva. EdificIA detecta
+            inconsistencias, calcula incidencias y genera informes auditables.
+          </p>
+        </motion.div>
+
+        {/* Hero dropzone */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.45 }}
+          className="relative mt-8 overflow-hidden rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.04] px-8 py-7"
+        >
+          {/* Corner tick marks */}
+          <CornerTicks />
+
+          <div className="flex items-center gap-6">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] bg-primary text-primary-foreground shadow-sm">
+              <Upload className="h-6 w-6" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                Arrastrá tu archivo o{" "}
+                <span className="cursor-pointer text-primary underline underline-offset-2">seleccionalo</span>
+              </p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                XLSX · PDF · DXF · DOCX · PNG/JPG &nbsp;·&nbsp; máx. 50 MB
+              </p>
+            </div>
+            <span className="hidden font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground/50 [writing-mode:vertical-rl] sm:block" style={{ transform: "rotate(180deg)" }}>
+              INPUT — 01
+            </span>
+          </div>
+        </motion.div>
+
+        {/* Or divider */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25 }}
+          className="my-6 flex items-center gap-3 text-muted-foreground"
+        >
+          <span className="h-px flex-1 bg-border" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.15em]">o preguntá directamente</span>
+          <span className="h-px flex-1 bg-border" />
+        </motion.div>
+
+        {/* Sample prompt chips */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="flex flex-wrap justify-center gap-2"
+        >
+          {QUICK_PROMPTS.map((p) => (
+            <button
+              key={p}
+              onClick={() => onQuickAction(p)}
+              className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-foreground"
             >
-              <Icon className={`h-4 w-4 ${action.color}`} />
-              <span className="text-sm font-semibold text-foreground leading-tight">{action.label}</span>
-              <span className="text-[11px] text-muted-foreground leading-snug">{action.description}</span>
-            </motion.button>
-          );
-        })}
-      </motion.div>
+              <ArrowRight className="h-3 w-3 text-primary" />
+              <span>{p}</span>
+            </button>
+          ))}
+        </motion.div>
 
-      {/* File type hints */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-        className="text-[11px] text-muted-foreground/60"
-      >
-        Arrastrá un archivo para empezar · Excel · PDF · DXF · DOCX · Imagen
-      </motion.p>
+        {/* Lo que puedo hacer — section with label */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-10"
+        >
+          <SectionLabel>Lo que puedo hacer</SectionLabel>
+          <div className="mt-3 overflow-hidden rounded-[10px] border border-border bg-card">
+            {CAPABILITIES.map((c, i) => {
+              const Icon = c.icon;
+              return (
+                <div
+                  key={c.n}
+                  className={`flex items-center gap-4 px-4 py-3.5 ${i < CAPABILITIES.length - 1 ? "border-b border-border" : ""}`}
+                >
+                  <span className="w-7 font-mono text-[10px] text-muted-foreground/60 shrink-0">{c.n}</span>
+                  <Icon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-display text-sm font-medium text-foreground">{c.label}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{c.desc}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* Pipeline workflow rail */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-8"
+        >
+          <SectionLabel>Pipeline</SectionLabel>
+          <div className="mt-3 grid grid-cols-4 overflow-hidden rounded-[10px] border border-border bg-card">
+            {WORKFLOW.map((s, i) => (
+              <div
+                key={s.n}
+                className={`relative px-4 py-3.5 ${i < WORKFLOW.length - 1 ? "border-r border-border" : ""}`}
+              >
+                <div className="font-mono text-[10px] tracking-[0.05em] text-primary">{s.n}</div>
+                <div className="mt-1 text-[13px] font-semibold text-foreground">{s.label}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">{s.desc}</div>
+                {i < WORKFLOW.length - 1 && (
+                  <div className="absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-1/2">
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+      </div>
     </div>
+  );
+}
+
+/* ── Shared micro-components ── */
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 text-muted-foreground">
+      <span className="font-mono text-[10px] uppercase tracking-[0.15em] shrink-0">{children}</span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+function CornerTicks() {
+  const c = "stroke-primary";
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      aria-hidden
+    >
+      {/* TL */}
+      <line x1="8" y1="8" x2="18" y2="8" className={c} strokeWidth="1.5" />
+      <line x1="8" y1="8" x2="8" y2="18" className={c} strokeWidth="1.5" />
+      {/* TR */}
+      <line x1="100%" y1="8" x2="calc(100% - 10px)" y2="8" className={c} strokeWidth="1.5" />
+      <line x1="calc(100% - 8px)" y1="8" x2="calc(100% - 8px)" y2="18" className={c} strokeWidth="1.5" />
+      {/* BL */}
+      <line x1="8" y1="100%" x2="18" y2="100%" className={c} strokeWidth="1.5" />
+      <line x1="8" y1="calc(100% - 8px)" x2="8" y2="calc(100% - 18px)" className={c} strokeWidth="1.5" />
+      {/* BR */}
+      <line x1="100%" y1="100%" x2="calc(100% - 10px)" y2="100%" className={c} strokeWidth="1.5" />
+      <line x1="calc(100% - 8px)" y1="100%" x2="calc(100% - 8px)" y2="calc(100% - 18px)" className={c} strokeWidth="1.5" />
+    </svg>
   );
 }

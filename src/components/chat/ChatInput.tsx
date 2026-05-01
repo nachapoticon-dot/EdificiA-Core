@@ -2,8 +2,7 @@
 
 import { useRef, type KeyboardEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { SendHorizonal, Square, Paperclip, FileSpreadsheet, FileText, FileCode2, FileType2, Eye, X } from "lucide-react";
+import { ArrowUp, Square, Paperclip, FileSpreadsheet, FileText, FileCode2, FileType2, Eye, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AttachedChip {
@@ -27,21 +26,12 @@ interface ChatInputProps {
 }
 
 const CHIP_ICONS = {
-  excel:          FileSpreadsheet,
-  pdf:            FileText,
-  dxf:            FileCode2,
-  docx:           FileType2,
-  image:          FileType2,
+  excel:           FileSpreadsheet,
+  pdf:             FileText,
+  dxf:             FileCode2,
+  docx:            FileType2,
+  image:           FileType2,
   dwg_unsupported: FileCode2,
-};
-
-const CHIP_COLORS = {
-  excel:          "text-green-600",
-  pdf:            "text-red-500",
-  dxf:            "text-blue-500",
-  docx:           "text-blue-700",
-  image:          "text-purple-500",
-  dwg_unsupported: "text-orange-500",
 };
 
 export function ChatInput({
@@ -76,108 +66,114 @@ export function ChatInput({
   }
 
   const Icon = attachedChip ? CHIP_ICONS[attachedChip.fileType] : null;
-  const iconColor = attachedChip ? CHIP_COLORS[attachedChip.fileType] : "";
 
   return (
-    <div className={cn(
-      "rounded-2xl border bg-card shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-primary/30",
-      isUploading && "opacity-80",
-    )}>
-      {/* File chip — shown inside the box when a file is ready */}
-      {attachedChip && Icon && (
-        <div className="flex items-center gap-2 border-b px-3 py-2">
-          <Icon className={cn("h-4 w-4 shrink-0", iconColor)} />
-          <span className="flex-1 truncate text-xs font-medium">{attachedChip.name}</span>
-          {attachedChip.subtitle && (
-            <span className="shrink-0 text-[10px] text-muted-foreground">{attachedChip.subtitle}</span>
-          )}
-          {onPreviewDxf && (
+    <div className="max-w-[720px] mx-auto w-full">
+      {/* Composer card */}
+      <div className={cn(
+        "overflow-hidden rounded-[12px] border border-border bg-card shadow-[var(--shadow-sm)] transition-shadow",
+        "focus-within:shadow-[var(--shadow-md)] focus-within:border-primary/40",
+        isUploading && "opacity-75",
+      )}>
+
+        {/* Attached file strip */}
+        {attachedChip && Icon && (
+          <div className="flex items-center gap-2 border-b border-border bg-muted px-3 py-2">
+            <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="flex-1 truncate text-xs font-medium text-foreground">{attachedChip.name}</span>
+            {attachedChip.subtitle && (
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{attachedChip.subtitle}</span>
+            )}
+            {onPreviewDxf && (
+              <button
+                type="button"
+                onClick={onPreviewDxf}
+                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                title="Ver plano"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {onRemoveFile && (
+              <button
+                type="button"
+                onClick={onRemoveFile}
+                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                title="Quitar archivo"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Input row */}
+        <div className="flex items-end gap-2 px-3 py-2.5">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.dwg"
+            onChange={handleFileChange}
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isStreaming || isUploading || disabled}
+            title="Adjuntar archivo"
+            className={cn(
+              "h-8 w-8 shrink-0 flex items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              isUploading && "text-primary",
+            )}
+          >
+            {isUploading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Paperclip className="h-4 w-4" />
+            }
+          </button>
+
+          <Textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isUploading
+                ? "Procesando archivo…"
+                : attachedChip
+                ? "Preguntá algo o dejá vacío para auditar automáticamente…"
+                : "Enviá datos o hacé una pregunta…"
+            }
+            className="min-h-[36px] max-h-[200px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground placeholder:italic"
+            rows={1}
+            disabled={disabled || isUploading}
+          />
+
+          {isStreaming ? (
             <button
               type="button"
-              onClick={onPreviewDxf}
-              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-blue-500"
-              title="Ver plano"
+              onClick={onStop}
+              title="Detener"
+              className="h-8 w-8 shrink-0 flex items-center justify-center rounded-[6px] bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
             >
-              <Eye className="h-3.5 w-3.5" />
+              <Square className="h-3.5 w-3.5" />
             </button>
-          )}
-          {onRemoveFile && (
+          ) : (
             <button
               type="button"
-              onClick={onRemoveFile}
-              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-              title="Quitar archivo"
+              onClick={onSubmit}
+              disabled={(!value.trim() && !attachedChip) || isStreaming || isUploading || disabled}
+              title="Enviar"
+              className={cn(
+                "h-8 w-8 shrink-0 flex items-center justify-center rounded-[6px] transition-colors",
+                "bg-primary text-primary-foreground hover:bg-[var(--terra-600)]",
+                "disabled:opacity-40 disabled:cursor-not-allowed",
+              )}
             >
-              <X className="h-3.5 w-3.5" />
+              <ArrowUp className="h-4 w-4" strokeWidth={2} />
             </button>
           )}
         </div>
-      )}
-
-      {/* Input row */}
-      <div className="flex items-end gap-2 p-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept=".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.dwg"
-          onChange={handleFileChange}
-        />
-
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isStreaming || isUploading || disabled}
-          className={cn(
-            "h-9 w-9 shrink-0 text-muted-foreground",
-            isUploading && "animate-pulse text-primary",
-          )}
-          title="Adjuntar archivo"
-        >
-          <Paperclip className="h-4 w-4" />
-        </Button>
-
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            isUploading
-              ? "Procesando archivo…"
-              : attachedChip
-              ? "Preguntá algo sobre el archivo o dejá vacío para auditar automáticamente…"
-              : "Enviá datos o hacé una pregunta…"
-          }
-          className="min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 text-sm"
-          rows={1}
-          disabled={disabled || isUploading}
-        />
-
-        {isStreaming ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={onStop}
-            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
-            title="Detener"
-          >
-            <Square className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="icon"
-            onClick={onSubmit}
-            disabled={(!value.trim() && !attachedChip) || isStreaming || isUploading || disabled}
-            className="h-9 w-9 shrink-0"
-            title="Enviar"
-          >
-            <SendHorizonal className="h-4 w-4" />
-          </Button>
-        )}
       </div>
     </div>
   );
