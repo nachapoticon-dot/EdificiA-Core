@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Upload, Calculator, Search, FileOutput } from "lucide-react";
 
@@ -52,10 +53,15 @@ const WORKFLOW = [
 
 export function AgentGreeting({ userName, onQuickAction }: AgentGreetingProps) {
   const firstName = userName?.split(" ")[0];
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Buenos días" : hour < 20 ? "Buenas tardes" : "Buenas noches";
-  const fullGreeting = firstName ? `${greeting}, ${firstName}.` : `${greeting}.`;
+
+  // Time-based greeting computed client-side only to avoid SSR/client hydration mismatch
+  const [timeGreeting, setTimeGreeting] = useState("Hola");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setTimeGreeting(h < 12 ? "Buenos días" : h < 20 ? "Buenas tardes" : "Buenas noches");
+  }, []);
+
+  const fullGreeting = firstName ? `${timeGreeting}, ${firstName}.` : `${timeGreeting}.`;
 
   return (
     <div className="flex flex-col items-center px-6 py-12 pb-6">
