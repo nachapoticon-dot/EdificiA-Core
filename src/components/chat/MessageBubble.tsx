@@ -34,6 +34,7 @@ const TOOL_LABELS: Record<string, string> = {
   generar_archivo:                 "Generando archivo",
   generar_presupuesto_excel:       "Generando presupuesto Excel",
   generar_memoria_descriptiva:     "Generando memoria descriptiva",
+  generar_informe_pdf:             "Generando informe de auditoría PDF",
   reportar_hallazgo:               "Registrando hallazgo",
   comparar_presupuestos:           "Generando tabla comparativa",
   analizar_estado_obra:            "Analizando estado documental de la obra",
@@ -44,6 +45,7 @@ const SPECIAL_TOOLS = new Set([
   "generar_archivo",
   "generar_presupuesto_excel",
   "generar_memoria_descriptiva",
+  "generar_informe_pdf",
   "reportar_hallazgo",
   "comparar_presupuestos",
 ]);
@@ -178,7 +180,7 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
   }
 
   if (
-    (toolName === "generar_presupuesto_excel" || toolName === "generar_memoria_descriptiva") &&
+    (toolName === "generar_presupuesto_excel" || toolName === "generar_memoria_descriptiva" || toolName === "generar_informe_pdf") &&
     !isPending &&
     toolPart.output
   ) {

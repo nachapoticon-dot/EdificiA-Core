@@ -1,0 +1,290 @@
+"use client";
+
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft, MessageSquare, Building2,
+  FileSpreadsheet, FileText, FileCode2, FileType2, Image,
+  CheckCircle2, Circle, ChevronDown, ChevronRight,
+} from "lucide-react";
+import { useProjectContext } from "@/contexts/ProjectContext";
+import { useProjectCoverage } from "@/hooks/useProjectCoverage";
+import { useProjectFiles, type ProjectFile } from "@/hooks/useProjectFiles";
+import type { PhaseCoverage } from "@/lib/obra/coverage";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-AR", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+}
+
+function formatSize(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const FILE_ICON_MAP: Record<string, { Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; color: string; label: string }> = {
+  excel:  { Icon: FileSpreadsheet, color: "text-[var(--ok)]",               label: "Excel" },
+  pdf:    { Icon: FileText,        color: "text-[var(--err)]",               label: "PDF" },
+  dxf:    { Icon: FileCode2,       color: "text-[oklch(0.55_0.16_235)]",     label: "DXF" },
+  docx:   { Icon: FileType2,       color: "text-[oklch(0.55_0.16_245)]",     label: "DOCX" },
+  image:  { Icon: Image,           color: "text-[oklch(0.74_0.15_75)]",      label: "Imagen" },
+};
+
+function FileRow({ file, index }: { file: ProjectFile; index: number }) {
+  const cfg = FILE_ICON_MAP[file.file_type] ?? { Icon: FileText, color: "text-muted-foreground", label: file.file_type };
+  const { Icon } = cfg;
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
+      className="flex items-start gap-3 py-3"
+    >
+      {/* Timeline dot + line */}
+      <div className="flex flex-col items-center">
+        <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${cfg.color} bg-current`} />
+        {index > 0 && <div className="mt-1 w-px flex-1 bg-border" style={{ height: "100%" }} />}
+      </div>
+
+      {/* Content */}
+      <div className="min-w-0 flex-1 pb-3">
+        <div className="flex items-center gap-2">
+          <Icon className={`h-3.5 w-3.5 shrink-0 ${cfg.color}`} strokeWidth={1.5} />
+          <span className="truncate text-[13px] font-medium text-foreground">{file.file_name}</span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+          <span>{formatDate(file.created_at)}</span>
+          {file.file_size_bytes && <span>· {formatSize(file.file_size_bytes)}</span>}
+          <span className="rounded-[4px] bg-accent px-1.5 py-0.5">{cfg.label}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function PhaseRow({ phase, index }: { phase: PhaseCoverage; index: number }) {
+  const [open, setOpen] = useState(false);
+
+  const statusColor =
+    phase.status === "complete" ? "bg-[var(--ok)]"
+    : phase.status === "partial"  ? "bg-[oklch(0.72_0.16_65)]"
+    : "bg-border";
+
+  const statusLabel =
+    phase.status === "complete" ? "Completa"
+    : phase.status === "partial"  ? "Parcial"
+    : "Sin docs";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
+      className="overflow-hidden rounded-[10px] border border-border bg-card"
+    >
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50"
+      >
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusColor}`} />
+        <span className="flex-1 text-[13px] font-medium text-foreground">{phase.name}</span>
+        <span className={`rounded-[6px] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] ${
+          phase.status === "complete" ? "bg-[oklch(0.93_0.08_145)] text-[var(--ok)]"
+          : phase.status === "partial"  ? "bg-[oklch(0.96_0.06_65)] text-[oklch(0.55_0.16_65)]"
+          : "bg-accent text-muted-foreground"
+        }`}>
+          {statusLabel}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground/60">
+          {phase.coveredDocTypes.length}/{phase.expected.length}
+        </span>
+        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+               : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-border px-4 py-3 space-y-2">
+          {phase.expected.map((doc) => {
+            const covered = phase.coveredDocTypes.includes(doc.doc_type);
+            return (
+              <div key={doc.doc_type} className="flex items-center gap-2 text-[12px]">
+                {covered
+                  ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--ok)]" />
+                  : <Circle className="h-3.5 w-3.5 shrink-0 text-border" />
+                }
+                <span className={covered ? "text-foreground" : "text-muted-foreground"}>
+                  {doc.label}
+                </span>
+                {!doc.required && (
+                  <span className="ml-auto font-mono text-[10px] text-muted-foreground/60">opcional</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+export default function ObraDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { projects, activateProject } = useProjectContext();
+
+  const project = projects.find((p) => p.id === id);
+  const { data: coverage, isLoading: coverageLoading } = useProjectCoverage(id);
+  const { data: files = [], isLoading: filesLoading } = useProjectFiles(id);
+
+  function handleConverse() {
+    if (project) activateProject(project);
+    router.push("/dashboard/chat");
+  }
+
+  const projectName = project?.name ?? "Obra";
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto bg-background">
+
+      {/* Header */}
+      <div className="border-b border-border bg-card px-8 py-5">
+        <div className="mx-auto max-w-5xl">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push("/dashboard/obras")}
+              className="flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Mis Obras
+            </button>
+            <span className="text-muted-foreground/40">/</span>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" strokeWidth={1.5} />
+              <h1 className="font-display text-[18px] font-medium tracking-[-0.01em] text-foreground">
+                {projectName}
+              </h1>
+            </div>
+
+            <div className="ml-auto flex items-center gap-3">
+              {coverage && (
+                <div className="flex items-center gap-2 rounded-[8px] border border-border bg-background px-3 py-1.5">
+                  <span className={`h-2 w-2 rounded-full ${
+                    coverage.overallPct === 100 ? "bg-[var(--ok)]"
+                    : coverage.overallPct > 0   ? "bg-[oklch(0.72_0.16_65)]"
+                    : "bg-border"
+                  }`} />
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {coverage.overallPct}% cobertura
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={handleConverse}
+                className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Conversar sobre esta obra
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body — two columns */}
+      <div className="mx-auto w-full max-w-5xl px-8 py-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
+
+          {/* ── Left: file timeline ─────────────────────────────── */}
+          <div>
+            <div className="mb-4 flex items-center gap-3">
+              <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground shrink-0">
+                Documentos subidos
+              </span>
+              <span className="h-px flex-1 bg-border" />
+              {!filesLoading && (
+                <span className="font-mono text-[10px] text-muted-foreground/60">{files.length}</span>
+              )}
+            </div>
+
+            {filesLoading && (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-12 animate-pulse rounded-[8px] bg-card border border-border" />
+                ))}
+              </div>
+            )}
+
+            {!filesLoading && files.length === 0 && (
+              <div className="rounded-[12px] border border-dashed border-border px-6 py-10 text-center">
+                <p className="text-[13px] text-muted-foreground">
+                  No hay archivos subidos a esta obra todavía.
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground/60">
+                  Activá la obra y subí documentos desde el asistente.
+                </p>
+              </div>
+            )}
+
+            {!filesLoading && files.length > 0 && (
+              <div className="divide-y divide-border rounded-[12px] border border-border bg-card px-4">
+                {files.map((file, i) => (
+                  <FileRow key={file.id} file={file} index={i} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Right: phase coverage ───────────────────────────── */}
+          <div>
+            <div className="mb-4 flex items-center gap-3">
+              <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground shrink-0">
+                Cobertura por fase
+              </span>
+              <span className="h-px flex-1 bg-border" />
+              {coverage && (
+                <span className="font-mono text-[10px] text-muted-foreground/60">
+                  {coverage.completePhases}/{coverage.totalPhases} completas
+                </span>
+              )}
+            </div>
+
+            {coverageLoading && (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-12 animate-pulse rounded-[10px] border border-border bg-card" />
+                ))}
+              </div>
+            )}
+
+            {!coverageLoading && coverage && (
+              <div className="space-y-2">
+                {coverage.phases.map((phase, i) => (
+                  <PhaseRow key={phase.key} phase={phase} index={i} />
+                ))}
+              </div>
+            )}
+
+            {/* Next suggestion */}
+            {!coverageLoading && coverage?.nextSuggestion && (
+              <div className="mt-4 rounded-[10px] border border-primary/20 bg-primary/[0.04] px-4 py-3">
+                <p className="text-[12px] leading-relaxed text-muted-foreground">
+                  <span className="font-semibold text-primary">Sugerencia: </span>
+                  {coverage.nextSuggestion}
+                </p>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}

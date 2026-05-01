@@ -62,6 +62,7 @@ export function buildSystemPrompt(ctx?: {
 Cuando el usuario pide generar un presupuesto, planilla, tabla o memoria descriptiva:
 - Para presupuestos en Excel: usá **generar_presupuesto_excel** con los ítems de la conversación.
 - Para memorias descriptivas en Word: usá **generar_memoria_descriptiva** con las secciones necesarias.
+- Para informes de auditoría en PDF: usá **generar_informe_pdf** con los resultados del análisis.
 - El sistema mostrará una tarjeta de descarga — el usuario descarga el archivo con un clic.
 - NO uses \`generar_archivo\` para estos formatos estructurados. Usá las herramientas específicas.
 
@@ -559,6 +560,55 @@ export const agentTools = {
           obraName:  input.obraName,
           sections:  input.sections,
           redactor:  input.redactor,
+        },
+        organizationId: input.organizationId,
+      };
+    },
+  }),
+
+  generar_informe_pdf: tool({
+    description:
+      "Genera un informe de auditoría profesional en formato .pdf listo para descargar. Úsalo al final de una auditoría completa cuando el usuario pide 'generá el informe', 'exportá en PDF', 'dame el reporte formal'. Incluye KPIs, tabla de ítems y hallazgos con severidades.",
+    inputSchema: z.object({
+      title:         z.string().describe("Título del informe (ej. 'Presupuesto Torre Alvear — Revisión Mayo 2026')"),
+      veredicto:     z.enum(["Aprobado", "Observado", "Requiere revisión"]).describe("Veredicto final de la auditoría"),
+      computedTotal: z.number().optional().describe("Costo directo calculado por la herramienta calcular_totales"),
+      declaredTotal: z.number().optional().describe("Total declarado en el presupuesto original"),
+      difference:    z.number().optional().describe("Diferencia entre total declarado y calculado"),
+      items: z.array(z.object({
+        code:        z.string(),
+        description: z.string(),
+        quantity:    z.number(),
+        unit:        z.string(),
+        unitPrice:   z.number(),
+        lineTotal:   z.number(),
+      })).optional().describe("Ítems del presupuesto con sus totales calculados"),
+      findings: z.array(z.object({
+        severity: z.enum(["error", "warning", "info"]),
+        code:     z.string().describe("Código del hallazgo (ERR-001, WARN-002, etc.)"),
+        title:    z.string(),
+        detail:   z.string(),
+        impact:   z.string().optional(),
+        item:     z.string().optional(),
+      })).optional().describe("Hallazgos detectados por reportar_hallazgo o detectar_exclusiones_logicas"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const safeDate = new Date().toISOString().slice(0, 10);
+      const safeName = input.title.replace(/\s+/g, "_").slice(0, 40);
+      return {
+        type:        "doc_generation_proposal" as const,
+        docType:     "informe_pdf" as const,
+        fileName:    `Informe_${safeName}_${safeDate}`,
+        description: `Informe de auditoría · ${input.veredicto} · ${input.findings?.length ?? 0} hallazgos`,
+        payload: {
+          title:         input.title,
+          veredicto:     input.veredicto,
+          computedTotal: input.computedTotal,
+          declaredTotal: input.declaredTotal,
+          difference:    input.difference,
+          items:         input.items,
+          findings:      input.findings,
         },
         organizationId: input.organizationId,
       };

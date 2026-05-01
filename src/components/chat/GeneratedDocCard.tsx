@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FileSpreadsheet, FileType2, Download, CheckCircle2, AlertCircle } from "lucide-react";
+import { FileSpreadsheet, FileType2, FileText, Download, CheckCircle2, AlertCircle } from "lucide-react";
 import { getInsForgeClient } from "@/lib/insforge/client";
 
 export interface DocGenerationProposal {
   type: "doc_generation_proposal";
-  docType: "presupuesto_excel" | "memoria_descriptiva";
+  docType: "presupuesto_excel" | "memoria_descriptiva" | "informe_pdf";
   fileName: string;
   description: string;
   payload: Record<string, unknown>;
@@ -36,6 +36,15 @@ const DOC_CONFIG = {
     ext: ".docx",
     apiRoute: "/api/generate/memoria",
     label: "Memoria Descriptiva",
+  },
+  informe_pdf: {
+    Icon: FileText,
+    color: "text-[var(--err)]",
+    bg: "bg-[oklch(0.97_0.03_25)]",
+    border: "border-[oklch(0.88_0.07_25)]",
+    ext: ".pdf",
+    apiRoute: "/api/generate/informe",
+    label: "Informe de Auditoría",
   },
 } as const;
 

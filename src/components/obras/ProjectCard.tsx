@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import type { Route } from "next";
 import { motion } from "framer-motion";
-import { Building2, FileText, ChevronRight, Clock } from "lucide-react";
+import { Building2, FileText, ChevronRight, Clock, ExternalLink } from "lucide-react";
 import { useProjectCoverage } from "@/hooks/useProjectCoverage";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import type { Project } from "@/hooks/useProjects";
@@ -116,9 +118,15 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
 
         {/* Name + meta */}
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[14px] font-semibold leading-tight text-foreground">
-            {project.name}
-          </h3>
+          <Link
+            href={`/dashboard/obras/${project.id}` as Route}
+            className="group/title flex items-center gap-1.5 hover:underline underline-offset-2"
+          >
+            <h3 className="truncate text-[14px] font-semibold leading-tight text-foreground">
+              {project.name}
+            </h3>
+            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/40 opacity-0 transition-opacity group-hover/title:opacity-100" />
+          </Link>
           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Clock className="h-3 w-3 shrink-0" strokeWidth={1.5} />
             <span>{formatRelative(project.lastActiveAt)}</span>
