@@ -58,6 +58,13 @@ export function buildSystemPrompt(ctx?: {
 
   return `Sos ${agentName}, el auditor de obras de Argentina. Trabajás para una plataforma B2B que ayuda a empresas constructoras a detectar errores, inconsistencias y fugas de rentabilidad en sus presupuestos.${companySection}${projectSection}${orgIdSection}${projectIdSection}${patternsSection}
 
+## Generación de documentos
+Cuando el usuario pide generar un presupuesto, planilla, tabla o memoria descriptiva:
+- Para presupuestos en Excel: usá **generar_presupuesto_excel** con los ítems de la conversación.
+- Para memorias descriptivas en Word: usá **generar_memoria_descriptiva** con las secciones necesarias.
+- El sistema mostrará una tarjeta de descarga — el usuario descarga el archivo con un clic.
+- NO uses \`generar_archivo\` para estos formatos estructurados. Usá las herramientas específicas.
+
 ## Tu estilo de trabajo
 - Sos preciso y directo. Los ingenieros no quieren rodeos.
 - Cuando detectás un error, lo nombrás claramente con el ítem afectado y el impacto económico en pesos.
@@ -492,6 +499,70 @@ export const agentTools = {
       type: "finding_callout" as const,
       ...input,
     }),
+  }),
+
+  generar_presupuesto_excel: tool({
+    description:
+      "Genera un presupuesto de obra en formato .xlsx listo para descargar. Úsalo cuando el usuario pide 'haceme un presupuesto', 'generá la planilla', 'exportá los ítems en Excel', etc. Los ítems pueden venir de la conversación, del análisis de un documento o de lo que el usuario dicte.",
+    inputSchema: z.object({
+      obraName: z.string().describe("Nombre de la obra o proyecto"),
+      items: z.array(z.object({
+        code:        z.string().describe("Código del ítem (ej. '1.1', 'MOB-01')"),
+        description: z.string().describe("Descripción del ítem"),
+        quantity:    z.number().describe("Cantidad"),
+        unit:        z.string().describe("Unidad de medida (m², ml, un, hs, kg, etc.)"),
+        unitPrice:   z.number().describe("Precio unitario en pesos"),
+        group:       z.string().optional().describe("Rubro o capítulo al que pertenece el ítem"),
+      })).describe("Ítems del presupuesto a incluir en el Excel"),
+      notes:         z.string().optional().describe("Notas o aclaraciones al pie del presupuesto"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const safeDate = new Date().toISOString().slice(0, 10);
+      const safeName = input.obraName.replace(/\s+/g, "_").slice(0, 40);
+      return {
+        type: "doc_generation_proposal" as const,
+        docType: "presupuesto_excel" as const,
+        fileName: `Presupuesto_${safeName}_${safeDate}`,
+        description: `Presupuesto de obra "${input.obraName}" · ${input.items.length} ítems`,
+        payload: {
+          obraName: input.obraName,
+          items:    input.items,
+          notes:    input.notes,
+        },
+        organizationId: input.organizationId,
+      };
+    },
+  }),
+
+  generar_memoria_descriptiva: tool({
+    description:
+      "Genera una memoria descriptiva de obra en formato .docx listo para descargar. Úsalo cuando el usuario pide 'escribí la memoria', 'generá el informe de obra', 'armá la memoria descriptiva'. Podés estructurar la memoria con las secciones que el usuario indique o con las estándar (descripción general, alcance de obra, materiales, plazos, observaciones).",
+    inputSchema: z.object({
+      obraName:  z.string().describe("Nombre de la obra"),
+      sections: z.array(z.object({
+        title:   z.string().describe("Título de la sección (ej. 'Descripción general', 'Materiales')"),
+        content: z.string().describe("Contenido de la sección en texto libre"),
+      })).describe("Secciones de la memoria descriptiva"),
+      redactor:       z.string().optional().describe("Nombre del profesional redactor"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const safeDate = new Date().toISOString().slice(0, 10);
+      const safeName = input.obraName.replace(/\s+/g, "_").slice(0, 40);
+      return {
+        type:        "doc_generation_proposal" as const,
+        docType:     "memoria_descriptiva" as const,
+        fileName:    `Memoria_${safeName}_${safeDate}`,
+        description: `Memoria descriptiva de "${input.obraName}" · ${input.sections.length} secciones`,
+        payload: {
+          obraName:  input.obraName,
+          sections:  input.sections,
+          redactor:  input.redactor,
+        },
+        organizationId: input.organizationId,
+      };
+    },
   }),
 
   comparar_presupuestos: tool({

@@ -14,6 +14,7 @@ import { ChartBlock, type ChartSpec } from "./ChartBlock";
 import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
 import { FindingCallout, type FindingSpec } from "./FindingCallout";
 import { ComparisonTable, type ComparisonTableSpec } from "./ComparisonTable";
+import { GeneratedDocCard, type DocGenerationProposal } from "./GeneratedDocCard";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -31,6 +32,8 @@ const TOOL_LABELS: Record<string, string> = {
   buscar_en_base_documental:       "Buscando en base documental",
   sugerir_formato:                 "Comparando con estándares del sector",
   generar_archivo:                 "Generando archivo",
+  generar_presupuesto_excel:       "Generando presupuesto Excel",
+  generar_memoria_descriptiva:     "Generando memoria descriptiva",
   reportar_hallazgo:               "Registrando hallazgo",
   comparar_presupuestos:           "Generando tabla comparativa",
   analizar_estado_obra:            "Analizando estado documental de la obra",
@@ -39,6 +42,8 @@ const TOOL_LABELS: Record<string, string> = {
 const SPECIAL_TOOLS = new Set([
   "generar_grafica",
   "generar_archivo",
+  "generar_presupuesto_excel",
+  "generar_memoria_descriptiva",
   "reportar_hallazgo",
   "comparar_presupuestos",
 ]);
@@ -169,6 +174,17 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
           onDecision={(accepted, name) => { void accepted; void name; }}
         />
       );
+    }
+  }
+
+  if (
+    (toolName === "generar_presupuesto_excel" || toolName === "generar_memoria_descriptiva") &&
+    !isPending &&
+    toolPart.output
+  ) {
+    const output = toolPart.output as Record<string, unknown>;
+    if (output.type === "doc_generation_proposal") {
+      return <GeneratedDocCard proposal={output as unknown as DocGenerationProposal} />;
     }
   }
 
