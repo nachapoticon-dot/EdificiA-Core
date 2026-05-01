@@ -7,6 +7,7 @@ export interface SessionEntry {
   title: string;
   fileType?: "excel" | "pdf" | "dxf" | "docx" | "image";
   startedAt: number;
+  projectId?: string;
 }
 
 const STORAGE_KEY = "edificia_sessions";

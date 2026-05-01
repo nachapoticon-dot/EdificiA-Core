@@ -12,7 +12,10 @@ export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization") ?? "";
   const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-  const systemPrompt = await resolveSystemPrompt(accessToken);
+  // Active project sent by the client (selected in the UI, stored in localStorage)
+  const projectName = req.headers.get("x-project-name") ?? undefined;
+
+  const systemPrompt = await resolveSystemPrompt(accessToken, projectName);
 
   const result = streamText({
     model: anthropic(AI_MODEL),
@@ -41,8 +44,8 @@ function decodeUserId(jwt: string): string | null {
   }
 }
 
-async function resolveSystemPrompt(accessToken: string | null): Promise<string> {
-  if (!accessToken) return buildSystemPrompt();
+async function resolveSystemPrompt(accessToken: string | null, projectName?: string): Promise<string> {
+  if (!accessToken) return buildSystemPrompt({ projectName });
 
   const userId = decodeUserId(accessToken);
   if (!userId) return buildSystemPrompt();
@@ -92,6 +95,7 @@ async function resolveSystemPrompt(accessToken: string | null): Promise<string> 
       agentName: org?.agent_name ?? "EdificIA",
       organizationId: orgId,
       learnedPatterns: Object.keys(learnedPatterns).length > 0 ? learnedPatterns : undefined,
+      projectName,
     });
   } catch {
     return buildSystemPrompt();

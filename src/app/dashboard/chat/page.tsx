@@ -8,8 +8,9 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { DropZone } from "@/components/chat/DropZone";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
-import { Sparkles, Download, Sheet } from "lucide-react";
+import { Compass, Download, Sheet } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";
+import { FileReadyView } from "@/components/chat/FileReadyView";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
@@ -17,6 +18,7 @@ import { exportAuditXlsx } from "@/lib/export/generate-xlsx";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { IMAGE_EXTENSIONS } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
+import { useProjectContext } from "@/contexts/ProjectContext";
 import { saveMessages, loadMessages } from "@/hooks/useMessageHistory";
 
 type AttachedFile = ProcessedFile & { fileId: string | null };
@@ -30,18 +32,26 @@ interface PendingFile {
 }
 
 export default function ChatPage() {
+  const { activeProject } = useProjectContext();
+  // Use a ref so the headers callback always reads the latest project without re-creating the transport
+  const activeProjectRef = useRef(activeProject);
+  activeProjectRef.current = activeProject;
+
   const { messages, sendMessage, setMessages, status, stop } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      // Forward the InsForge access token so the server can build a org-specific system prompt
       headers: async (): Promise<Record<string, string>> => {
         const { getInsForgeClient } = await import("@/lib/insforge/client");
         const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
-        return allHeaders.Authorization ? { Authorization: allHeaders.Authorization } : {};
+        const headers: Record<string, string> = {};
+        if (allHeaders.Authorization) headers.Authorization = allHeaders.Authorization;
+        const projectName = activeProjectRef.current?.name;
+        if (projectName) headers["x-project-name"] = projectName;
+        return headers;
       },
     }),
   });
-  const { sessionId, recordSession } = useSessionContext();
+  const { sessionId, recordSession, switchSession } = useSessionContext();
   const currentUserState = useCurrentUser();
   const currentUser = currentUserState.status === "ok" ? currentUserState.user : null;
 
@@ -84,7 +94,7 @@ export default function ChatPage() {
       const dataUrl = await fileToDataUrl(file);
       const imagePart: FileUIPart = { type: "file", mediaType: file.type || "image/jpeg", filename: file.name, url: dataUrl };
       sendMessage({ text: buildImagePrompt(file.name), files: [imagePart] });
-      recordSession(file.name, "image");
+      recordSession(file.name, "image", activeProjectRef.current?.id);
       return;
     }
 
@@ -151,7 +161,7 @@ export default function ChatPage() {
       const fileType = pending.processed.type === "dwg_unsupported"
         ? undefined
         : pending.processed.type as Parameters<typeof recordSession>[1];
-      recordSession(pending.processed.fileName, fileType);
+      recordSession(pending.processed.fileName, fileType, activeProjectRef.current?.id);
 
       // Clean up DXF blob URL when the file leaves the input
       if (pending.dxfBlobUrl) URL.revokeObjectURL(pending.dxfBlobUrl);
@@ -161,8 +171,23 @@ export default function ChatPage() {
     }
 
     if (!input.trim()) return;
-    recordSession(input.trim().slice(0, 50));
+    recordSession(input.trim().slice(0, 50), undefined, activeProjectRef.current?.id);
     sendMessage({ text: input.trim() });
+    setInput("");
+  }
+
+  function handleActionSubmit(actionText: string) {
+    if (!pending) return;
+    const finalText = actionText.trim()
+      ? `${actionText}\n\n---\n${pending.prompt}`
+      : pending.prompt;
+    sendMessage({ text: finalText, files: pending.fileParts });
+    const fileType = pending.processed.type === "dwg_unsupported"
+      ? undefined
+      : pending.processed.type as Parameters<typeof recordSession>[1];
+    recordSession(pending.processed.fileName, fileType, activeProjectRef.current?.id);
+    if (pending.dxfBlobUrl) URL.revokeObjectURL(pending.dxfBlobUrl);
+    setPending(null);
     setInput("");
   }
 
@@ -183,7 +208,7 @@ export default function ChatPage() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <header className="flex items-center gap-2 border-b bg-card px-6 py-3">
-        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <Compass className="h-3.5 w-3.5 text-primary" />
         <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
         {isStreaming && (
           <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
@@ -226,10 +251,17 @@ export default function ChatPage() {
       {/* Messages + Drop Zone */}
       <DropZone onFileDrop={handleFileSelect}>
         <ScrollArea className="flex-1">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !pending ? (
             <AgentGreeting
               userName={currentUser?.profile?.name ?? currentUser?.email}
               onQuickAction={(text) => setInput(text)}
+              onSessionSelect={switchSession}
+            />
+          ) : messages.length === 0 && pending ? (
+            <FileReadyView
+              file={pending.processed}
+              onActionSelect={handleActionSubmit}
+              onRemove={handleRemoveFile}
             />
           ) : (
             <div className="pb-4">

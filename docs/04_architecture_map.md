@@ -35,6 +35,11 @@ graph TD
     %% Validators
     Validators[Zod Schemas\nsrc/lib/validators/]
 
+    %% Projects API
+    ProjectsAPI[API Route /api/projects\nsrc/app/api/projects/route.ts]
+    ProjectPatchAPI[API Route /api/projects/:id\nsrc/app/api/projects/id/route.ts]
+    useProjects[useProjects hook\nTanStack Query + localStorage activeId]
+
     %% Conexiones Auth
     User -- "GET /login" --> Middleware
     Middleware -- "No cookie → redirect" --> LoginPage
@@ -51,6 +56,13 @@ graph TD
     AI_Agent -- "Tool: Extraer Datos" --> Parser
     AI_Agent -- "INSERT audit_results" --> AdminClient
     MathEngine -- "Valida con" --> Validators
+
+    %% Projects
+    ChatUI -- "useProjects" --> useProjects
+    useProjects -- "GET/POST" --> ProjectsAPI
+    useProjects -- "PATCH" --> ProjectPatchAPI
+    ProjectsAPI -- "admin client" --> AdminClient
+    ProjectPatchAPI -- "admin client" --> AdminClient
 
     %% DB
     AdminClient -- "Queries RLS" --> InsForgeBackend
@@ -119,3 +131,4 @@ db/
 | 2026-04-29 | Sprint 4 | QoL: Dark/Light mode (next-themes + ThemeToggle), Session History sidebar (localStorage + custom event, SessionContext, SessionSidebar, DashboardSidebar), auto-registro de sesión al primer mensaje o archivo |
 | 2026-04-29 | Sprint 7 | Persistencia de conversaciones: useMessageHistory (localStorage por sessionId), SessionContext agrega switchSession + resetSession sin reload, SessionSidebar items clickeables restauran conversaciones, auto-save post-streaming |
 | 2026-04-29 | Sprint 9 | Visor DXF WebGL: dxf-viewer + @types/three instalados, DxfViewerModal (dynamic import, blob URL, auto-fit, Escape para cerrar), boton "Ver plano" (ojo) en FileCard para DXF, blob URL lifecycle gestionado (create/revoke) |
+| 2026-05-01 | Sprint 17 | Proyecto activo: useProjects migrado a TanStack Query + API (GET/POST /api/projects, PATCH /api/projects/[id]), activeProjectId en localStorage, proyectos persisten en DB (tabla projects existente), contexto inyecta isLoading + isCreating, sistema de prompt incluye nombre del proyecto activo |

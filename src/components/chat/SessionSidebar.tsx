@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FileSpreadsheet, FileText, FileCode2, FileType2, Image, Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
 import type { SessionEntry } from "@/hooks/useSessionHistory";
@@ -39,15 +38,15 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
   return (
     <div className="flex flex-col gap-1">
       {/* Header row */}
-      <div className="flex items-center justify-between px-3 pb-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="flex items-center justify-between px-3 pb-1">
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
           Historial
         </span>
         {sessions.length > 0 && (
           <button
             onClick={clearAll}
             title="Limpiar todo el historial"
-            className="text-muted-foreground/50 hover:text-destructive transition-colors"
+            className="text-muted-foreground/40 hover:text-destructive transition-colors"
           >
             <Trash2 className="h-3 w-3" />
           </button>
@@ -55,15 +54,13 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
       </div>
 
       {/* New session */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mx-1 justify-start gap-2 text-xs font-medium"
+      <button
         onClick={onNewSession}
+        className="mx-1 flex items-center gap-2 rounded-[8px] border border-dashed border-primary/40 px-3 py-2 text-xs font-medium text-primary/80 transition-colors hover:border-primary hover:bg-primary/[0.04] hover:text-primary"
       >
         <Plus className="h-3.5 w-3.5" />
         Nueva conversación
-      </Button>
+      </button>
 
       {/* Session list */}
       {sessions.length > 0 && (
@@ -110,9 +107,9 @@ function SessionItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={cn(
-        "group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-xs transition-colors text-left",
+        "group flex w-full items-start gap-2 rounded-[8px] px-2 py-1.5 text-xs transition-colors text-left",
         isActive
-          ? "bg-accent text-accent-foreground"
+          ? "border-l-2 border-l-primary bg-primary/[0.06] text-foreground pl-[6px]"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
       )}
     >
