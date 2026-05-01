@@ -42,7 +42,7 @@ CREATE POLICY "org_members_can_access_sessions"
   USING (
     organization_id IN (
       SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid()::TEXT AND deleted_at IS NULL
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
     )
   );
 
@@ -51,6 +51,6 @@ CREATE POLICY "org_members_can_access_messages"
   USING (
     organization_id IN (
       SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid()::TEXT AND deleted_at IS NULL
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
     )
   );
