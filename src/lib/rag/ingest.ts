@@ -12,32 +12,71 @@ interface IngestOptions {
 }
 
 /**
+ * Infers a construction-specific document type from the file name and content.
+ * Uses keyword matching — intentionally avoids LLM calls (fast, deterministic).
+ */
+function detectConstructionDocType(file: ProcessedFile): string {
+  if (file.type === "dxf") return "plano";
+
+  const name = file.fileName.toLowerCase();
+
+  if (file.type === "excel") {
+    const hasPrices = "items" in file && file.items.some((i) => i.unitPrice > 0);
+    if (/computo|cubicac|medici[oó]n|metrado/i.test(name)) return "computo_metrico";
+    return hasPrices ? "presupuesto" : "computo_metrico";
+  }
+
+  // PDF / DOCX — filename heuristic first, then content scan
+  if (/pliego|especificac|condicion|eepp/i.test(name)) return "pliego_de_condiciones";
+  if (/certific|habilitac|aprobac|inspecc/i.test(name)) return "certificado";
+  if (/computo|cubicac|medici[oó]n|metrado/i.test(name)) return "computo_metrico";
+  if (/memoria|descriptiva/i.test(name)) return "memoria_descriptiva";
+  if (/presupuesto|cotizac|oferta|precio/i.test(name)) return "presupuesto";
+
+  // Content scan for PDF text (skip scanned documents)
+  if (file.type === "pdf" && !file.isScanned && file.text) {
+    const head = file.text.slice(0, 3000).toLowerCase();
+    if (/pliego.*condicion|especificacion.*tecnica/i.test(head)) return "pliego_de_condiciones";
+    if (/memoria.*descriptiva|se describe.*trabajo/i.test(head))  return "memoria_descriptiva";
+    if (/presupuesto.*obra|precio.*unitario|costo.*directo/i.test(head)) return "presupuesto";
+  }
+
+  if (file.type === "docx") {
+    const head = file.text?.slice(0, 3000).toLowerCase() ?? "";
+    if (/memoria.*descriptiva|se describe/i.test(head)) return "memoria_descriptiva";
+    if (/pliego|condiciones.*generales/i.test(head))    return "pliego_de_condiciones";
+  }
+
+  return "documento";
+}
+
+/**
  * Full ingestion pipeline:
- *   1. Delete stale chunks for the same file (document versioning — prevents duplicates)
- *   2. Chunk the document by type
- *   3. Batch-embed ALL chunks in parallel via Promise.all (no more sequential awaits)
- *   4. Single batch upsert to Qdrant
- *   5. Persist chunks + qdrant_ids into document_chunks (PostgreSQL fallback)
+ *   1. Delete stale chunks for the same file
+ *   2. Detect construction document type (keyword-based, never LLM)
+ *   3. Chunk the document with type-aware strategy (rubro groups, section headers)
+ *   4. Batch-embed all chunks in parallel
+ *   5. Upsert to Qdrant with enriched payload (construction_doc_type, rubro, section_title)
+ *   6. Persist rows to document_chunks (PostgreSQL fallback)
  *
- * Always non-fatal — never throws, never blocks upload response.
+ * Always non-fatal — never throws, never blocks the upload response.
  */
 export async function ingestDocument(
   file: ProcessedFile,
   opts: IngestOptions,
 ): Promise<void> {
   try {
+    const constructionDocType = detectConstructionDocType(file);
     const chunks = chunkDocument(file);
     if (chunks.length === 0) return;
 
-    const documentType = file.type === "dwg_unsupported" ? "other" : file.type;
-    const client = getInsForgeAdminClient();
+    const documentType    = file.type === "dwg_unsupported" ? "other" : file.type;
+    const client          = getInsForgeAdminClient();
     const qdrantAvailable = isQdrantConfigured();
 
-    if (qdrantAvailable) {
-      await ensureCollection().catch(() => null);
-    }
+    if (qdrantAvailable) await ensureCollection().catch(() => null);
 
-    // --- Fix #4: Purge previous version before ingesting the new one ---
+    // Purge previous version of this file
     const { data: stale } = await client.database
       .from("document_chunks")
       .select("qdrant_id")
@@ -46,44 +85,47 @@ export async function ingestDocument(
       .not("qdrant_id", "is", null);
 
     if (stale && stale.length > 0) {
-      const staleIds = (stale as { qdrant_id: string | null }[])
+      const ids = (stale as { qdrant_id: string | null }[])
         .map((c) => c.qdrant_id)
         .filter((id): id is string => id !== null);
-
-      if (staleIds.length > 0 && qdrantAvailable) {
-        await getQdrantClient().delete(COLLECTION_NAME, { points: staleIds }).catch(() => null);
+      if (ids.length > 0 && qdrantAvailable) {
+        await getQdrantClient().delete(COLLECTION_NAME, { points: ids }).catch(() => null);
       }
     }
 
-    // Delete all stale rows (including those without a qdrant_id)
     await client.database
       .from("document_chunks")
       .delete()
       .eq("organization_id", opts.organizationId)
       .eq("file_name", file.fileName);
 
-    // --- Fix #1: Batch-embed in parallel instead of sequential await ---
-    const qdrantIds = chunks.map(() => crypto.randomUUID());
-    const embeddings = await Promise.all(chunks.map((chunk) => embedText(chunk.text)));
+    // Parallel embedding
+    const qdrantIds  = chunks.map(() => crypto.randomUUID());
+    const embeddings = await Promise.all(chunks.map((c) => embedText(c.text)));
 
-    // --- Single batch upsert to Qdrant ---
     const qdrantSucceeded = new Array<boolean>(chunks.length).fill(false);
 
     if (qdrantAvailable) {
-      const validPoints = chunks
+      const points = chunks
         .map((chunk, i) =>
           embeddings[i]
             ? {
                 id: qdrantIds[i]!,
                 vector: embeddings[i]!,
                 payload: {
-                  org_id: opts.organizationId,
-                  project_id: opts.projectId ?? null,
-                  file_id: opts.fileId,
-                  file_name: file.fileName,
-                  document_type: documentType,
-                  chunk_index: chunk.chunkIndex,
-                  chunk_text: chunk.text.slice(0, 500),
+                  org_id:                opts.organizationId,
+                  project_id:            opts.projectId ?? null,
+                  file_id:               opts.fileId,
+                  file_name:             file.fileName,
+                  document_type:         documentType,
+                  construction_doc_type: constructionDocType,
+                  chunk_index:           chunk.chunkIndex,
+                  chunk_text:            chunk.text.slice(0, 500),
+                  // Promote key metadata fields to top-level for Qdrant filtering
+                  rubro:                 (chunk.metadata.rubro as string | undefined) ?? null,
+                  section_title:         (chunk.metadata.section_title as string | undefined) ?? null,
+                  has_prices:            (chunk.metadata.has_prices as boolean | undefined) ?? false,
+                  has_quantities:        (chunk.metadata.has_quantities as boolean | undefined) ?? false,
                   ...chunk.metadata,
                 },
               }
@@ -91,34 +133,28 @@ export async function ingestDocument(
         )
         .filter((p): p is NonNullable<typeof p> => p !== null);
 
-      if (validPoints.length > 0) {
+      if (points.length > 0) {
         try {
-          await getQdrantClient().upsert(COLLECTION_NAME, { points: validPoints });
-          chunks.forEach((_, i) => {
-            if (embeddings[i]) qdrantSucceeded[i] = true;
-          });
-        } catch {
-          // Qdrant upsert failed — still persist to PostgreSQL
-        }
+          await getQdrantClient().upsert(COLLECTION_NAME, { points });
+          chunks.forEach((_, i) => { if (embeddings[i]) qdrantSucceeded[i] = true; });
+        } catch { /* fallback to PostgreSQL */ }
       }
     }
 
     const rows = chunks.map((chunk, i) => ({
       organization_id: opts.organizationId,
-      project_id: opts.projectId ?? null,
-      file_id: opts.fileId,
-      file_name: file.fileName,
-      document_type: documentType,
-      chunk_index: chunk.chunkIndex,
-      chunk_text: chunk.text,
-      metadata: chunk.metadata,
-      qdrant_id: qdrantSucceeded[i] ? qdrantIds[i] : null,
+      project_id:      opts.projectId ?? null,
+      file_id:         opts.fileId,
+      file_name:       file.fileName,
+      document_type:   documentType,
+      chunk_index:     chunk.chunkIndex,
+      chunk_text:      chunk.text,
+      metadata:        { ...chunk.metadata, construction_doc_type: constructionDocType },
+      qdrant_id:       qdrantSucceeded[i] ? qdrantIds[i] : null,
     }));
 
     if (rows.length > 0) {
       await client.database.from("document_chunks").insert(rows);
     }
-  } catch {
-    // Non-fatal: ingest failures never surface to the user
-  }
+  } catch { /* non-fatal */ }
 }

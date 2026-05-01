@@ -1,4 +1,5 @@
 import type { ProcessedFile } from "@/lib/file-processor/types";
+import type { BudgetItem } from "@/lib/math-engine/validators";
 
 export interface DocumentChunk {
   text: string;
@@ -7,61 +8,140 @@ export interface DocumentChunk {
 }
 
 const MAX_CHUNK_CHARS = 1200;
-/** Carry the last N chars into the next chunk so context isn't lost at boundaries. */
-const CHUNK_OVERLAP = 150;
+const CHUNK_OVERLAP   = 150;
 
-/**
- * Splits a processed file into indexable text chunks.
- * Strategy per type:
- *   excel  → groups of 20 budget items
- *   pdf    → sliding-window over paragraphs (with overlap, no silent truncation)
- *   dxf    → single metadata chunk (layers + annotations)
- *   docx   → sliding-window over paragraphs (with overlap)
- *   image  → single descriptive chunk
- */
 export function chunkDocument(file: ProcessedFile): DocumentChunk[] {
   switch (file.type) {
-    case "excel":
-      return chunkExcel(file);
-    case "pdf":
-      return chunkPdf(file);
-    case "dxf":
-      return chunkDxf(file);
-    case "docx":
-      return chunkDocx(file);
-    case "image":
-      return [{ text: `Imagen: ${file.fileName} (${file.mimeType})`, chunkIndex: 0, metadata: { mimeType: file.mimeType } }];
-    default:
-      return [];
+    case "excel":  return chunkExcel(file);
+    case "pdf":    return chunkPdf(file);
+    case "dxf":    return chunkDxf(file);
+    case "docx":   return chunkDocx(file);
+    case "image":  return [{ text: `Imagen: ${file.fileName}`, chunkIndex: 0, metadata: { mimeType: file.mimeType } }];
+    default:       return [];
   }
 }
 
-function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentChunk[] {
-  const GROUP_SIZE = 20;
-  const chunks: DocumentChunk[] = [];
+// ── Excel — group by rubro, fallback to flat groups of 20 ─────────────────────
 
-  for (let i = 0; i < file.items.length; i += GROUP_SIZE) {
-    const group = file.items.slice(i, i + GROUP_SIZE);
-    const lines = group.map((item) =>
-      `${item.code ?? ""} | ${item.description} | cant: ${item.quantity} ${item.unit} | PU: ${item.unitPrice} | total: ${item.totalPrice}`
+interface RubroGroup {
+  rubro: string;
+  items: BudgetItem[];
+}
+
+/**
+ * Detects rubro header rows: items with no quantity/price that act as section titles.
+ * In Argentine budgets these appear as ALL-CAPS descriptions with zero quantities.
+ */
+function detectRubroGroups(items: BudgetItem[]): RubroGroup[] {
+  const groups: RubroGroup[] = [];
+  let current: RubroGroup = { rubro: "General", items: [] };
+
+  for (const item of items) {
+    const isHeader =
+      item.quantity === 0 &&
+      item.unitPrice === 0 &&
+      item.totalPrice === 0 &&
+      item.description.trim().length > 0;
+
+    if (isHeader) {
+      if (current.items.length > 0) groups.push(current);
+      current = { rubro: item.description.trim(), items: [] };
+    } else {
+      current.items.push(item);
+    }
+  }
+  if (current.items.length > 0) groups.push(current);
+
+  return groups;
+}
+
+function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentChunk[] {
+  const groups = detectRubroGroups(file.items);
+
+  // Use rubro-based chunking when the budget has clear structure
+  if (groups.length > 1) {
+    return groups.flatMap((group, i) => {
+      const rubroTotal = group.items.reduce((s, it) => s + it.totalPrice, 0);
+      const lines = group.items.map(
+        (it) => `${it.code} | ${it.description} | ${it.quantity} ${it.unit} | PU: ${it.unitPrice} | total: ${it.totalPrice}`,
+      );
+      return [{
+        text: `Rubro: ${group.rubro}\n${lines.join("\n")}\nTotal rubro: $${rubroTotal.toLocaleString("es-AR")}`,
+        chunkIndex: i,
+        metadata: {
+          rubro: group.rubro,
+          rubro_total: rubroTotal,
+          has_prices: true,
+          has_quantities: true,
+          item_count: group.items.length,
+        },
+      }];
+    });
+  }
+
+  // Fallback: flat groups of 20
+  const chunks: DocumentChunk[] = [];
+  const GROUP = 20;
+  for (let i = 0; i < file.items.length; i += GROUP) {
+    const group = file.items.slice(i, i + GROUP);
+    const lines = group.map(
+      (it) => `${it.code} | ${it.description} | ${it.quantity} ${it.unit} | PU: ${it.unitPrice} | total: ${it.totalPrice}`,
     );
     chunks.push({
       text: `Presupuesto: ${file.sheetName}\n${lines.join("\n")}`,
       chunkIndex: chunks.length,
-      metadata: { sheetName: file.sheetName, itemStart: i, itemEnd: i + group.length },
+      metadata: {
+        sheetName: file.sheetName,
+        itemStart: i,
+        itemEnd: i + group.length,
+        has_prices: true,
+        has_quantities: true,
+      },
     });
   }
-
   return chunks.length > 0
     ? chunks
-    : [{ text: `Presupuesto vacío: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
+    : [{ text: `Presupuesto vacío: ${file.fileName}`, chunkIndex: 0, metadata: { has_prices: false, has_quantities: false } }];
+}
+
+// ── PDF — section-aware chunking ──────────────────────────────────────────────
+
+interface Section {
+  title: string;
+  content: string;
 }
 
 /**
- * PDF chunker — uses sliding window over paragraph segments.
- * Fixes the previous bug where `.slice(0, MAX_CHUNK_CHARS)` silently discarded
- * everything past 1200 chars per page. Now every byte of text becomes a chunk.
+ * Detects section headers using common Argentine document patterns:
+ * ALL-CAPS lines, numbered titles (1. TÍTULO), and roman numerals (I. CAPÍTULO).
  */
+function detectSections(text: string): Section[] {
+  const HEADER_RE = /^(?:\d+[\.\-]\s{0,4}[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\d]{3,}|[IVXLC]+[\.\-]\s{0,4}[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\d]{3,}|[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{6,})$/;
+
+  const lines = text.split("\n");
+  const sections: Section[] = [];
+  let currentTitle = "";
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (HEADER_RE.test(trimmed) && trimmed.length < 100) {
+      if (currentLines.join("\n").trim().length > 30) {
+        sections.push({ title: currentTitle, content: currentLines.join("\n").trim() });
+      }
+      currentTitle = trimmed;
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  if (currentLines.join("\n").trim().length > 30) {
+    sections.push({ title: currentTitle, content: currentLines.join("\n").trim() });
+  }
+
+  return sections;
+}
+
 function chunkPdf(file: Extract<ProcessedFile, { type: "pdf" }>): DocumentChunk[] {
   if (file.isScanned || !file.text.trim()) {
     return [{
@@ -71,17 +151,36 @@ function chunkPdf(file: Extract<ProcessedFile, { type: "pdf" }>): DocumentChunk[
     }];
   }
 
+  const sections = detectSections(file.text);
+
+  if (sections.length > 1) {
+    let idx = 0;
+    return sections.flatMap((sec) => {
+      const baseMeta = {
+        section_title: sec.title,
+        page_count: file.pageCount,
+        has_prices: /precio|costo|monto|importe|\$|total/i.test(sec.content),
+        has_quantities: /m2|m²|ml|kg|gl|unid|cant/i.test(sec.content),
+      };
+      const fullText = sec.title ? `${sec.title}\n\n${sec.content}` : sec.content;
+      if (fullText.length <= MAX_CHUNK_CHARS) {
+        return [{ text: fullText, chunkIndex: idx++, metadata: baseMeta }];
+      }
+      return slidingWindowChunk(fullText, baseMeta).map((c) => ({ ...c, chunkIndex: idx++ }));
+    });
+  }
+
   return slidingWindowChunk(file.text, { pageCount: file.pageCount });
 }
 
+// ── DXF ───────────────────────────────────────────────────────────────────────
+
 function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[] {
-  const geo = file.geometrySummary;
-  const layerList = file.layers.join(", ");
-  const annotations = file.textAnnotations.slice(0, 30).join("; ");
+  const geo  = file.geometrySummary;
   const text = [
     `Plano DXF: ${file.fileName}`,
-    `Capas (${file.layers.length}): ${layerList.slice(0, 300)}`,
-    annotations ? `Anotaciones: ${annotations.slice(0, 300)}` : "",
+    `Capas (${file.layers.length}): ${file.layers.join(", ").slice(0, 300)}`,
+    file.textAnnotations.length ? `Anotaciones: ${file.textAnnotations.slice(0, 30).join("; ").slice(0, 300)}` : "",
     `Área total: ${geo.totalAreaM2.toFixed(2)} m² | Longitud total: ${geo.totalLinearM.toFixed(2)} ml`,
     file.blockNames.length ? `Bloques: ${file.blockNames.slice(0, 10).join(", ")}` : "",
   ].filter(Boolean).join("\n");
@@ -89,23 +188,28 @@ function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[
   return [{ text, chunkIndex: 0, metadata: { layerCount: file.layers.length, totalAreaM2: geo.totalAreaM2, totalLinearM: geo.totalLinearM } }];
 }
 
+// ── DOCX ──────────────────────────────────────────────────────────────────────
+
 function chunkDocx(file: Extract<ProcessedFile, { type: "docx" }>): DocumentChunk[] {
-  if (!file.text.trim()) {
-    return [{ text: `Documento: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
+  if (!file.text.trim()) return [{ text: `Documento: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
+  const sections = detectSections(file.text);
+  if (sections.length > 1) {
+    let idx = 0;
+    return sections.flatMap((sec) => {
+      const meta = { section_title: sec.title };
+      const full = sec.title ? `${sec.title}\n\n${sec.content}` : sec.content;
+      if (full.length <= MAX_CHUNK_CHARS) return [{ text: full, chunkIndex: idx++, metadata: meta }];
+      return slidingWindowChunk(full, meta).map((c) => ({ ...c, chunkIndex: idx++ }));
+    });
   }
   return slidingWindowChunk(file.text, {});
 }
 
-/**
- * Generic sliding-window chunker that splits on paragraph boundaries and
- * carries a CHUNK_OVERLAP tail into the next window to preserve cross-boundary context.
- * Falls back to word-by-word splitting for paragraphs that exceed MAX_CHUNK_CHARS.
- */
+// ── Shared sliding-window chunker ─────────────────────────────────────────────
+
 function slidingWindowChunk(text: string, meta: Record<string, unknown>): DocumentChunk[] {
   const segments = text.split(/\n{2,}/).map((s) => s.trim()).filter((s) => s.length > 20);
-
-  // If no paragraph structure, treat entire text as one block
-  const source = segments.length > 0 ? segments : [text.trim()].filter((s) => s.length > 20);
+  const source   = segments.length > 0 ? segments : [text.trim()].filter((s) => s.length > 20);
   if (source.length === 0) return [];
 
   const chunks: DocumentChunk[] = [];
@@ -114,39 +218,28 @@ function slidingWindowChunk(text: string, meta: Record<string, unknown>): Docume
 
   for (const seg of source) {
     const addition = current ? "\n\n" + seg : seg;
-
     if (current.length + addition.length > MAX_CHUNK_CHARS) {
       if (current.trim()) {
         chunks.push({ text: current.trim(), chunkIndex: idx++, metadata: meta });
-        // Carry the tail into the next chunk for cross-boundary context
         const tail = current.slice(-CHUNK_OVERLAP).trimStart();
         current = tail ? tail + "\n\n" + seg : seg;
       } else {
-        // Single segment is too long — split word-by-word
-        const wordChunks = splitByWords(seg, meta);
-        for (const wc of wordChunks) {
-          chunks.push({ ...wc, chunkIndex: idx++ });
-        }
+        splitByWords(seg, meta).forEach((wc) => chunks.push({ ...wc, chunkIndex: idx++ }));
         current = "";
       }
     } else {
       current += addition;
     }
   }
-
-  if (current.trim()) {
-    chunks.push({ text: current.trim(), chunkIndex: idx, metadata: meta });
-  }
-
+  if (current.trim()) chunks.push({ text: current.trim(), chunkIndex: idx, metadata: meta });
   return chunks;
 }
 
 function splitByWords(text: string, meta: Record<string, unknown>): DocumentChunk[] {
-  const words = text.split(/\s+/);
+  const words  = text.split(/\s+/);
   const chunks: DocumentChunk[] = [];
   let buf = "";
   let idx = 0;
-
   for (const word of words) {
     if (buf.length + word.length + 1 > MAX_CHUNK_CHARS && buf) {
       chunks.push({ text: buf.trim(), chunkIndex: idx++, metadata: meta });
@@ -155,10 +248,6 @@ function splitByWords(text: string, meta: Record<string, unknown>): DocumentChun
       buf += (buf ? " " : "") + word;
     }
   }
-
-  if (buf.trim()) {
-    chunks.push({ text: buf.trim(), chunkIndex: idx, metadata: meta });
-  }
-
+  if (buf.trim()) chunks.push({ text: buf.trim(), chunkIndex: idx, metadata: meta });
   return chunks;
 }
