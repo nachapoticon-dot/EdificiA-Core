@@ -1,3 +1,4 @@
+import { decodeUserId } from "@/lib/auth/jwt";
 import { processFile } from "@/lib/file-processor";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { extractPatterns } from "@/lib/pattern-extractor";
@@ -118,19 +119,6 @@ export async function POST(req: Request) {
   }
 
   return Response.json({ ...processed, fileId });
-}
-
-/** Decodes user ID from JWT payload without signature verification. */
-function decodeUserId(jwt: string): string | null {
-  try {
-    const payload = jwt.split(".")[1];
-    if (!payload) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { sub?: string };
-    return parsed.sub ?? null;
-  } catch {
-    return null;
-  }
 }
 
 async function persistPatternsAndIngest(

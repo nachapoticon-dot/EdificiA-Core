@@ -2,6 +2,7 @@ import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 
 import { anthropic } from "@ai-sdk/anthropic";
 import { AI_MODEL, buildSystemPrompt, agentTools } from "@/lib/ai/agent";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { decodeUserId } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
 
@@ -27,22 +28,6 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse();
-}
-
-/**
- * Decodes the JWT access token (no signature verification — we trust the server DB for auth).
- * Returns the user's `sub` claim (= user_id in InsForge).
- */
-function decodeUserId(jwt: string): string | null {
-  try {
-    const payload = jwt.split(".")[1];
-    if (!payload) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { sub?: string };
-    return parsed.sub ?? null;
-  } catch {
-    return null;
-  }
 }
 
 async function resolveSystemPrompt(accessToken: string | null, projectName?: string, projectId?: string): Promise<string> {

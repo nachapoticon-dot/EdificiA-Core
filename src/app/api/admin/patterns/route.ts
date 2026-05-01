@@ -1,4 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { decodeUserId } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
 
@@ -51,16 +52,4 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   return Response.json({ grouped, totalPatterns: rows.length });
-}
-
-function decodeUserId(jwt: string): string | null {
-  try {
-    const payload = jwt.split(".")[1];
-    if (!payload) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { sub?: string };
-    return parsed.sub ?? null;
-  } catch {
-    return null;
-  }
 }

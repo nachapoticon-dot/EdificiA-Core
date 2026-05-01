@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { sendInvitationEmail } from "@/lib/email/resend";
+import { decodeUserId } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
 
@@ -168,18 +169,4 @@ export async function DELETE(req: Request): Promise<Response> {
   }
 
   return Response.json({ error: "memberId or invitationId required" }, { status: 400 });
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function decodeUserId(jwt: string): string | null {
-  try {
-    const payload = jwt.split(".")[1];
-    if (!payload) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { sub?: string };
-    return parsed.sub ?? null;
-  } catch {
-    return null;
-  }
 }

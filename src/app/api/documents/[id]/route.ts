@@ -1,18 +1,8 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getQdrantClient, COLLECTION_NAME, isQdrantConfigured } from "@/lib/qdrant/client";
+import { decodeUserId } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
-
-function decodeUserId(jwt: string): string | null {
-  try {
-    const payload = jwt.split(".")[1];
-    if (!payload) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    return (JSON.parse(decoded) as { sub?: string }).sub ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /** DELETE /api/documents/[id] — removes a file from storage, Qdrant, and PostgreSQL. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
