@@ -4,9 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
-  Database, Trash2, RefreshCw, FolderOpen, Layers,
+  Database, Trash2, RefreshCw, FolderOpen, Layers, Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useProjectContext } from "@/contexts/ProjectContext";
 
 interface DocumentFile {
   id: string;
@@ -16,6 +17,7 @@ interface DocumentFile {
   processing_status: string;
   created_at: string;
   chunkCount: number;
+  project_id?: string | null;
 }
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
@@ -68,10 +70,12 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export default function DocumentsPage() {
+  const { activeProject } = useProjectContext();
   const [files, setFiles] = useState<DocumentFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filterByProject, setFilterByProject] = useState(false);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -91,6 +95,10 @@ export default function DocumentsPage() {
       setLoading(false);
     }
   }, []);
+
+  const visibleFiles = filterByProject && activeProject
+    ? files.filter((f) => f.project_id === activeProject.id)
+    : files;
 
   useEffect(() => { void loadFiles(); }, [loadFiles]);
 
@@ -112,7 +120,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const totalChunks = files.reduce((s, f) => s + f.chunkCount, 0);
+  const totalChunks = visibleFiles.reduce((s, f) => s + f.chunkCount, 0);
 
   return (
     <div className="flex h-full flex-col">
@@ -121,10 +129,22 @@ export default function DocumentsPage() {
         <Database className="h-4 w-4 text-primary" />
         <h1 className="text-sm font-semibold">Base Documental</h1>
         <div className="ml-auto flex items-center gap-3">
-          {files.length > 0 && (
+          {visibleFiles.length > 0 && (
             <span className="text-[11px] text-muted-foreground">
-              {files.length} archivo{files.length !== 1 ? "s" : ""} · {totalChunks} fragmentos indexados
+              {visibleFiles.length} archivo{visibleFiles.length !== 1 ? "s" : ""} · {totalChunks} fragmentos indexados
             </span>
+          )}
+          {activeProject && (
+            <Button
+              variant={filterByProject ? "default" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-[11px]"
+              onClick={() => setFilterByProject((v) => !v)}
+              title={filterByProject ? "Mostrar todos" : `Filtrar por "${activeProject.name}"`}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              {filterByProject ? activeProject.name : "Filtrar obra"}
+            </Button>
           )}
           <Button
             variant="ghost"
@@ -155,12 +175,13 @@ export default function DocumentsPage() {
         ) : (
           <div className="space-y-2">
             <AnimatePresence initial={false}>
-              {files.map((file) => (
+              {visibleFiles.map((file) => (
                 <FileRow
                   key={file.id}
                   file={file}
                   deleting={deletingId === file.id}
                   onDelete={() => { void handleDelete(file.id); }}
+                  projectName={activeProject && file.project_id === activeProject.id ? activeProject.name : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -175,10 +196,12 @@ function FileRow({
   file,
   deleting,
   onDelete,
+  projectName,
 }: {
   file: DocumentFile;
   deleting: boolean;
   onDelete: () => void;
+  projectName?: string;
 }) {
   const Icon = TYPE_ICONS[file.file_type] ?? FileText;
   const colorClass = TYPE_COLOR[file.file_type] ?? TYPE_COLOR.other;
@@ -210,6 +233,13 @@ function FileRow({
           <span className="text-[11px] text-muted-foreground">{formatDate(file.created_at)}</span>
         </div>
       </div>
+
+      {/* Project badge */}
+      {projectName && (
+        <div className="hidden sm:flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.06] px-2 py-0.5 text-[10px] font-medium text-primary">
+          {projectName}
+        </div>
+      )}
 
       {/* Chunk badge */}
       {file.chunkCount > 0 && (

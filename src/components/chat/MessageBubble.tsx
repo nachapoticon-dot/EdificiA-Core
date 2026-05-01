@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { Wrench, CheckCircle2 } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./ChartBlock";
 import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
+import { FindingCallout, type FindingSpec } from "./FindingCallout";
+import { ComparisonTable, type ComparisonTableSpec } from "./ComparisonTable";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -29,9 +31,17 @@ const TOOL_LABELS: Record<string, string> = {
   buscar_en_base_documental:       "Buscando en base documental",
   sugerir_formato:                 "Comparando con estándares del sector",
   generar_archivo:                 "Generando archivo",
+  reportar_hallazgo:               "Registrando hallazgo",
+  comparar_presupuestos:           "Generando tabla comparativa",
+  analizar_estado_obra:            "Analizando estado documental de la obra",
 };
 
-const SPECIAL_TOOLS = new Set(["generar_grafica", "generar_archivo"]);
+const SPECIAL_TOOLS = new Set([
+  "generar_grafica",
+  "generar_archivo",
+  "reportar_hallazgo",
+  "comparar_presupuestos",
+]);
 
 /* ── Segment types for the grouped renderer ── */
 type TextSegment  = { kind: "text";  part: UIMessagePart<UIDataTypes, UITools> };
@@ -160,6 +170,16 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
         />
       );
     }
+  }
+
+  if (toolName === "reportar_hallazgo" && !isPending && toolPart.output) {
+    const spec = toolPart.output as FindingSpec;
+    if (spec.type === "finding_callout") return <FindingCallout spec={spec} />;
+  }
+
+  if (toolName === "comparar_presupuestos" && !isPending && toolPart.output) {
+    const spec = toolPart.output as ComparisonTableSpec;
+    if (spec.type === "comparison_table") return <ComparisonTable spec={spec} />;
   }
 
   // Pending special tool — show as a single-row timeline card

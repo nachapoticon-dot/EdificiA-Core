@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useSessionHistory, type SessionEntry } from "@/hooks/useSessionHistory";
 import { useProjectContext } from "@/contexts/ProjectContext";
+import { useProjectCoverage } from "@/hooks/useProjectCoverage";
 import type { Project } from "@/hooks/useProjects";
 
 interface AgentGreetingProps {
@@ -51,6 +52,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
   const firstName = userName?.split(" ")[0];
   const { sessions } = useSessionHistory();
   const { projects, activeProject, createProject, activateProject, isLoading, isCreating } = useProjectContext();
+  const { data: coverage } = useProjectCoverage(activeProject?.id ?? null);
 
   const [timeGreeting, setTimeGreeting] = useState("Hola");
   const [newProjectName, setNewProjectName] = useState("");
@@ -264,6 +266,46 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
             </button>
           ))}
         </motion.div>
+
+        {/* Cobertura documental de la obra */}
+        {coverage && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
+            className="mt-8"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <SectionLabel>Estado de la obra</SectionLabel>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {coverage.completePhases}/{coverage.totalPhases} fases completas
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {coverage.phases.map((phase) => (
+                <button
+                  key={phase.key}
+                  onClick={() => onQuickAction(`¿Qué falta documentar en la fase de ${phase.name}?`)}
+                  title={phase.missingRequired.length > 0
+                    ? `Falta: ${phase.missingRequired.map(d => d.label).join(", ")}`
+                    : "Fase completa"
+                  }
+                  className="flex items-center gap-1.5 rounded-[6px] border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${
+                    phase.status === "complete" ? "bg-[var(--ok)]" :
+                    phase.status === "partial"  ? "bg-[oklch(0.72_0.16_65)]" :
+                                                  "bg-border"
+                  }`} />
+                  <span className="text-muted-foreground">{phase.name}</span>
+                </button>
+              ))}
+            </div>
+            {coverage.nextSuggestion && (
+              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                <span className="font-medium text-primary">Sugerencia: </span>
+                {coverage.nextSuggestion}
+              </p>
+            )}
+          </motion.div>
+        )}
 
         {/* Trabajos recientes — filtrados por proyecto activo */}
         {(() => {

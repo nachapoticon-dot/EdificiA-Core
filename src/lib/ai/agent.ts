@@ -101,6 +101,18 @@ export function buildSystemPrompt(ctx?: {
 2. generar_grafica → distribución de áreas.
 3. Interpretación del tipo de plano y elementos constructivos.
 
+
+## Proactividad de obra — comportamiento obligatorio
+Cuando hay un **proyecto activo** (ves un ID de proyecto en el contexto):
+1. Al inicio de la sesion, usa **analizar_estado_obra** para ver que fases tienen documentacion.
+2. Si una fase tiene plano pero no computo: mencionalo y ofrecelo generar.
+3. Cuando el usuario suba un archivo, deteca su fase y avisa que documento complementario faltaria.
+
+## Hallazgos
+Cuando encontres errores, usa **reportar_hallazgo** para cada uno con codigo (ERR-001, WARN-003) e impacto economico. Luego escribe el resumen ejecutivo.
+
+## Comparaciones
+Cuando tengas dos conjuntos de datos, usa **comparar_presupuestos** en vez de listar diferencias en texto.
 ## Base documental — reglas de la base sagrada
 - La base documental es **SOLO LECTURA**. No podés borrar ni modificar archivos de la empresa.
 - Para buscar información sobre proyectos anteriores, planos o documentos: usá **buscar_en_base_documental**.
@@ -449,6 +461,69 @@ export const agentTools = {
         organizationId: input.organizationId,
         awaiting_confirmation: true,
       };
+    },
+  }),
+
+  analizar_estado_obra: tool({
+    description:
+      "Analiza el estado documental de un proyecto de obra. Devuelve qué fases tienen documentación completa, cuáles están incompletas y cuáles no tienen nada. Úsala al inicio de cada sesión cuando hay un proyecto activo, o cuando el usuario pregunte '¿qué falta?', '¿cuál es el siguiente paso?', etc.",
+    inputSchema: z.object({
+      projectId:      z.string().describe("UUID del proyecto activo"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input: { projectId: string; organizationId: string }) => {
+      const { getCoverageForProject } = await import("@/lib/obra/coverage");
+      return getCoverageForProject(input.projectId, input.organizationId);
+    },
+  }),
+
+  reportar_hallazgo: tool({
+    description:
+      "Reporta un hallazgo puntual encontrado durante el análisis: errores de cálculo, inconsistencias estructurales, faltantes de documentos, etc. El frontend lo renderiza como una tarjeta visual destacada con código, severidad e impacto económico. Usá esta herramienta para CADA hallazgo individual antes de escribir el resumen ejecutivo.",
+    inputSchema: z.object({
+      code:     z.string().describe("Código del hallazgo (ej: 'ERR-001', 'WARN-003', 'INFO-01')"),
+      severity: z.enum(["error", "warning", "info"]).describe("Severidad"),
+      title:    z.string().describe("Título breve del hallazgo (máx 60 caracteres)"),
+      detail:   z.string().describe("Descripción clara del problema o situación detectada"),
+      impact:   z.string().optional().describe("Impacto económico estimado (ej: '$45.000 de diferencia en cómputo')"),
+      item:     z.string().optional().describe("Ítem o referencia exacta del documento afectado"),
+    }),
+    execute: async (input) => ({
+      type: "finding_callout" as const,
+      ...input,
+    }),
+  }),
+
+  comparar_presupuestos: tool({
+    description:
+      "Genera una tabla comparativa visual entre dos conjuntos de datos (dos versiones de presupuesto, presupuesto vs. promedio sector, presupuesto vs. cómputo del plano, etc.). Úsala siempre que tengas datos para comparar en vez de listar diferencias en texto.",
+    inputSchema: z.object({
+      title:   z.string().describe("Título de la comparación"),
+      columnA: z.string().describe("Nombre de la primera columna (ej: 'Presupuesto actual')"),
+      columnB: z.string().describe("Nombre de la segunda columna (ej: 'Referencia sector')"),
+      rows: z.array(z.object({
+        label:  z.string().describe("Concepto o rubro"),
+        valueA: z.number().nullable().describe("Valor de la columna A (null si no existe)"),
+        valueB: z.number().nullable().describe("Valor de la columna B (null si no existe)"),
+        unit:   z.string().optional().describe("Unidad (ej: '%', 'm²', '$') — omitir para moneda"),
+      })).describe("Filas de la comparación"),
+    }),
+    execute: async (input) => {
+      const rows = input.rows.map((r) => {
+        const delta = r.valueA !== null && r.valueB !== null ? r.valueA - r.valueB : null;
+        const deltaPct =
+          delta !== null && r.valueB !== null && r.valueB !== 0
+            ? Math.round((delta / Math.abs(r.valueB)) * 100)
+            : null;
+        const status: "higher" | "lower" | "equal" =
+          delta === null || Math.abs(deltaPct ?? 0) < 3
+            ? "equal"
+            : delta > 0
+            ? "higher"
+            : "lower";
+        return { ...r, delta, deltaPct, status };
+      });
+      return { type: "comparison_table" as const, title: input.title, columnA: input.columnA, columnB: input.columnB, rows };
     },
   }),
 };

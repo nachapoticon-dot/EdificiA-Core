@@ -132,6 +132,32 @@ async function persistPatternsAndIngest(
     // Ingest into RAG (Qdrant + document_chunks)
     void ingestDocument(processed, { organizationId: orgId, fileId, projectId });
 
+    // Classify into obra phase and record coverage
+    if (projectId && fileId) {
+      const { detectPhaseKey, detectDocType } = await import("@/lib/obra/phases");
+      const contentHint = "text" in processed ? (processed.text as string).slice(0, 500) : undefined;
+      const hasPrices = "items" in processed && Array.isArray(processed.items)
+        ? (processed.items as { unitPrice?: number }[]).some((i) => (i.unitPrice ?? 0) > 0)
+        : false;
+
+      const phaseKey = detectPhaseKey(processed.fileName, contentHint);
+      const docType  = detectDocType(processed.type, hasPrices);
+
+      if (phaseKey) {
+        const client = getInsForgeAdminClient();
+        await client.database
+          .from("project_phase_docs")
+          .upsert({
+            project_id:      projectId,
+            organization_id: orgId,
+            phase_key:       phaseKey,
+            doc_type:        docType,
+            file_id:         fileId,
+            file_name:       processed.fileName,
+          }, { onConflict: "project_id,phase_key,doc_type" });
+      }
+    }
+
     const extracted = extractPatterns(processed);
     if (!extracted) return;
 

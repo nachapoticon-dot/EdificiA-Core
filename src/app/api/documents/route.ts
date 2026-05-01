@@ -30,7 +30,7 @@ export async function GET(req: Request) {
     // Fetch files + chunk count per file
     const filesResult = await client.database
       .from("uploaded_files")
-      .select("id, file_name, file_type, file_size_bytes, processing_status, storage_path, created_at")
+      .select("id, file_name, file_type, file_size_bytes, processing_status, storage_path, created_at, project_id")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
 
@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       processing_status: string;
       storage_path: string;
       created_at: string;
+      project_id: string | null;
     }[];
 
     if (files.length === 0) {
