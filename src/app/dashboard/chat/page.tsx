@@ -48,6 +48,8 @@ export default function ChatPage() {
         const project = activeProjectRef.current;
         if (project?.name) headers["x-project-name"] = project.name;
         if (project?.id)   headers["x-project-id"]   = project.id;
+        const activeOrgId = localStorage.getItem("edificia:active_org_id");
+        if (activeOrgId)   headers["x-org-id"]        = activeOrgId;
         return headers;
       },
     }),

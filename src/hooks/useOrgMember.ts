@@ -20,6 +20,8 @@ type State =
   | { status: "ok"; member: OrgMember }
   | { status: "error" };
 
+const ACTIVE_ORG_KEY = "edificia:active_org_id";
+
 export function useOrgMember(): State {
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -30,7 +32,15 @@ export function useOrgMember(): State {
       return;
     }
 
-    fetch("/api/auth/me", { headers: { Authorization: headers.Authorization } })
+    const reqHeaders: Record<string, string> = {
+      Authorization: headers.Authorization as string,
+    };
+
+    // Pass the active org selection so /api/auth/me returns the right org
+    const activeOrgId = localStorage.getItem(ACTIVE_ORG_KEY);
+    if (activeOrgId) reqHeaders["x-org-id"] = activeOrgId;
+
+    fetch("/api/auth/me", { headers: reqHeaders })
       .then((r) => {
         if (!r.ok) throw new Error("not ok");
         return r.json() as Promise<OrgMember>;

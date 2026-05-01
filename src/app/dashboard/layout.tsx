@@ -8,6 +8,7 @@ import { DashboardSidebar } from "@/components/chat/DashboardSidebar";
 import { ActiveProjectSection } from "@/components/chat/ActiveProjectSection";
 import { UserMenu } from "@/components/chat/UserMenu";
 import { AdminNavLink } from "@/components/chat/AdminNavLink";
+import { OrgSwitcher } from "@/components/chat/OrgSwitcher";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -30,6 +31,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 </span>
               </div>
             </div>
+
+            {/* Org switcher — only visible for multi-org users (consultants) */}
+            <OrgSwitcher />
 
             {/* Nav */}
             <nav className="space-y-0.5 p-2">

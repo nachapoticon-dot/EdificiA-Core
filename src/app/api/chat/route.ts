@@ -9,15 +9,15 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
-  // Extract Bearer token forwarded by the browser InsForge SDK
   const authHeader = req.headers.get("authorization") ?? "";
   const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-  // Active project sent by the client (selected in the UI, stored in localStorage)
-  const projectName = req.headers.get("x-project-name") ?? undefined;
-  const projectId   = req.headers.get("x-project-id")   ?? undefined;
+  const projectName  = req.headers.get("x-project-name") ?? undefined;
+  const projectId    = req.headers.get("x-project-id")   ?? undefined;
+  // Active org from the client's org switcher (localStorage → x-org-id header)
+  const requestedOrgId = req.headers.get("x-org-id")     ?? undefined;
 
-  const systemPrompt = await resolveSystemPrompt(accessToken, projectName, projectId);
+  const systemPrompt = await resolveSystemPrompt(accessToken, projectName, projectId, requestedOrgId);
 
   const result = streamText({
     model: anthropic(AI_MODEL),
@@ -30,7 +30,12 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse();
 }
 
-async function resolveSystemPrompt(accessToken: string | null, projectName?: string, projectId?: string): Promise<string> {
+async function resolveSystemPrompt(
+  accessToken: string | null,
+  projectName?: string,
+  projectId?: string,
+  requestedOrgId?: string,
+): Promise<string> {
   if (!accessToken) return buildSystemPrompt({ projectName, projectId });
 
   const userId = decodeUserId(accessToken);
@@ -39,13 +44,19 @@ async function resolveSystemPrompt(accessToken: string | null, projectName?: str
   try {
     const client = getInsForgeAdminClient();
 
-    const memberResult = await client.database
+    // If the client specified an org (via org switcher), scope the query to that org.
+    // The user_id filter guarantees they can't impersonate another org's member.
+    let memberQuery = client.database
       .from("organization_members")
       .select("organization_id, organizations(name, agent_name, primary_color)")
       .eq("user_id", userId)
-      .is("deleted_at", null)
-      .limit(1)
-      .single();
+      .is("deleted_at", null);
+
+    if (requestedOrgId) {
+      memberQuery = memberQuery.eq("organization_id", requestedOrgId);
+    }
+
+    const memberResult = await memberQuery.limit(1).single();
 
     const member = memberResult.data as {
       organization_id: string;
@@ -55,9 +66,8 @@ async function resolveSystemPrompt(accessToken: string | null, projectName?: str
     if (!member) return buildSystemPrompt();
 
     const orgId = member.organization_id;
-    const org = member.organizations;
+    const org   = member.organizations;
 
-    // Load learned patterns for this org
     const patternsResult = await client.database
       .from("company_learned_patterns")
       .select("document_type, pattern_key, pattern_value")
