@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight, Upload, ChevronRight, Plus, Building2,
@@ -15,6 +15,7 @@ interface AgentGreetingProps {
   userName?: string;
   onQuickAction: (text: string) => void;
   onSessionSelect: (entry: SessionEntry) => void;
+  onFileSelect?: (file: File) => void;
 }
 
 const QUICK_PROMPTS = [
@@ -48,14 +49,23 @@ function fileTypeSummary(fileType?: SessionEntry["fileType"]): string {
   return map[fileType ?? ""] ?? "conversación";
 }
 
-export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: AgentGreetingProps) {
+const ACCEPTED_EXTENSIONS = ".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp";
+
+export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFileSelect }: AgentGreetingProps) {
   const firstName = userName?.split(" ")[0];
   const { sessions } = useSessionHistory();
   const { projects, activeProject, createProject, activateProject, isLoading, isCreating } = useProjectContext();
   const { data: coverage } = useProjectCoverage(activeProject?.id ?? null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [timeGreeting, setTimeGreeting] = useState("Hola");
   const [newProjectName, setNewProjectName] = useState("");
+
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) onFileSelect?.(file);
+    e.target.value = "";
+  }
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -76,7 +86,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
   if (!activeProject) {
     return (
       <div className="flex flex-col items-center px-6 py-12 pb-6">
-        <div className="w-full max-w-[620px]">
+        <div className="w-full max-w-[720px]">
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
             className="mb-5 flex items-center justify-center gap-3"
@@ -164,6 +174,13 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
             {/* Dropzone CTA */}
             <div className="relative overflow-hidden rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.04] px-8 py-6">
               <CornerTicks />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_EXTENSIONS}
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
               <div className="flex items-center gap-6">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-primary text-primary-foreground">
                   <Upload className="h-5 w-5" strokeWidth={1.75} />
@@ -171,7 +188,12 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
                 <div>
                   <p className="text-[13px] font-semibold text-foreground">
                     Arrastrá tu archivo o{" "}
-                    <span className="cursor-pointer text-primary underline underline-offset-2">seleccionalo</span>
+                    <span
+                      className="cursor-pointer text-primary underline underline-offset-2"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      seleccionalo
+                    </span>
                   </p>
                   <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                     XLSX · PDF · DXF · DOCX · PNG/JPG &nbsp;·&nbsp; máx. 50 MB
@@ -189,7 +211,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
   /* ── NORMAL WELCOME — project selected ───────────────────────── */
   return (
     <div className="flex flex-col items-center px-6 py-12 pb-6">
-      <div className="w-full max-w-[680px]">
+      <div className="w-full max-w-[720px]">
 
         {/* Eyebrow */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
@@ -224,6 +246,13 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
           className="relative mt-8 overflow-hidden rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.04] px-8 py-7"
         >
           <CornerTicks />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_EXTENSIONS}
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
           <div className="flex items-center gap-6">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] bg-primary text-primary-foreground shadow-sm">
               <Upload className="h-6 w-6" strokeWidth={1.75} />
@@ -231,7 +260,12 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect }: Agen
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground">
                 Arrastrá tu archivo o{" "}
-                <span className="cursor-pointer text-primary underline underline-offset-2">seleccionalo</span>
+                <span
+                  className="cursor-pointer text-primary underline underline-offset-2"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  seleccionalo
+                </span>
               </p>
               <p className="mt-1 font-mono text-xs text-muted-foreground">
                 XLSX · PDF · DXF · DOCX · PNG/JPG &nbsp;·&nbsp; máx. 50 MB

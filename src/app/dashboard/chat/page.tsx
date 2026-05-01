@@ -261,6 +261,7 @@ export default function ChatPage() {
               userName={currentUser?.profile?.name ?? currentUser?.email}
               onQuickAction={(text) => setInput(text)}
               onSessionSelect={switchSession}
+              onFileSelect={handleFileSelect}
             />
           ) : messages.length === 0 && pending ? (
             <FileReadyView
