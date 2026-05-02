@@ -40,8 +40,9 @@ next-env.d.ts
 scripts/test-*.mjs
 scripts/test-*.js
 
-# Referencias legadas (binarios y scripts de auditoría, solo referencia histórica)
+# Código legado y prototipos de diseño — propiedad privada, excluidos del repo público
 _referencias_legadas/
+design_handoff_edificia/
 
 # InsForge & AI agent skills (excepto Claude Code settings que sí se versiona)
 .insforge
