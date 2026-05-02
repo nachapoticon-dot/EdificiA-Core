@@ -10,12 +10,10 @@ const ACTIVE_ORG_KEY = "edificia:active_org_id";
 export function OrgSwitcher() {
   const { data: orgs = [] } = useOrgs();
   const [open, setOpen] = useState(false);
-  const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
+  const [activeOrgId, setActiveOrgId] = useState<string | null>(() =>
+    typeof window !== "undefined" ? localStorage.getItem(ACTIVE_ORG_KEY) : null
+  );
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setActiveOrgId(localStorage.getItem(ACTIVE_ORG_KEY));
-  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

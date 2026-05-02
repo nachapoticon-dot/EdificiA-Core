@@ -5,7 +5,6 @@ export async function processDocx(
   buffer: ArrayBuffer,
   fileName: string,
 ): Promise<DocxProcessedFile> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mammoth = await import("mammoth");
 
   let text = "";

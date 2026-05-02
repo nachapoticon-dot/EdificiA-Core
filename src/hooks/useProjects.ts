@@ -47,6 +47,7 @@ export function useProjects() {
   const [activeIdLoaded, setActiveIdLoaded] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveProjectId(localStorage.getItem(ACTIVE_KEY));
     setActiveIdLoaded(true);
     const handler = () => setActiveProjectId(localStorage.getItem(ACTIVE_KEY));

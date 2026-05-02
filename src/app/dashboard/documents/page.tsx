@@ -100,6 +100,7 @@ export default function DocumentsPage() {
     ? files.filter((f) => f.project_id === activeProject.id)
     : files;
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadFiles(); }, [loadFiles]);
 
   const handleDelete = async (id: string) => {

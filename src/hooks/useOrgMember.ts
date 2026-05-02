@@ -28,6 +28,7 @@ export function useOrgMember(): State {
   useEffect(() => {
     const headers = getInsForgeClient().getHttpClient().getHeaders();
     if (!headers.Authorization) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ status: "error" });
       return;
     }

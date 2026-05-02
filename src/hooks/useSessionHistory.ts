@@ -91,12 +91,9 @@ export function saveSession(entry: SessionEntry): void {
 }
 
 export function useSessionHistory() {
-  const [sessions, setSessions] = useState<SessionEntry[]>([]);
+  const [sessions, setSessions] = useState<SessionEntry[]>(loadSessions);
 
-  // Hydrate from localStorage immediately, then reconcile with DB
   useEffect(() => {
-    setSessions(loadSessions());
-
     const handler = () => setSessions(loadSessions());
     window.addEventListener(UPDATE_EVENT, handler);
 

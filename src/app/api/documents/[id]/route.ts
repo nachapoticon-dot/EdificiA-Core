@@ -75,7 +75,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // Delete from storage (best-effort)
     if (fileRow.storage_path) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (client.storage.from("presupuestos").remove as unknown as (paths: string[]) => Promise<unknown>)([fileRow.storage_path]).catch(() => null);
     }
 

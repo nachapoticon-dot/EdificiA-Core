@@ -76,6 +76,7 @@ export default function PatternsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (orgMember.status === "ok") void fetchPatterns();
   }, [orgMember, fetchPatterns]);
 

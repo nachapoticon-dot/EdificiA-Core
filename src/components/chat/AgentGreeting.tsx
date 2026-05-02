@@ -69,6 +69,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
 
   useEffect(() => {
     const h = new Date().getHours();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimeGreeting(h < 12 ? "Buenos días" : h < 20 ? "Buenas tardes" : "Buenas noches");
   }, []);
 

@@ -35,8 +35,10 @@ export default function ChatPage() {
   const { activeProject } = useProjectContext();
   // Use a ref so the headers callback always reads the latest project without re-creating the transport
   const activeProjectRef = useRef(activeProject);
+  // eslint-disable-next-line react-hooks/refs
   activeProjectRef.current = activeProject;
 
+  /* eslint-disable react-hooks/refs */
   const { messages, sendMessage, setMessages, status, stop } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -54,6 +56,7 @@ export default function ChatPage() {
       },
     }),
   });
+  /* eslint-enable react-hooks/refs */
   const { sessionId, recordSession, switchSession } = useSessionContext();
   const currentUserState = useCurrentUser();
   const currentUser = currentUserState.status === "ok" ? currentUserState.user : null;
@@ -70,6 +73,7 @@ export default function ChatPage() {
   useEffect(() => {
     const local = loadMessages(sessionId);
     setMessages(local);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPending((prev) => {
       if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
       return null;

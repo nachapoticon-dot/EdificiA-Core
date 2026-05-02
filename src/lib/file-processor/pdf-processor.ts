@@ -11,7 +11,6 @@ export async function processPdf(
   fileName: string,
 ): Promise<PdfProcessedFile> {
   // Dynamic import to keep the parser out of the edge runtime bundle
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfParseModule = await import("pdf-parse");
   const pdfParse = ("default" in pdfParseModule ? pdfParseModule.default : pdfParseModule) as (
     data: Buffer,

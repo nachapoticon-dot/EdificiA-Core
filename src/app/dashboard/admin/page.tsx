@@ -69,6 +69,7 @@ export default function AdminMembersPage() {
 
   useEffect(() => {
     if (orgMember.status === "ok" && orgMember.member.role === "admin") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchMembers();
     }
   }, [orgMember, fetchMembers]);

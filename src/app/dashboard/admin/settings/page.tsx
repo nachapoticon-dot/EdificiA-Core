@@ -157,6 +157,7 @@ export default function AdminSettingsPage() {
             placeholder="https://..."
           />
           {form.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={form.logoUrl}
               alt="Logo preview"
