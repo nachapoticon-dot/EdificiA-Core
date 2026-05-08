@@ -106,7 +106,7 @@ export async function searchDocuments(
           with_payload: true,
         });
 
-        const relevant = results.filter((r) => r.score >= 0.65);
+        const relevant = results.filter((r) => r.score >= 0.55);
         if (relevant.length > 0) return relevant.map(toSearchResult);
       } catch { /* fall through */ }
     }

@@ -5,6 +5,7 @@ import { getInsForgeClient } from "@/lib/insforge/client";
 
 export interface OrgMember {
   userId: string;
+  email: string | null;
   orgId: string;
   role: string;
   orgName: string;

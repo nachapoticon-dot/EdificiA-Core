@@ -10,12 +10,18 @@ export default function ObrasPage() {
   const { projects, createProject, isLoading, isCreating } = useProjectContext();
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
 
-  function handleCreate() {
-    if (!newName.trim()) return;
-    createProject(newName.trim());
-    setNewName("");
-    setShowForm(false);
+  async function handleCreate() {
+    if (!newName.trim() || isCreating) return;
+    setCreateError(null);
+    try {
+      await createProject(newName.trim());
+      setNewName("");
+      setShowForm(false);
+    } catch {
+      setCreateError("No se pudo crear la obra. Verificá tu conexión e intentá de nuevo.");
+    }
   }
 
   return (
@@ -58,6 +64,11 @@ export default function ObrasPage() {
               transition={{ duration: 0.2 }}
               className="mt-4 overflow-hidden"
             >
+              {createError && (
+                <p className="mb-2 rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {createError}
+                </p>
+              )}
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
@@ -85,7 +96,7 @@ export default function ObrasPage() {
                   {isCreating ? "Creando…" : "Crear"}
                 </button>
                 <button
-                  onClick={() => { setShowForm(false); setNewName(""); }}
+                  onClick={() => { setShowForm(false); setNewName(""); setCreateError(null); }}
                   className="rounded-[10px] border border-border bg-card px-4 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent"
                 >
                   Cancelar

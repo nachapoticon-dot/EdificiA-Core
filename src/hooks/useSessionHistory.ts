@@ -91,9 +91,13 @@ export function saveSession(entry: SessionEntry): void {
 }
 
 export function useSessionHistory() {
-  const [sessions, setSessions] = useState<SessionEntry[]>(loadSessions);
+  // Start empty to match SSR, then hydrate from localStorage in useEffect
+  const [sessions, setSessions] = useState<SessionEntry[]>([]);
 
   useEffect(() => {
+    // Initial hydration from localStorage after mount
+    setSessions(loadSessions());
+
     const handler = () => setSessions(loadSessions());
     window.addEventListener(UPDATE_EVENT, handler);
 

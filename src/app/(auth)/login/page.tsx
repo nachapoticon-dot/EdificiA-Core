@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { loginSchema, type LoginInput } from "@/lib/validators";
 
 type FieldErrors = Partial<Record<keyof LoginInput, string>>;
@@ -56,6 +56,23 @@ function LoginForm() {
     if (error || !data) {
       setServerError("Email o contraseña incorrectos.");
       return;
+    }
+
+    // Persist raw token so it survives hot reloads and page refreshes
+    const rawToken = getInsForgeClient().getHttpClient().getHeaders().Authorization as string | undefined;
+    if (rawToken) {
+      // Strip "Bearer " prefix — setAuthToken expects the raw token
+      persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""));
+    }
+
+    // Si el usuario tiene una invitación de fundador pendiente, crear la org automáticamente
+    const token = rawToken;
+    if (token) {
+      await fetch("/api/auth/claim-founder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({ email: parsed.data.email }),
+      });
     }
 
     const next = (searchParams.get("next") ?? "/dashboard/chat") as never;

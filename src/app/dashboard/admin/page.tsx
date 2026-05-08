@@ -10,6 +10,7 @@ import { getInsForgeClient } from "@/lib/insforge/client";
 interface Member {
   id: string;
   user_id: string;
+  email: string | null;
   role: string;
   created_at: string;
 }
@@ -201,12 +202,12 @@ export default function AdminMembersPage() {
           {members.map((m) => (
             <div key={m.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                {m.user_id.slice(0, 2).toUpperCase()}
+                {(m.email ?? m.user_id).slice(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate font-mono">{m.user_id}</p>
+                <p className="text-sm font-medium truncate">{m.email ?? <span className="font-mono text-muted-foreground">{m.user_id.slice(0, 8)}…</span>}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(m.created_at).toLocaleDateString("es-AR")}
+                  Desde {new Date(m.created_at).toLocaleDateString("es-AR")}
                 </p>
               </div>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_COLORS[m.role] ?? ""}`}>

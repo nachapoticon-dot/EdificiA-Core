@@ -3,6 +3,7 @@ import { processFile } from "@/lib/file-processor";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { extractPatterns } from "@/lib/pattern-extractor";
 import { ingestDocument } from "@/lib/rag/ingest";
+import { cacheItems } from "@/lib/file-cache";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,14 @@ export async function POST(req: Request) {
     return Response.json({ error: "No se recibió ningún archivo." }, { status: 400 });
   }
 
+  const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+  if (file.size > MAX_BYTES) {
+    return Response.json(
+      { error: "El archivo supera el límite de 50 MB.", suggestion: "Dividí el archivo en partes más pequeñas." },
+      { status: 413 },
+    );
+  }
+
   const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
   if (!ACCEPTED_EXTENSIONS.includes(ext)) {
     return Response.json(
@@ -45,21 +54,28 @@ export async function POST(req: Request) {
   // Active project — scopes the file and its chunks to this obra
   const projectId = req.headers.get("x-project-id") ?? null;
 
-  // Get org membership (best-effort — upload still works without it for local dev)
+  // Get org membership — viewers cannot upload files
   let orgId: string | null = null;
   if (userId) {
     try {
       const client = getInsForgeAdminClient();
       const memberResult = await client.database
         .from("organization_members")
-        .select("organization_id")
+        .select("organization_id, role")
         .eq("user_id", userId)
         .is("deleted_at", null)
         .limit(1)
         .single();
-      orgId = (memberResult.data as { organization_id: string } | null)?.organization_id ?? null;
+      const member = memberResult.data as { organization_id: string; role: string } | null;
+      if (member?.role === "viewer") {
+        return Response.json(
+          { error: "Los visualizadores no pueden subir archivos. Contactá a un admin de tu empresa." },
+          { status: 403 },
+        );
+      }
+      orgId = member?.organization_id ?? null;
     } catch {
-      // Non-fatal
+      // Non-fatal — local dev without DB still works
     }
   }
 
@@ -118,7 +134,10 @@ export async function POST(req: Request) {
     void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
   }
 
-  return Response.json({ ...processed, fileId });
+  // Cache Excel items so the AI tools can retrieve them by ID (avoids re-sending large JSON in tool calls)
+  const cacheId = processed.type === "excel" ? cacheItems(processed.items) : null;
+
+  return Response.json({ ...processed, fileId, cacheId });
 }
 
 async function persistPatternsAndIngest(

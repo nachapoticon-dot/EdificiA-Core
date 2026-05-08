@@ -1,10 +1,11 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { decodeClaims } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
 
 interface MeResponse {
   userId: string;
+  email: string | null;
   orgId: string;
   role: string;
   orgName: string;
@@ -25,8 +26,9 @@ export async function GET(req: Request): Promise<Response> {
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const claims = decodeClaims(token);
+  if (!claims) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const { sub: userId, email } = claims;
 
   // Respect the active org selection from the client (org switcher stores this)
   const requestedOrgId = req.headers.get("x-org-id") ?? null;
@@ -80,6 +82,7 @@ export async function GET(req: Request): Promise<Response> {
 
     const body: MeResponse = {
       userId,
+      email,
       orgId: resolvedMember.organization_id,
       role: resolvedMember.role,
       orgName: org?.name ?? "",

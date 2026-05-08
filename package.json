@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "migrate": "insforge db migrations up --all",
+    "migrate:new": "insforge db migrations new"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.71",
+    "@ai-sdk/openai": "^3.0.62",
+    "@ai-sdk/openai-compatible": "^2.0.46",
     "@ai-sdk/react": "^3.0.171",
     "@base-ui/react": "^1.4.1",
     "@insforge/sdk": "^1.2.5",
@@ -33,7 +36,9 @@
     "pdf-parse": "^2.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1",
     "resend": "^6.12.2",
     "shadcn": "^4.6.0",
     "tailwind-merge": "^3.5.0",

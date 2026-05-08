@@ -36,6 +36,14 @@ next-env.d.ts
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
+# Ruflo / Claude Flow runtime (estado local, no va al repo)
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db
+mcp-servers/
+
 # Scripts de debugging one-off (contienen datos de prueba, no van al repo)
 scripts/test-*.mjs
 scripts/test-*.js
@@ -57,3 +65,6 @@ design_handoff_edificia/
 .roo
 .trae
 .windsurf
+
+# InsForge & AI agent skills
+.claude

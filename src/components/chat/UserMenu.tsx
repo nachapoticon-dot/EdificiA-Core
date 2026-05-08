@@ -2,9 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { getInsForgeClient } from "@/lib/insforge/client";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { getInsForgeClient, clearPersistedToken } from "@/lib/insforge/client";
+import { useOrgMember } from "@/hooks/useOrgMember";
 import { Button } from "@/components/ui/button";
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  engineer: "Ingeniero",
+  viewer: "Visualizador",
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  admin: "text-primary bg-primary/10",
+  engineer: "text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30",
+  viewer: "text-muted-foreground bg-muted",
+};
 
 function initials(name: string): string {
   return name
@@ -16,10 +28,16 @@ function initials(name: string): string {
 
 export function UserMenu() {
   const router = useRouter();
-  const state = useCurrentUser();
+  const state = useOrgMember();
 
   async function handleLogout() {
-    await getInsForgeClient().auth.signOut();
+    try {
+      await getInsForgeClient().auth.signOut();
+    } catch {
+      // ignore — we always clear local state regardless
+    }
+    await fetch("/api/auth/logout", { method: "POST" });
+    clearPersistedToken();
     router.push("/login");
     router.refresh();
   }
@@ -35,9 +53,11 @@ export function UserMenu() {
 
   if (state.status === "error") return null;
 
-  const { user } = state;
-  const displayName = user.profile?.name ?? user.email;
+  const { member } = state;
+  const displayName = member.email ?? member.userId.slice(0, 8);
   const avatar = initials(displayName);
+  const roleLabel = ROLE_LABELS[member.role] ?? member.role;
+  const roleColor = ROLE_COLORS[member.role] ?? ROLE_COLORS.viewer;
 
   return (
     <div className="flex items-center gap-2 px-1">
@@ -46,12 +66,12 @@ export function UserMenu() {
         {avatar}
       </div>
 
-      {/* Name / email */}
+      {/* Name + role */}
       <div className="min-w-0 flex-1">
         <p className="truncate text-[11px] font-medium leading-tight">{displayName}</p>
-        {user.profile?.name && (
-          <p className="truncate text-[10px] text-muted-foreground">{user.email}</p>
-        )}
+        <span className={`inline-block rounded-full px-1.5 py-px text-[9px] font-semibold leading-none ${roleColor}`}>
+          {roleLabel}
+        </span>
       </div>
 
       {/* Logout */}
@@ -59,7 +79,7 @@ export function UserMenu() {
         variant="ghost"
         size="icon"
         className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-        onClick={handleLogout}
+        onClick={() => { void handleLogout(); }}
         title="Cerrar sesión"
       >
         <LogOut className="h-3.5 w-3.5" />

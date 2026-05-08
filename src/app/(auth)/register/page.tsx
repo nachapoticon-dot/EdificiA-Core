@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { signUpSchema, loginSchema, type SignUpInput } from "@/lib/validators";
 
 type Step = "check" | "complete";
@@ -90,6 +90,10 @@ function RegisterForm() {
       });
       const data = await res.json() as { ok?: boolean; error?: string };
 
+      if (res.status === 409) {
+        setServerError("__already_exists__");
+        return;
+      }
       if (!res.ok || !data.ok) {
         setServerError(data.error ?? "Error al crear la cuenta.");
         return;
@@ -105,6 +109,11 @@ function RegisterForm() {
         setServerError("Cuenta creada. Por favor iniciá sesión.");
         router.push("/login");
         return;
+      }
+
+      const rawToken = getInsForgeClient().getHttpClient().getHeaders().Authorization as string | undefined;
+      if (rawToken) {
+        persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""));
       }
 
       router.push("/dashboard/chat");
@@ -217,11 +226,22 @@ function RegisterForm() {
               {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
             </div>
 
-            {serverError && (
+            {serverError && serverError !== "__already_exists__" && (
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{serverError}</p>
             )}
+            {serverError === "__already_exists__" && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 px-3 py-2 text-sm">
+                <p className="font-medium text-amber-800 dark:text-amber-300">Tu cuenta ya existe.</p>
+                <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                  <Link href="/login" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                    Iniciá sesión
+                  </Link>
+                  {" "}— tu empresa se activará automáticamente al ingresar.
+                </p>
+              </div>
+            )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || serverError === "__already_exists__"}>
               {loading ? "Creando cuenta..." : "Crear cuenta"}
             </Button>
 

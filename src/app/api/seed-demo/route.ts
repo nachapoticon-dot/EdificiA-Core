@@ -16,6 +16,10 @@ const DEMO_ORG_NAME = "EdificIA Demo";
 const DEMO_ORG_SLUG = "edificia-demo";
 
 export async function POST(req: Request) {
+  if (process.env.NODE_ENV !== "development") {
+    return Response.json({ error: "Not found." }, { status: 404 });
+  }
+
   const body = await req.json().catch(() => ({})) as { email?: string; password?: string };
   const email = body.email?.trim().toLowerCase();
   const password = body.password;

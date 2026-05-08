@@ -38,7 +38,7 @@ export async function GET(req: Request): Promise<Response> {
   const [membersResult, invitesResult] = await Promise.all([
     client.database
       .from("organization_members")
-      .select("id, user_id, role, created_at")
+      .select("id, user_id, email, role, created_at")
       .eq("organization_id", auth.orgId)
       .is("deleted_at", null)
       .order("created_at", { ascending: true }),
