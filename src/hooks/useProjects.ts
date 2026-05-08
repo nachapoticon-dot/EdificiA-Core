@@ -83,7 +83,7 @@ export function useProjects() {
   });
 
   const createProject = useCallback(
-    (name: string) => { createMutation.mutate(name); },
+    (name: string): Promise<Project> => createMutation.mutateAsync(name),
     [createMutation],
   );
 

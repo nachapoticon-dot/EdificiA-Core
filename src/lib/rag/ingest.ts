@@ -120,7 +120,7 @@ export async function ingestDocument(
                   document_type:         documentType,
                   construction_doc_type: constructionDocType,
                   chunk_index:           chunk.chunkIndex,
-                  chunk_text:            chunk.text.slice(0, 500),
+                  chunk_text:            chunk.text,
                   // Promote key metadata fields to top-level for Qdrant filtering
                   rubro:                 (chunk.metadata.rubro as string | undefined) ?? null,
                   section_title:         (chunk.metadata.section_title as string | undefined) ?? null,

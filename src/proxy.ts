@@ -1,13 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_PATHS = ["/dashboard"];
+const PROTECTED_PATHS = ["/dashboard", "/super-admin"];
 const AUTH_COOKIE = "insforge_csrf_token";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
   const isAuthPage = pathname.startsWith("/login");
-  const hasSession = request.cookies.has(AUTH_COOKIE);
+
+  // Detect session via InsForge CSRF cookie or any sb-* auth cookie
+  const hasSession =
+    request.cookies.has(AUTH_COOKIE) ||
+    [...request.cookies.getAll()].some((c) => c.name.startsWith("sb-"));
 
   if (isProtected && !hasSession) {
     const loginUrl = new URL("/login", request.url);
@@ -25,5 +29,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/super-admin/:path*", "/login"],
 };

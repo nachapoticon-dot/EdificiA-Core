@@ -39,6 +39,7 @@
   ],
   "exclude": [
     "node_modules",
-    "_referencias_legadas"
+    "_referencias_legadas",
+    "mcp-servers"
   ]
 }

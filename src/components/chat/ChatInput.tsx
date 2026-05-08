@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, type KeyboardEvent } from "react";
-import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Square, Paperclip, FileSpreadsheet, FileText, FileCode2, FileType2, Eye, X, Loader2 } from "lucide-react";
+import {
+  ArrowUp, Square, Paperclip,
+  FileSpreadsheet, FileText, FileCode2, FileType2, Eye, X, Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AttachedChip {
@@ -20,6 +22,7 @@ interface ChatInputProps {
   isStreaming: boolean;
   isUploading: boolean;
   disabled?: boolean;
+  canUpload?: boolean;
   attachedChip?: AttachedChip | null;
   onRemoveFile?: () => void;
   onPreviewDxf?: () => void;
@@ -43,6 +46,7 @@ export function ChatInput({
   isStreaming,
   isUploading,
   disabled,
+  canUpload = true,
   attachedChip,
   onRemoveFile,
   onPreviewDxf,
@@ -52,128 +56,116 @@ export function ChatInput({
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      const canSend = !isStreaming && !isUploading && (value.trim() || attachedChip);
-      if (canSend) onSubmit();
+      if (!isStreaming && !isUploading && (value.trim() || attachedChip)) onSubmit();
     }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) {
-      onFileSelect(file);
-      e.target.value = "";
-    }
+    if (file) { onFileSelect(file); e.target.value = ""; }
   }
 
   const Icon = attachedChip ? CHIP_ICONS[attachedChip.fileType] : null;
+  const canSend = !isStreaming && !isUploading && !disabled && (!!value.trim() || !!attachedChip);
 
   return (
-    <div className="max-w-[720px] mx-auto w-full">
-      {/* Composer card */}
-      <div className={cn(
-        "overflow-hidden rounded-[12px] border border-border bg-card shadow-[var(--shadow-sm)] transition-shadow",
-        "focus-within:shadow-[var(--shadow-md)] focus-within:border-primary/40",
-        isUploading && "opacity-75",
-      )}>
+    <div className={cn(
+      "rounded-[14px] border border-border bg-card shadow-sm transition-all duration-150",
+      "focus-within:border-primary/40 focus-within:shadow-[0_4px_24px_0_rgb(0_0_0/0.08)]",
+      isUploading && "opacity-70",
+    )}>
 
-        {/* Attached file strip */}
-        {attachedChip && Icon && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted px-3 py-2">
-            <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <span className="flex-1 truncate text-xs font-medium text-foreground">{attachedChip.name}</span>
-            {attachedChip.subtitle && (
-              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{attachedChip.subtitle}</span>
-            )}
-            {onPreviewDxf && (
-              <button
-                type="button"
-                onClick={onPreviewDxf}
-                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-primary transition-colors"
-                title="Ver plano"
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </button>
-            )}
-            {onRemoveFile && (
-              <button
-                type="button"
-                onClick={onRemoveFile}
-                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
-                title="Quitar archivo"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Input row */}
-        <div className="flex items-end gap-2 px-3 py-2.5">
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept=".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.dwg"
-            onChange={handleFileChange}
-          />
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming || isUploading || disabled}
-            title="Adjuntar archivo"
-            className={cn(
-              "h-8 w-8 shrink-0 flex items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-              isUploading && "text-primary",
-            )}
-          >
-            {isUploading
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Paperclip className="h-4 w-4" />
-            }
-          </button>
-
-          <Textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isUploading
-                ? "Procesando archivo…"
-                : attachedChip
-                ? "Preguntá algo o dejá vacío para auditar automáticamente…"
-                : "Enviá datos o hacé una pregunta…"
-            }
-            className="min-h-[36px] max-h-[200px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground placeholder:italic"
-            rows={1}
-            disabled={disabled || isUploading}
-          />
-
-          {isStreaming ? (
-            <button
-              type="button"
-              onClick={onStop}
-              title="Detener"
-              className="h-8 w-8 shrink-0 flex items-center justify-center rounded-[6px] bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
-            >
-              <Square className="h-3.5 w-3.5" />
+      {/* Attached file chip */}
+      {attachedChip && Icon && (
+        <div className="flex items-center gap-2.5 border-b border-border/50 bg-muted/40 px-4 py-2">
+          <Icon className="h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.5} />
+          <span className="flex-1 truncate text-xs font-medium text-foreground">
+            {attachedChip.name}
+          </span>
+          {attachedChip.subtitle && (
+            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+              {attachedChip.subtitle}
+            </span>
+          )}
+          {onPreviewDxf && (
+            <button type="button" onClick={onPreviewDxf} title="Ver plano"
+              className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-primary">
+              <Eye className="h-3.5 w-3.5" />
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={(!value.trim() && !attachedChip) || isStreaming || isUploading || disabled}
-              title="Enviar"
-              className={cn(
-                "h-8 w-8 shrink-0 flex items-center justify-center rounded-[6px] transition-colors",
-                "bg-primary text-primary-foreground hover:bg-[var(--terra-600)]",
-                "disabled:opacity-40 disabled:cursor-not-allowed",
-              )}
-            >
-              <ArrowUp className="h-4 w-4" strokeWidth={2} />
+          )}
+          {onRemoveFile && (
+            <button type="button" onClick={onRemoveFile} title="Quitar archivo"
+              className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-destructive">
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
+      )}
+
+      {/* Input row */}
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.dwg"
+          onChange={handleFileChange}
+        />
+
+        {/* Attach */}
+        <button
+          type="button"
+          onClick={() => canUpload ? fileInputRef.current?.click() : undefined}
+          disabled={isStreaming || isUploading || disabled || !canUpload}
+          title={canUpload ? "Adjuntar archivo" : "No tenés permisos para adjuntar archivos"}
+          className={cn(
+            "shrink-0 flex h-7 w-7 items-center justify-center rounded-lg",
+            "text-muted-foreground/60 transition-colors",
+            canUpload
+              ? "hover:bg-primary/[0.07] hover:text-primary"
+              : "cursor-not-allowed opacity-30",
+            "disabled:pointer-events-none disabled:opacity-40",
+            isUploading && "text-primary",
+          )}
+        >
+          {isUploading
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Paperclip className="h-4 w-4" />
+          }
+        </button>
+
+        {/* Native textarea — avoids the Textarea component's min-h-16 base class */}
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            isUploading      ? "Procesando archivo…"
+            : attachedChip   ? "Preguntá algo o dejá vacío para auditar…"
+            :                  "Enviá datos o hacé una pregunta…"
+          }
+          rows={1}
+          disabled={disabled || isUploading}
+          className="field-sizing-content flex-1 resize-none bg-transparent py-1 text-sm leading-6 outline-none placeholder:text-muted-foreground/55 disabled:opacity-50"
+        />
+
+        {/* Stop / Send */}
+        {isStreaming ? (
+          <button type="button" onClick={onStop} title="Detener"
+            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground/70 transition-colors hover:bg-accent">
+            <Square className="h-3 w-3 fill-current" />
+          </button>
+        ) : (
+          <button type="button" onClick={onSubmit} disabled={!canSend} title="Enviar"
+            className={cn(
+              "shrink-0 flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-100",
+              "bg-primary text-primary-foreground",
+              "hover:opacity-90 active:scale-[0.92]",
+              "disabled:cursor-not-allowed disabled:opacity-25 disabled:active:scale-100",
+            )}>
+            <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+          </button>
+        )}
       </div>
     </div>
   );

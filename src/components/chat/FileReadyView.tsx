@@ -142,8 +142,8 @@ export function FileReadyView({ file, onActionSelect, onRemove }: FileReadyViewP
   const { Icon, iconBg, iconColor, meta, stats, actions } = cfg;
 
   return (
-    <div className="flex flex-col items-center px-6 py-10">
-      <div className="w-full max-w-[680px] space-y-6">
+    <div className="py-10">
+      <div className="mx-auto max-w-[680px] space-y-6 px-6">
 
         {/* ── File card ── */}
         <motion.div

@@ -3,6 +3,17 @@ import { signUpSchema } from "@/lib/validators";
 
 export const runtime = "nodejs";
 
+function slugify(name: string, suffix: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 40)
+    .concat("-", suffix);
+}
+
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -17,13 +28,60 @@ export async function POST(req: Request) {
   }
 
   const { email, password, name } = parsed.data;
+  const normalizedEmail = email.toLowerCase();
   const admin = getInsForgeAdminClient();
 
-  // 1. Verificar invitación pendiente
+  // 1a. Verificar si es un fundador pre-autorizado (crea org nueva)
+  const { data: founderRows } = await admin.database
+    .from("org_founder_invitations")
+    .select("id, company_name")
+    .eq("email", normalizedEmail)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .limit(1);
+
+  const founderInvitation = (founderRows ?? [])[0] as { id: string; company_name: string } | undefined;
+
+  if (founderInvitation) {
+    // Crear usuario
+    const { data: authData, error: authErr } = await admin.auth.signUp({ email, password, name, autoConfirm: true });
+    if (authErr) {
+      const msg = authErr.message ?? "";
+      if (msg.includes("already registered") || msg.includes("already exists") || msg.includes("already been registered")) {
+        return Response.json({ error: "Este email ya está registrado. Intentá iniciar sesión." }, { status: 409 });
+      }
+      return Response.json({ error: "No se pudo crear la cuenta." }, { status: 500 });
+    }
+    const userId = authData?.user?.id;
+    if (!userId) return Response.json({ error: "No se pudo crear la cuenta." }, { status: 500 });
+
+    // Crear organización
+    const { data: orgData, error: orgErr } = await admin.database
+      .from("organizations")
+      .insert({ name: founderInvitation.company_name, slug: slugify(founderInvitation.company_name, userId.slice(0, 8)) })
+      .select("id")
+      .single();
+
+    if (orgErr || !orgData) return Response.json({ error: "No se pudo crear la organización." }, { status: 500 });
+    const orgId = (orgData as { id: string }).id;
+
+    // Agregar como admin
+    await admin.database.from("organization_members").insert({ organization_id: orgId, user_id: userId, role: "admin", email: normalizedEmail });
+
+    // Marcar invitación como aceptada
+    await admin.database
+      .from("org_founder_invitations")
+      .update({ status: "accepted" })
+      .eq("id", founderInvitation.id);
+
+    return Response.json({ ok: true });
+  }
+
+  // 1b. Verificar invitación de miembro (flujo existente)
   const { data: invitations, error: invErr } = await admin.database
     .from("organization_invitations")
     .select("id, organization_id, role")
-    .eq("invited_email", email.toLowerCase())
+    .eq("invited_email", normalizedEmail)
     .eq("status", "pending")
     .gt("expires_at", new Date().toISOString())
     .limit(1);
@@ -38,12 +96,7 @@ export async function POST(req: Request) {
   const invitation = invitations[0] as { id: string; organization_id: string; role: string };
 
   // 2. Crear usuario en InsForge Auth
-  const { data: authData, error: authErr } = await admin.auth.signUp({
-    email,
-    password,
-    name,
-    autoConfirm: true,
-  });
+  const { data: authData, error: authErr } = await admin.auth.signUp({ email, password, name, autoConfirm: true });
 
   if (authErr) {
     const msg = authErr.message ?? "";
@@ -54,15 +107,14 @@ export async function POST(req: Request) {
   }
 
   const userId = authData?.user?.id;
-  if (!userId) {
-    return Response.json({ error: "No se pudo crear la cuenta." }, { status: 500 });
-  }
+  if (!userId) return Response.json({ error: "No se pudo crear la cuenta." }, { status: 500 });
 
   // 3. Agregar a la organización
   await admin.database.from("organization_members").insert({
     organization_id: invitation.organization_id,
     user_id: userId,
     role: invitation.role,
+    email: normalizedEmail,
   });
 
   // 4. Marcar invitación como aceptada
@@ -86,6 +138,26 @@ export async function GET(req: Request) {
 
   const admin = getInsForgeAdminClient();
 
+  // Primero verificar si es un fundador pre-autorizado
+  const { data: founderRows } = await admin.database
+    .from("org_founder_invitations")
+    .select("id, company_name")
+    .eq("email", email)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .limit(1);
+
+  const founder = (founderRows ?? [])[0] as { id: string; company_name: string } | undefined;
+  if (founder) {
+    return Response.json({
+      authorized: true,
+      organizationName: founder.company_name,
+      role: "admin",
+      isFounder: true,
+    });
+  }
+
+  // Luego verificar invitación de miembro existente
   const { data, error } = await admin.database
     .from("organization_invitations")
     .select("id, role, organizations(name)")

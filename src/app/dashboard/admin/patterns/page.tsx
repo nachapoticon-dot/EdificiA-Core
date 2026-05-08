@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Brain, FileSpreadsheet, FileText, Box, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { Brain, FileSpreadsheet, FileText, Box, ArrowLeft, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { getInsForgeClient } from "@/lib/insforge/client";
 
@@ -56,6 +56,7 @@ export default function PatternsPage() {
   const [totalPatterns, setTotalPatterns] = useState(0);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchPatterns = useCallback(async () => {
     setLoading(true);
@@ -79,6 +80,33 @@ export default function PatternsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (orgMember.status === "ok") void fetchPatterns();
   }, [orgMember, fetchPatterns]);
+
+  const handleDeletePattern = async (documentType: string, patternKey: string) => {
+    const key = `${documentType}:${patternKey}`;
+    setDeleting(key);
+    // Optimistic update
+    setGrouped((prev) => {
+      const next = { ...prev };
+      if (next[documentType]) {
+        const filtered = next[documentType]!.patterns.filter((p) => p.pattern_key !== patternKey);
+        if (filtered.length === 0) {
+          const { [documentType]: _, ...rest } = next;
+          void _;
+          return rest;
+        }
+        next[documentType] = { ...next[documentType]!, patterns: filtered };
+      }
+      return next;
+    });
+    setTotalPatterns((n) => n - 1);
+    const headers = getInsForgeClient().getHttpClient().getHeaders();
+    await fetch("/api/admin/patterns", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: headers.Authorization as string },
+      body: JSON.stringify({ documentType, patternKey }),
+    });
+    setDeleting(null);
+  };
 
   if (loading) {
     return (
@@ -157,29 +185,47 @@ export default function PatternsPage() {
                 </span>
               </div>
               <div className="divide-y">
-                {group.patterns.map((row) => (
-                  <div key={row.pattern_key} className="px-5 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                          {PATTERN_KEY_LABELS[row.pattern_key] ?? row.pattern_key}
-                        </p>
-                        <PatternValueDisplay patternKey={row.pattern_key} value={row.pattern_value} />
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <span className="text-xs text-muted-foreground">
-                          {row.sample_count}× visto
-                        </span>
-                        <div className="mt-1 h-1.5 w-16 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary transition-all"
-                            style={{ width: `${Math.min(100, (row.sample_count / Math.max(group.maxSampleCount, 1)) * 100)}%` }}
-                          />
+                {group.patterns.map((row) => {
+                  const deleteKey = `${docType}:${row.pattern_key}`;
+                  const isAdmin = orgMember.status === "ok" && orgMember.member.role === "admin";
+                  return (
+                    <div key={row.pattern_key} className="px-5 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                            {PATTERN_KEY_LABELS[row.pattern_key] ?? row.pattern_key}
+                          </p>
+                          <PatternValueDisplay patternKey={row.pattern_key} value={row.pattern_value} />
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <span className="text-xs text-muted-foreground">
+                              {row.sample_count}× visto
+                            </span>
+                            <div className="mt-1 h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary transition-all"
+                                style={{ width: `${Math.min(100, (row.sample_count / Math.max(group.maxSampleCount, 1)) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <button
+                              onClick={() => { void handleDeletePattern(docType, row.pattern_key); }}
+                              disabled={deleting === deleteKey}
+                              className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                              title="Eliminar patrón"
+                            >
+                              {deleting === deleteKey
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Trash2 className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           );

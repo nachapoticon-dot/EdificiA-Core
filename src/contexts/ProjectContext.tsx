@@ -6,7 +6,7 @@ import { useProjects, type Project } from "@/hooks/useProjects";
 interface ProjectContextValue {
   projects: Project[];
   activeProject: Project | null;
-  createProject: (name: string) => void;
+  createProject: (name: string) => Promise<import("@/hooks/useProjects").Project>;
   activateProject: (project: Project) => void;
   clearActiveProject: () => void;
   isLoading: boolean;

@@ -86,8 +86,8 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
   /* ── PROJECT PICKER — no active project ─────────────────────── */
   if (!activeProject) {
     return (
-      <div className="flex flex-col items-center px-6 py-12 pb-6">
-        <div className="w-full max-w-[720px]">
+      <div className="py-4">
+        <div className="mx-auto max-w-[720px] px-6">
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
             className="mb-5 flex items-center justify-center gap-3"
@@ -173,8 +173,11 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
             </div>
 
             {/* Dropzone CTA */}
-            <div className="relative overflow-hidden rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.04] px-8 py-6">
-              <CornerTicks />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="group w-full rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.03] py-8 text-center transition-all hover:border-primary/60 hover:bg-primary/[0.07]"
+            >
               <input
                 ref={fileInputRef}
                 type="file"
@@ -182,26 +185,21 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
                 className="hidden"
                 onChange={handleFileInputChange}
               />
-              <div className="flex items-center gap-6">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-primary text-primary-foreground">
-                  <Upload className="h-5 w-5" strokeWidth={1.75} />
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-primary/10 text-primary transition-colors group-hover:bg-primary/[0.16]">
+                  <Upload className="h-5 w-5" strokeWidth={1.5} />
                 </div>
                 <div>
                   <p className="text-[13px] font-semibold text-foreground">
                     Arrastrá tu archivo o{" "}
-                    <span
-                      className="cursor-pointer text-primary underline underline-offset-2"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      seleccionalo
-                    </span>
+                    <span className="text-primary underline underline-offset-2">seleccionalo</span>
                   </p>
                   <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                    XLSX · PDF · DXF · DOCX · PNG/JPG &nbsp;·&nbsp; máx. 50 MB
+                    XLSX · PDF · DXF · DOCX · PNG/JPG · máx. 50 MB
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
 
           </motion.div>
         </div>
@@ -211,8 +209,8 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
 
   /* ── NORMAL WELCOME — project selected ───────────────────────── */
   return (
-    <div className="flex flex-col items-center px-6 py-12 pb-6">
-      <div className="w-full max-w-[720px]">
+    <div className="py-4">
+      <div className="mx-auto max-w-[720px] px-6">
 
         {/* Eyebrow */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
@@ -243,10 +241,14 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
         </motion.div>
 
         {/* Hero dropzone */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.45 }}
-          className="relative mt-8 overflow-hidden rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.04] px-8 py-7"
+        <motion.button
+          type="button"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.45 }}
+          onClick={() => fileInputRef.current?.click()}
+          className="group mt-6 w-full rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.03] py-10 text-center transition-all hover:border-primary/60 hover:bg-primary/[0.07]"
         >
-          <CornerTicks />
           <input
             ref={fileInputRef}
             type="file"
@@ -254,44 +256,31 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <div className="flex items-center gap-6">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] bg-primary text-primary-foreground shadow-sm">
-              <Upload className="h-6 w-6" strokeWidth={1.75} />
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-primary/10 text-primary transition-colors group-hover:bg-primary/[0.16]">
+              <Upload className="h-5 w-5" strokeWidth={1.5} />
             </div>
-            <div className="flex-1 min-w-0">
+            <div>
               <p className="text-sm font-semibold text-foreground">
                 Arrastrá tu archivo o{" "}
-                <span
-                  className="cursor-pointer text-primary underline underline-offset-2"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  seleccionalo
-                </span>
+                <span className="text-primary underline underline-offset-2">seleccionalo</span>
               </p>
               <p className="mt-1 font-mono text-xs text-muted-foreground">
-                XLSX · PDF · DXF · DOCX · PNG/JPG &nbsp;·&nbsp; máx. 50 MB
+                XLSX · PDF · DXF · DOCX · PNG/JPG · máx. 50 MB
               </p>
             </div>
-            <span className="hidden font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground/50 sm:block"
-              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
-              INPUT — 01
-            </span>
           </div>
-        </motion.div>
+        </motion.button>
 
         {/* Or divider */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
-          className="my-6 flex items-center gap-3"
-        >
+        <div className="my-6 flex items-center gap-3">
           <span className="h-px flex-1 bg-border" />
           <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">o preguntá directamente</span>
           <span className="h-px flex-1 bg-border" />
-        </motion.div>
+        </div>
 
         {/* Sample prompt chips */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-          className="flex flex-wrap justify-center gap-2"
-        >
+        <div className="flex flex-wrap justify-center gap-2">
           {QUICK_PROMPTS.map((p) => (
             <button key={p} onClick={() => onQuickAction(p)}
               className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-foreground"
@@ -300,11 +289,11 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
               <span>{p}</span>
             </button>
           ))}
-        </motion.div>
+        </div>
 
         {/* Cobertura documental de la obra */}
         {coverage && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
             className="mt-8"
           >
             <div className="flex items-center justify-between mb-3">
@@ -339,6 +328,13 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
                 {coverage.nextSuggestion}
               </p>
             )}
+            <button
+              onClick={() => onQuickAction(`Analizá el estado actual de la obra "${activeProject.name}" y decime qué falta documentar en cada fase.`)}
+              className="mt-3 flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/[0.09]"
+            >
+              <ArrowRight className="h-3 w-3" />
+              Analizar estado con el agente
+            </button>
           </motion.div>
         )}
 
@@ -347,7 +343,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
           const projectSessions = sessions.filter(s => s.projectId === activeProject?.id);
           if (projectSessions.length === 0) return null;
           return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
             className="mt-10"
           >
             <SectionLabel>Trabajos recientes</SectionLabel>
@@ -410,18 +406,3 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CornerTicks() {
-  const c = "stroke-primary";
-  return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
-      <line x1="8" y1="8" x2="18" y2="8" className={c} strokeWidth="1.5" />
-      <line x1="8" y1="8" x2="8" y2="18" className={c} strokeWidth="1.5" />
-      <line x1="100%" y1="8" x2="calc(100% - 10px)" y2="8" className={c} strokeWidth="1.5" />
-      <line x1="calc(100% - 8px)" y1="8" x2="calc(100% - 8px)" y2="18" className={c} strokeWidth="1.5" />
-      <line x1="8" y1="100%" x2="18" y2="100%" className={c} strokeWidth="1.5" />
-      <line x1="8" y1="calc(100% - 8px)" x2="8" y2="calc(100% - 18px)" className={c} strokeWidth="1.5" />
-      <line x1="100%" y1="100%" x2="calc(100% - 10px)" y2="100%" className={c} strokeWidth="1.5" />
-      <line x1="calc(100% - 8px)" y1="100%" x2="calc(100% - 8px)" y2="calc(100% - 18px)" className={c} strokeWidth="1.5" />
-    </svg>
-  );
-}
