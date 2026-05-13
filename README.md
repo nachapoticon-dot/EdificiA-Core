@@ -1,8 +1,8 @@
 # EdificIA
 
-> "EL MEJOR AYUDANTE" a prueba de balas para tu obra. Plataforma de Inteligencia Artificial proactiva para empresas constructoras.
+> Sistema Integral de Dirección de Obra. Plataforma de Inteligencia Artificial proactiva para empresas constructoras.
 
-EdificIA es un SaaS B2B multi-tenant que no solo actúa como la memoria institucional de una constructora, sino como un **asistente proactivo** que gestiona la realidad del terreno. Los equipos de ingeniería, arquitectura y capataces pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas y recibir alertas inteligentes — todo mediante lenguaje natural y **UI Generativa**, adaptado al contexto de cada obra.
+EdificIA es un SaaS B2B multi-tenant que no solo actúa como la memoria institucional de una constructora, sino como un **Project Manager Digital** que gestiona y anticipa la realidad del terreno. Los equipos de ingeniería, arquitectura y capataces pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas y recibir alertas inteligentes — todo mediante lenguaje natural y **UI Generativa**, adaptado al contexto de cada obra.
 
 ---
 
@@ -21,7 +21,7 @@ EdificIA es un SaaS B2B multi-tenant que no solo actúa como la memoria instituc
 ## Documentación y Planificación
 
 Para mantener la raíz del proyecto ordenada, toda la documentación de avance, auditorías y tareas para el equipo de desarrollo/IA se encuentra en el directorio `/docs`:
-- 📌 **[Plan de Mejora y Roadmap](./docs/planning/PLAN_DE_MEJORA.md)**: Hoja de ruta estratégica, arquitectura de "El Mejor Ayudante" y despliegue.
+- 📌 **[Plan de Mejora y Roadmap](./docs/planning/PLAN_DE_MEJORA.md)**: Hoja de ruta estratégica, arquitectura del Agente Integral y despliegue.
 - 📝 **[Tareas para Claude](./docs/planning/TAREAS_CLAUDE.md)**: Registro de bugs y requerimientos de UI a implementar en las próximas iteraciones.
 
 ---

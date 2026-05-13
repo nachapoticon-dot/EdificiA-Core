@@ -49,10 +49,10 @@ Este documento sirve como hoja de ruta para las próximas implementaciones en el
   - Rediseñar el componente de subida en `src/components/chat/` o `documents/`. *(Componente base creado)*
   - Usar un área de *Drag & Drop* de Shadcn con animaciones de Framer Motion. *(Pendiente)*
   - Mostrar barras de progreso reales durante la extracción de texto y el guardado en Qdrant. *(Pendiente)*
-- **[x] Paso 2: Refinamiento del System Prompt (Transición a "El Mejor Ayudante"):**
+- **[x] Paso 2: Refinamiento del System Prompt (Transición a "Project Manager Digital"):**
   - Actualizar el archivo de prompt (`src/lib/ai/agent-prompt.ts`).
   - Añadir directivas estrictas de citado (siempre citar el documento y la página usando metadatos).
-  - **Evolución de Rol**: Ya no es solo un "Auditor Técnico Senior" pasivo, sino **EL MEJOR AYUDANTE**. Debe mantener la precisión técnica, pero sumar un rol de gestión integral: llevar la cronología de las obras, disponer de contactos (obreros, servicios) y analizar proactivamente el estado del proyecto.
+  - **Evolución de Rol**: Ya no es solo un "Auditor Técnico" pasivo, sino un **Project Manager de Obra Digital**. Debe mantener el rigor técnico, pero sumar un rol de gestión integral: administrar el cronograma, coordinar el directorio de contratistas y servicios, y analizar proactivamente los desvíos del proyecto.
 
 ## 7. Seguridad y Resiliencia en Producción
 **Objetivo:** Garantizar que la aplicación sea segura, robusta y escalable para entornos empresariales, protegiendo los datos y asegurando la continuidad del servicio.
@@ -74,7 +74,7 @@ Este documento sirve como hoja de ruta para las próximas implementaciones en el
   - **Estrategia de Rollback:** Diseñar un plan automatizado para revertir rápidamente a la versión anterior si un nuevo despliegue causa fallos críticos.
 
 ## 8. Funciones Proactivas y Gestión Integral de Obra
-**Objetivo:** Evolucionar de un consultor reactivo a "El Mejor Ayudante, a Prueba de Balas". El agente debe entender y anticiparse a todas las variables críticas de una obra real: clima, cadena de suministros, seguridad del personal y finanzas.
+**Objetivo:** Evolucionar de un auditor reactivo a un "Project Manager de Obra Digital". El agente debe procesar y anticiparse a todas las variables críticas de la ejecución de obra: clima, cadena de suministros, seguridad del personal (HSE) y finanzas.
 
 - **[ ] Paso 1: Arquitectura de Datos Extendida para la Obra Real:**
   - **Cronograma y Finanzas:** Registro de curva de inversión, hitos de Certificados de Avance y pagos a subcontratistas.
