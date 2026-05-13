@@ -26,3 +26,8 @@ Este documento recopila los errores encontrados y las nuevas características o 
   3. **Bloque de Legajo Gráfico (Media Grid)**: Un visor para planos e imágenes. Muestra miniaturas organizadas con etiquetas flotantes (ej. `PLANO`, `INSPECCIÓN`, `RENDER`) y metadatos del archivo en la parte inferior (fecha, vista, extensión).
   4. **Bloque de Cronograma (Timeline)**: Para avances de obra. Presenta un eje de meses arriba, tareas apiladas con barras verdes indicando progreso, una línea vertical naranja marcando el día de "HOY", y un detalle inferior con los hitos (fechas clave).
   *(Importante: En todos estos bloques, el agente debe mostrar antes una lista tipo consola de las herramientas usadas con sus checkmarks verdes, ej: "✅ Calculando totales del presupuesto... ok").*
+- **Panel SuperAdmin y Seguridad de Datos**: Mejorar la interfaz del administrador global y la lógica de conexión para gestionar a las empresas de forma segura sin comprometer su aislamiento de datos (Multi-tenant). Debe incluir:
+  - **Alta y Gestión de Empresas**: Capacidad de dar de alta nuevas constructoras/organizaciones en la plataforma.
+  - **Auditoría de Bases de Datos**: Verificación del estado de los datos de cada cliente (ej. última fecha de actualización, espacio de servidor consumido).
+  - **Estado de Pagos y Suscripción**: Panel de control para verificar si la empresa está al día con la facturación y habilitar/deshabilitar accesos automáticamente.
+  - **Conexión Segura (Zero Leak)**: Asegurar que, al conectarse a los archivos y a la base de datos de una empresa, el flujo esté estrictamente aislado para que no haya fugas de información hacia otras organizaciones.
