@@ -1,22 +1,28 @@
 # EdificIA
 
-> Plataforma de inteligencia artificial para empresas constructoras.
+> "EL MEJOR AYUDANTE" a prueba de balas para tu obra. Plataforma de Inteligencia Artificial proactiva para empresas constructoras.
 
-EdificIA es un SaaS B2B multi-tenant que actúa como memoria institucional y cerebro operativo de una constructora. Los equipos de ingeniería y arquitectura pueden auditar presupuestos, consultar normativa, gestionar legajos técnicos y generar documentos formales — todo mediante lenguaje natural, en el contexto de cada empresa y obra.
+EdificIA es un SaaS B2B multi-tenant que no solo actúa como la memoria institucional de una constructora, sino como un **asistente proactivo** que gestiona la realidad del terreno. Los equipos de ingeniería, arquitectura y capataces pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas y recibir alertas inteligentes — todo mediante lenguaje natural y **UI Generativa**, adaptado al contexto de cada obra.
 
 ---
 
-## Capacidades principales
+## Capacidades Principales
 
-- **Chat con contexto documental** — El agente lee PDFs, planillas Excel, planos DXF e imágenes y responde preguntas sobre su contenido con precisión técnica.
-- **RAG jerárquico** — Sistema de recuperación semántica con chunking por rubro/sección, detección de intención y pre-filtro por tipo documental. Los documentos se indexan por empresa y obra.
-- **Generación autónoma de documentos** — Produce informes PDF, memorias descriptivas Word (.docx) y presupuestos Excel (.xlsx) directamente desde el chat.
-- **Dashboard de obras** — Vista completa por obra: cobertura documental, historial de sesiones y acceso a legajos.
-- **Índices de precio (CAC)** — Sistema append-only de índices de costo de la construcción, con histórico y comparación de variaciones.
-- **Gestión de patrones** — Banco de cláusulas y ítems reutilizables por empresa para estandarizar presupuestos y documentos.
-- **Multi-empresa para consultores** — Org switcher para usuarios que operan en múltiples empresas desde una sola cuenta.
-- **Persistencia cross-device** — Las sesiones de chat se sincronizan entre dispositivos vía base de datos con fallback en localStorage.
-- **Panel de administración** — Gestión de miembros, invitaciones, settings de organización y configuración del agente.
+- **Gestión Proactiva de Obra** — Alertas de clima, vencimientos de seguros de subcontratistas (ART), cronograma de tareas y seguimiento de acopios críticos.
+- **UI Generativa en el Chat** — El agente no solo responde con texto, sino que renderiza de forma nativa bloques visuales interactivos: métricas y gráficos de barras, tablas comparativas (ranking de proveedores), visores de planos (media grid) y cronogramas tipo Gantt.
+- **RAG Jerárquico** — Sistema de recuperación semántica sobre PDFs, planillas Excel, planos DXF e imágenes, indexados por empresa y obra.
+- **Generación Autónoma de Documentos** — Produce informes en PDF, memorias descriptivas (.docx) y presupuestos exportables a Excel (.xlsx).
+- **Dashboard Integral** — Vista completa por obra que consolida cobertura documental, contactos, agenda y certificaciones.
+- **Seguridad Multi-Tenant** — Aislamiento total de datos por constructora con Row-Level Security, ideal para consultores que operan con múltiples firmas.
+- **Persistencia Cross-Device** — Las sesiones de chat se sincronizan entre dispositivos vía base de datos.
+
+---
+
+## Documentación y Planificación
+
+Para mantener la raíz del proyecto ordenada, toda la documentación de avance, auditorías y tareas para el equipo de desarrollo/IA se encuentra en el directorio `/docs`:
+- 📌 **[Plan de Mejora y Roadmap](./docs/planning/PLAN_DE_MEJORA.md)**: Hoja de ruta estratégica, arquitectura de "El Mejor Ayudante" y despliegue.
+- 📝 **[Tareas para Claude](./docs/planning/TAREAS_CLAUDE.md)**: Registro de bugs y requerimientos de UI a implementar en las próximas iteraciones.
 
 ---
 

@@ -17,6 +17,8 @@ import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard"
 import { FindingCallout, type FindingSpec } from "./FindingCallout";
 import { ComparisonTable, type ComparisonTableSpec } from "./ComparisonTable";
 import { GeneratedDocCard, type DocGenerationProposal } from "./GeneratedDocCard";
+import { ResponseBlock } from "./blocks";
+import { BlockSpec, type BlockKind } from "@/lib/validators/blocks";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useState } from "react";
 
@@ -343,12 +345,28 @@ function TextPart({
 
 /* ── Special tool parts (chart / document proposal / etc.) ── */
 
+const BLOCK_TOOLS: Record<string, BlockKind> = {
+  proyectar_metricas:       "metrics",
+  proyectar_legajo_grafico: "media",
+  proyectar_comparativa:    "comparison",
+  proyectar_cronograma:     "timeline",
+};
+
 function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
   if (!isToolUIPart(part)) return null;
   const ti = getToolInvocation(part);
   const toolName = ti?.toolName ?? "";
   const isPending = ti?.state === "call" || ti?.state === "partial-call";
   const output = ti?.result;
+
+  // ── Nuevos bloques de respuesta estructurados ──
+  const blockKind = BLOCK_TOOLS[toolName];
+  if (blockKind) {
+    if (isPending) return <ResponseBlock kind={blockKind} loading />;
+    const parsed = BlockSpec.safeParse(output);
+    if (!parsed.success) return <FallbackErrorBlock toolName={toolName} />;
+    return <ResponseBlock spec={parsed.data} />;
+  }
 
   if (toolName === "generar_grafica" && !isPending && output) {
     const spec = output as ChartSpec;
@@ -451,6 +469,15 @@ function ToolGroupCard({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[]
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function FallbackErrorBlock({ toolName }: { toolName: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-[12px] text-muted-foreground">
+      <span className="font-mono text-[10px] text-[var(--warn)]">⚠</span>
+      No se pudo renderizar el resultado de <span className="font-mono text-foreground">{toolName}</span>.
     </div>
   );
 }

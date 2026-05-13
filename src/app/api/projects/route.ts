@@ -1,5 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { decodeUserId } from "@/lib/auth/jwt";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { apiRateLimited } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -17,6 +19,7 @@ async function resolveOrgId(userId: string): Promise<string | null> {
 
 /** GET /api/projects — list all non-deleted projects for the caller's org */
 export async function GET(req: Request) {
+  if (!checkRateLimit(rateLimitKey(req, "projects"), "standard")) return apiRateLimited();
   const token = req.headers.get("authorization")?.slice(7) ?? null;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const userId = decodeUserId(token);
@@ -43,6 +46,7 @@ export async function GET(req: Request) {
 
 /** POST /api/projects — create a project */
 export async function POST(req: Request) {
+  if (!checkRateLimit(rateLimitKey(req, "projects"), "standard")) return apiRateLimited();
   const token = req.headers.get("authorization")?.slice(7) ?? null;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const userId = decodeUserId(token);

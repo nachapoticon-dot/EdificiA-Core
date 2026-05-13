@@ -4,32 +4,18 @@ import { AI_MODEL, buildSystemPrompt, agentTools, createBoundTools } from "@/lib
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { verifyUserId } from "@/lib/auth/jwt";
 import { learnFromSession } from "@/lib/ai/session-learner";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { apiRateLimited } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
 const MAX_MESSAGES = 60;
 const MAX_LAST_MSG_CHARS = 200_000;
-const DAILY_LIMIT = 1_000;
 
 const deepseek = createOpenAI({
   baseURL: "https://api.deepseek.com",
   apiKey: process.env.DEEPSEEK_API_KEY ?? "",
 });
-
-// In-memory rate limiter (resets on cold start; use Redis in production)
-const dailyRequests = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(key: string): boolean {
-  const now = Date.now();
-  const entry = dailyRequests.get(key);
-  if (!entry || now > entry.resetAt) {
-    dailyRequests.set(key, { count: 1, resetAt: now + 86_400_000 });
-    return true;
-  }
-  if (entry.count >= DAILY_LIMIT) return false;
-  entry.count++;
-  return true;
-}
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -54,12 +40,8 @@ export async function POST(req: Request) {
   const projectId      = req.headers.get("x-project-id")   ?? undefined;
   const requestedOrgId = req.headers.get("x-org-id")       ?? undefined;
 
-  const rateLimitKey = accessToken
-    ? `token:${accessToken.slice(-16)}`
-    : req.headers.get("x-forwarded-for") ?? "anonymous";
-
-  if (!checkRateLimit(rateLimitKey)) {
-    return Response.json({ error: "Límite diario alcanzado. Intentá mañana." }, { status: 429 });
+  if (!checkRateLimit(rateLimitKey(req, "chat"), "chat")) {
+    return apiRateLimited("Límite diario alcanzado. Intentá mañana.");
   }
 
   const { systemPrompt, tools, orgId } = await resolveContext(accessToken, projectName, projectId, requestedOrgId);

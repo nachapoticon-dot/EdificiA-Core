@@ -4,6 +4,8 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { extractPatterns } from "@/lib/pattern-extractor";
 import { ingestDocument } from "@/lib/rag/ingest";
 import { cacheItems } from "@/lib/file-cache";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { apiRateLimited, apiTooLarge, apiBadRequest } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -18,32 +20,30 @@ const ACCEPTED_EXTENSIONS = [
 ];
 
 export async function POST(req: Request) {
+  if (!checkRateLimit(rateLimitKey(req, "upload"), "upload")) {
+    return apiRateLimited("Límite de subidas alcanzado. Intentá en una hora.");
+  }
+
   let formData: FormData;
   try {
     formData = await req.formData();
   } catch {
-    return Response.json({ error: "Formato de request inválido." }, { status: 400 });
+    return apiBadRequest("Formato de request inválido.");
   }
 
   const file = formData.get("file") as File | null;
   if (!file) {
-    return Response.json({ error: "No se recibió ningún archivo." }, { status: 400 });
+    return apiBadRequest("No se recibió ningún archivo.");
   }
 
   const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
   if (file.size > MAX_BYTES) {
-    return Response.json(
-      { error: "El archivo supera el límite de 50 MB.", suggestion: "Dividí el archivo en partes más pequeñas." },
-      { status: 413 },
-    );
+    return apiTooLarge("El archivo supera el límite de 50 MB.", "Dividí el archivo en partes más pequeñas.");
   }
 
   const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
   if (!ACCEPTED_EXTENSIONS.includes(ext)) {
-    return Response.json(
-      { error: `Formato "${ext}" no soportado.`, supported: ACCEPTED_EXTENSIONS.join(", ") },
-      { status: 400 },
-    );
+    return apiBadRequest(`Formato "${ext}" no soportado.`);
   }
 
   // Decode auth early — needed to populate uploaded_by + organization_id
