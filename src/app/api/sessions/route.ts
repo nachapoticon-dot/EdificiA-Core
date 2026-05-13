@@ -1,5 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { decodeUserId } from "@/lib/auth/jwt";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { apiRateLimited } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -37,6 +39,7 @@ async function getOrgId(
 
 /** GET /api/sessions — Returns the last 30 sessions for the authenticated user+org */
 export async function GET(req: Request): Promise<Response> {
+  if (!checkRateLimit(rateLimitKey(req, "sessions"), "standard")) return apiRateLimited();
   const token = req.headers.get("authorization")?.slice(7) ?? null;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const userId = decodeUserId(token);
@@ -70,6 +73,7 @@ export async function GET(req: Request): Promise<Response> {
 
 /** POST /api/sessions — Upsert a session entry */
 export async function POST(req: Request): Promise<Response> {
+  if (!checkRateLimit(rateLimitKey(req, "sessions"), "standard")) return apiRateLimited();
   const token = req.headers.get("authorization")?.slice(7) ?? null;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const userId = decodeUserId(token);

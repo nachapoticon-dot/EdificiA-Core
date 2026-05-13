@@ -554,4 +554,184 @@ export const agentTools = {
       return { type: "comparison_table" as const, title: input.title, columnA: input.columnA, columnB: input.columnB, rows };
     },
   }),
+
+  // ── Bloques de Respuesta — tools de presentación visual ──────────────────
+
+  proyectar_metricas: tool({
+    description:
+      "Proyecta un Bloque de Métricas visual con KPIs y barras de incidencia por rubro. Llamala DESPUÉS de calcular_totales + calcular_incidencia_de_subgrupo (y opcionalmente comparar_con_indices) para presentar el resumen ejecutivo. El frontend renderiza el bloque automáticamente con animación.",
+    inputSchema: z.object({
+      title: z.string().describe("Título del bloque (ej: 'Incidencia por rubro — Torre A')"),
+      kpis: z.array(z.object({
+        label: z.string().describe("Etiqueta en mayúsculas (ej: 'TOTAL OBRA')"),
+        value: z.string().describe("Valor ya formateado en AR-style (ej: '$128.4M', '34.2%')"),
+        delta: z.number().optional().describe("Variación porcentual con signo (ej: 6.8 = +6.8%)"),
+        alert: z.boolean().optional().describe("true si el delta es un desvío que requiere atención"),
+        sub: z.string().optional().describe("Subtítulo aclaratorio (ej: 'vs presupuesto base')"),
+      })).min(2).max(4).describe("Entre 2 y 4 KPIs — llenar SIEMPRE los 4 cuando hay datos"),
+      bars: z.array(z.object({
+        label: z.string().describe("Nombre del rubro"),
+        value: z.number().describe("Monto en $ ARS"),
+        pct: z.number().optional().describe("Incidencia % sobre el total"),
+        alert: z.boolean().optional().describe("true si el rubro tiene desvío respecto al índice CAC"),
+      })).min(1).max(12).describe("Rubros ordenados de mayor a menor incidencia"),
+      totalLabel: z.string().optional().describe("Etiqueta del total (default 'Σ')"),
+      footer: z.string().optional().describe("Fuente de los datos (ej: 'Presupuesto R3 · CAC abril/2026')"),
+    }),
+    execute: async (input) => ({
+      kind: "metrics" as const,
+      title: input.title,
+      kpis: input.kpis,
+      bars: input.bars,
+      totalLabel: input.totalLabel ?? "Σ",
+      footer: input.footer,
+    }),
+  }),
+
+  proyectar_comparativa: tool({
+    description:
+      "Proyecta un Bloque de Comparativa con ranking y score entre N opciones (proveedores, materiales, ofertas, versiones de presupuesto). Más potente que comparar_presupuestos para comparaciones multi-opción — genera ranking visual con badge RECOMENDADO en el mejor score.",
+    inputSchema: z.object({
+      title: z.string().describe("Título (ej: 'Hormigón elaborado H21 · 220 m³')"),
+      rankBy: z.string().describe("Criterio de ranking (ej: 'score técnico-comercial')"),
+      cols: z.array(z.object({
+        key: z.string().describe("Clave del campo en values"),
+        label: z.string().describe("Encabezado de columna en mayúsculas"),
+        format: z.enum(["currency", "duration_h", "boolean_iram", "count_obras", "raw"]).describe("Formato de visualización"),
+        alertThreshold: z.number().optional().describe("Umbral de alerta numérico (se marca en naranja si se supera)"),
+      })).min(2).max(6),
+      items: z.array(z.object({
+        name: z.string().describe("Nombre de la opción (proveedor, material, etc.)"),
+        sub: z.string().optional().describe("Descripción adicional breve"),
+        score: z.number().min(0).max(100).describe("Score técnico-comercial de 0 a 100 — vos lo calculás en base a precio, plazo, calidad, etc."),
+        values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).describe("Valores por columna — las claves deben coincidir con cols[].key"),
+      })).min(2).max(8),
+    }),
+    execute: async (input) => ({
+      kind: "comparison" as const,
+      title: input.title,
+      rankBy: input.rankBy,
+      cols: input.cols,
+      items: input.items,
+    }),
+  }),
+
+  proyectar_cronograma: tool({
+    description:
+      "Proyecta un Gantt visual del cronograma de obra con línea HOY automática, fases coloreadas por estado (completado/en curso/pendiente) e hitos. Úsala cuando el usuario pregunta por avance, cronograma, hitos o etapas de la obra.",
+    inputSchema: z.object({
+      title: z.string().describe("Título del Gantt (ej: 'Cronograma — Las Lomas / Torre A')"),
+      fechaInicio: z.string().describe("Fecha de inicio de la obra en formato ISO YYYY-MM-DD — se usa para calcular el día actual automáticamente"),
+      totalDays: z.number().int().positive().describe("Duración total de la obra en días"),
+      phases: z.array(z.object({
+        name: z.string().describe("Nombre de la etapa (ej: 'Estructura H°A°')"),
+        crew: z.string().optional().describe("Responsable o cuadrilla"),
+        start: z.number().int().nonnegative().describe("Día de inicio desde el inicio de obra"),
+        end: z.number().int().positive().describe("Día de fin desde el inicio de obra"),
+      })).min(1).max(20).describe("Etapas del cronograma en orden cronológico"),
+      milestones: z.array(z.object({
+        label: z.string().describe("Nombre del hito"),
+        day: z.number().int().nonnegative().describe("Día del hito desde el inicio de obra"),
+        note: z.string().optional().describe("Nota aclaratoria (ej: 'aprobación comitente')"),
+      })).max(10).optional().describe("Hitos clave del proyecto"),
+    }),
+    execute: async (input) => {
+      const startDate = new Date(input.fechaInicio);
+      const todayDay = Math.min(
+        input.totalDays,
+        Math.max(0, Math.floor((Date.now() - startDate.getTime()) / 86_400_000))
+      );
+
+      // Generate month labels from start date spanning totalDays
+      const months: string[] = [];
+      const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+      let cursor = new Date(startDate);
+      const endDate = new Date(startDate.getTime() + input.totalDays * 86_400_000);
+      while (cursor <= endDate && months.length < 12) {
+        const label = monthNames[cursor.getMonth()];
+        if (label && !months.includes(label)) months.push(label);
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      }
+
+      return {
+        kind: "timeline" as const,
+        title: input.title,
+        totalDays: input.totalDays,
+        todayDay,
+        months: months.length >= 2 ? months : ["Mes 1", "Mes 2"],
+        phases: input.phases,
+        milestones: input.milestones ?? [],
+      };
+    },
+  }),
+
+  proyectar_legajo_grafico: tool({
+    description:
+      "Proyecta un Bloque de Legajo Gráfico con planos, renders e inspecciones de obra. Úsala cuando el usuario pide 'mostrame los planos', 'ver fotos', 'legajo gráfico', 'qué documentos visuales hay'. Busca en la base documental y presenta en grilla con miniaturas.",
+    inputSchema: z.object({
+      query: z.string().describe("Consulta de búsqueda para encontrar documentos visuales (ej: 'planos arquitectura', 'fotos inspección subsuelo')"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      projectId: z.string().optional().describe("ID del proyecto activo — limita la búsqueda a esta obra"),
+      obraCode: z.string().describe("Código o nombre corto de la obra para el footer del bloque"),
+      title: z.string().optional().describe("Título del bloque — si se omite, se genera automáticamente"),
+    }),
+    execute: async (input) => {
+      const { searchDocuments } = await import("@/lib/rag/search");
+
+      const results = await searchDocuments(input.query, {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        topK: 8,
+      });
+
+      const VISUAL_TYPES = ["plano", "dxf", "cad", "render", "foto", "imagen", "jpg", "png", "dwg"];
+      const scored = results
+        .map((r) => {
+          const combined = `${r.fileName} ${r.documentType} ${r.constructionDocType}`.toLowerCase();
+          const isVisual = VISUAL_TYPES.some((t) => combined.includes(t));
+          return { r, isVisual };
+        })
+        .sort((a, b) => Number(b.isVisual) - Number(a.isVisual))
+        .slice(0, 4);
+
+      if (scored.length === 0) {
+        return {
+          kind: "media" as const,
+          title: input.title ?? `Legajo gráfico — ${input.obraCode}`,
+          obra: input.obraCode,
+          items: [{
+            kind: "plano" as const,
+            title: "Sin documentos visuales disponibles en esta obra",
+            seed: 1,
+          }],
+        };
+      }
+
+      const items = scored.map(({ r }) => {
+        const name = r.fileName.toLowerCase();
+        const kind: "plano" | "render" | "obra" =
+          name.includes("plano") || name.includes("dxf") || name.includes("cad") || name.includes("dwg") ? "plano" :
+          name.includes("render") || name.includes("fachada") ? "render" : "obra";
+
+        const seed = (r.fileName.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 5) + 1;
+        const ext = r.fileName.split(".").pop()?.toUpperCase();
+
+        return {
+          kind,
+          title: r.fileName.replace(/\.[^.]+$/, ""),
+          documentId: r.fileId ?? undefined,
+          ext: ext ? `${ext}` : undefined,
+          seed,
+        };
+      });
+
+      return {
+        kind: "media" as const,
+        title: input.title ?? `Legajo gráfico — ${input.obraCode}`,
+        obra: input.obraCode,
+        synced: "ahora",
+        items,
+      };
+    },
+  }),
 };

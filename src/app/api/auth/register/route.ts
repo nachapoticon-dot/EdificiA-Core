@@ -1,5 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { signUpSchema } from "@/lib/validators";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { apiRateLimited } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,7 @@ function slugify(name: string, suffix: string): string {
 }
 
 export async function POST(req: Request) {
+  if (!checkRateLimit(rateLimitKey(req, "register"), "auth")) return apiRateLimited("Demasiados intentos. Esperá un minuto.");
   let body: unknown;
   try {
     body = await req.json();

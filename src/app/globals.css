@@ -87,6 +87,8 @@
     --ok:   oklch(0.62 0.13 145);
     --warn: oklch(0.74 0.15 75);
     --err:  oklch(0.58 0.20 25);
+    --green: oklch(0.72 0.16 145);
+    --cyan:  oklch(0.74 0.13 215);
 
     /* ── Shadcn semantic → terracotta/paper mapping ── */
     --background:            var(--paper-50);
@@ -170,11 +172,21 @@
     --sidebar-accent-foreground:  var(--paper-100);
     --sidebar-border:             oklch(1 0 0 / 10%);
     --sidebar-ring:               var(--terra-600);
+    --green: oklch(0.72 0.16 145);
+    --cyan:  oklch(0.74 0.13 215);
 }
 
 /* ============================================================
    ANIMATION KEYFRAMES (from design tokens.css)
    ============================================================ */
+@keyframes eb-shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+@keyframes eb-rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes eb-blink {
     0%, 50% { opacity: 1; }
     51%, 100% { opacity: 0; }
