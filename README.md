@@ -1,8 +1,8 @@
 # EdificIA
 
-> Sistema Integral de Dirección de Obra. Plataforma de Inteligencia Artificial proactiva para empresas constructoras.
+> Sistema de Operaciones Autónomo para la Construcción (Autonomous Construction OS).
 
-EdificIA es un SaaS B2B multi-tenant que no solo actúa como la memoria institucional de una constructora, sino como un **Project Manager Digital** que gestiona y anticipa la realidad del terreno. Los equipos de ingeniería, arquitectura y capataces pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas y recibir alertas inteligentes — todo mediante lenguaje natural y **UI Generativa**, adaptado al contexto de cada obra.
+EdificIA es un **Entorno Operativo Unificado** de alta seguridad diseñado exclusivamente para constructoras. Supera el concepto tradicional de software de gestión al incorporar un **Project Manager Digital** nativo, capaz de anticipar y gestionar la realidad del terreno. Los equipos de ingeniería, arquitectura y capataces pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas y recibir alertas algorítmicas de riesgos climáticos o de logística — todo mediante lenguaje natural y una capa de **UI Generativa** adaptada al contexto estricto de cada obra.
 
 ---
 
