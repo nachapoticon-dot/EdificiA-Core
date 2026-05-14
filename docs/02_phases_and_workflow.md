@@ -1,25 +1,33 @@
-# Roadmap de Ejecución (Enfoque a Resultados)
+# Estado Actual del Proyecto — EdificIA
 
-El objetivo de este proyecto es la **entrega de un producto de nivel empresarial**. La IA debe ejecutar estas fases con máxima autonomía y velocidad, sin detenerse por revisiones didácticas intermedias. El usuario consumirá y aprenderá del código finalizado.
+> **Última actualización**: 2026-05-14
+>
+> Este documento reemplaza el roadmap de sprints original (Sprints 1-4) que ya fueron completados en su totalidad.
 
-## Sprint 1: Fundación y Backend (Autónomo)
-- **Acción Crítica**: Conectar MCP de InsForge.
-- Levantar el entorno Next.js + TS + Shadcn.
-- Aprovisionar la base de datos PostgreSQL y la Autenticación mediante InsForge.
-- *Entregable*: Repositorio "Pro" compilando, con CI/CD básico y BD conectada. La IA debe avanzar al Sprint 2 inmediatamente al terminar.
+## Sprints completados ✅
 
-## Sprint 2: Core Chat UI y Motor Lógico
-- Implementar Vercel AI SDK para el "Gemini Corporativo".
-- Migrar la matemática de `_referencias_legadas/Auditoria_Presupuesto_Construccion` a TypeScript.
-- Conectar las funciones matemáticas como "Tools" para el agente de chat.
-- *Entregable*: Un chat funcional que puede recibir datos, validarlos con la matemática de construcción, y devolver una respuesta estructurada.
+| Sprint | Entregable | Estado |
+|--------|-----------|--------|
+| Sprint 1 | Auth + DB + InsForge conectado | ✅ Completado |
+| Sprint 2 | Chat UI + Motor de auditoría + Vercel AI SDK | ✅ Completado |
+| Sprint 3 | Upload de archivos + Procesadores (PDF, Excel, DXF, DOCX, Imagen) | ✅ Completado |
+| Sprint 4 | Dark/Light mode, historial de sesiones, visor DXF WebGL | ✅ Completado |
+| Profesionalización | Logger, rate limiter, error helpers, Super Admin, security fixes | ✅ Completado |
 
-## Sprint 3: Procesamiento de Archivos (Drag & Drop)
-- Implementar la UI para subir planillas Excel y extraer información.
-- Conectar el flujo de lectura de archivos al agente del chat.
-- *Entregable*: El usuario lanza un Excel, el sistema lo audita instantáneamente y guarda el historial en la base de datos de InsForge.
+## Fase actual: Preparación para producción
 
-## Sprint 4: Pulido Nivel Producción
-- Implementación de las "Features QoL" (modo alto contraste, bitácoras de auditoría, explicaciones en texto plano).
-- Corrección de bugs y optimización de promts del LLM.
-- *Entregable*: MVP Listo para entrega comercial a empresas.
+El proyecto está en la fase de **hardening pre-deploy**. Las features core están construidas y funcionando. Lo que falta es:
+
+1. **Migrar autenticación a server-side** → `docs/planning/PLAN_LOGIN_FRONTEND_BACKEND.md`
+2. **Corregir bugs de seguridad y roles** → `docs/planning/TAREAS_CLAUDE.md` (sección Bugs Activos)
+3. **UX y responsive** → `docs/planning/PLAN_DE_MEJORA.md` (sección 9)
+4. **Completar flujo de onboarding** → `docs/planning/PLAN_FLUJO_EMPRESAS.md`
+
+## Lo que está estable y no se toca
+
+- Sistema de RAG (búsqueda híbrida semántica + FTS)
+- Procesadores de archivos (PDF, Excel, DXF, DOCX, imagen)
+- UI Generativa (4 bloques: métricas, comparativa, cronograma, legajo gráfico)
+- System prompt del agente (198 líneas calibradas)
+- Tools del agente (38KB, 10+ herramientas)
+- Migraciones de DB (14 archivos, no modificar)

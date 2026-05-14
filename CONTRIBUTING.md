@@ -1,6 +1,6 @@
 # Guía de Contribución
 
-¡Gracias por tu interés en contribuir a "Gemini para la Construcción"! 
+¡Gracias por tu interés en contribuir a **EdificIA**! 
 Este repositorio sigue estrictos estándares de ingeniería de software para asegurar que se mantenga como un producto de grado empresarial.
 
 ## 1. El Rol de la IA

@@ -1,31 +1,24 @@
 # Plan: Flujo de Empresas y Roles — EdificIA
 
 **Fecha:** 2026-05-14  
-**Contexto:** El sistema tiene la base de auth construida pero hay bugs activos y el flujo completo de onboarding de empresas nunca se probó end-to-end. Este documento define qué hay que arreglar, qué falta construir, y el orden de ejecución.
+**Última auditoría contra código fuente:** 2026-05-14  
+**Contexto:** El sistema tiene la base de auth construida. Los 3 bugs críticos de la sesión fueron corregidos. Faltan guards de roles en algunas rutas y el flujo de viewer no está completo.
 
 ---
 
-## 1. Bugs activos (bloquean la demo)
+## 1. Bugs de la sesión anterior — Todos corregidos ✅
 
-### BUG-1 — POST /api/projects devuelve error genérico ✅ Logging mejorado (2026-05-14)
+### BUG-1 — POST /api/projects devuelve error genérico ✅
+**Fix verificado:** `POST /api/projects` retorna `code` + `message` real de DB. Código en `src/app/api/projects/route.ts`.
 
-**Fix:** `POST /api/projects` ahora retorna el `code` y `message` real de la DB en vez de "Internal error". El esquema está correcto — si sigue fallando, el error real aparece en el response JSON.
-
----
-
-### BUG-2 — Chat devuelve `UNAUTHORIZED` ✅ Corregido (2026-05-14)
-
-**Fix:**
-- `jwt.ts`: InsForge non-ok → cae al fallback decode-only (antes solo hacía fallback en errores de red).
-- `client.ts`: `getAuthToken()` verifica exp localmente y llama `auth.refreshSession()` si quedan menos de 2 min. Persiste refresh token en `localStorage`.
+### BUG-2 — Chat devuelve `UNAUTHORIZED` ✅
+**Fix verificado:**
+- `jwt.ts`: InsForge non-ok → fallback decode-only.
+- `client.ts`: `getAuthToken()` verifica exp y llama `auth.refreshSession()` si quedan menos de 2 min.
 - `chat/page.tsx`: usa `getAuthToken()` en el transport.
-- `login/page.tsx` + `register/page.tsx`: persisten `refreshToken` de la respuesta.
 
----
-
-### BUG-3 — Super admin deshabilita empresa pero los usuarios siguen entrando ✅ Corregido (2026-05-14)
-
-**Fix:** `requireAuth` hace un segundo query a `organizations` verificando `deleted_at IS NULL`. Si la org está deshabilitada retorna 403 "La organización está deshabilitada.".
+### BUG-3 — Super admin deshabilita empresa pero los usuarios siguen entrando ✅
+**Fix verificado:** `requireAuth` línea 51: query a `organizations` verificando `deleted_at IS NULL`. Si la org está deshabilitada retorna 403.
 
 ---
 
@@ -66,38 +59,50 @@ VIEWER
 
 ---
 
-## 3. Estado actual de cada pieza
+## 3. Estado actual de cada pieza (VERIFICADO contra código)
 
-| Pieza | Estado | Gap |
+| Pieza | Estado | Evidencia |
 |---|---|---|
-| Super admin — invitar fundador | ✅ funciona | — |
-| Fundador — claim-founder (registro) | ✅ ruta existe | No probado end-to-end |
-| Admin — invitar miembros (`admin`/`engineer`/`viewer`) | ✅ ruta existe | `viewer` no tiene restricciones reales en el backend |
-| Viewer — aceptar invitación + registrarse | ❓ | Ruta `claim-invitation` existe? Verificar |
-| requireAuth — bloquear org deshabilitada | ✅ fix aplicado | Ver BUG-3 |
-| POST /api/projects | ✅ logging mejorado | Ver BUG-1 |
-| Chat UNAUTHORIZED | ✅ fix aplicado | Ver BUG-2 |
-| Docs API — enforcement del rol viewer (no puede borrar) | ❌ falta | `DELETE /api/documents/[id]` no verifica viewer |
-| Upload API — enforcement del rol viewer (no puede subir) | ❌ falta | `POST /api/upload` no verifica viewer |
+| Super admin — invitar fundador | ✅ funciona | `POST /api/super-admin/founders` crea token + guarda en DB |
+| Fundador — claim-founder (registro) | ✅ ruta existe | `POST /api/auth/claim-founder` |
+| Admin — invitar miembros | ✅ funciona | `POST /api/admin/members` crea invitación + email vía Resend |
+| Viewer — aceptar invitación + registrarse | 🔶 verificar | `POST /api/auth/register` debería hacer claim de `organization_invitation` si existe. Verificar que funciona end-to-end |
+| requireAuth — bloquear org deshabilitada | ✅ verificado | Línea 51 de `require-auth.ts` |
+| POST /api/projects — error genérico | ✅ fix verificado | Retorna error real de DB |
+| Chat UNAUTHORIZED | ✅ fix verificado | Token refresh automático |
+| Upload — enforcement viewer | ✅ **YA IMPLEMENTADO** | `upload/route.ts` línea 47: `if (role === "viewer")` → 403 |
+| PATCH /api/projects/[id] — enforcement viewer | ✅ **YA IMPLEMENTADO** | Línea 62: `if (auth.role === "viewer")` → apiForbidden |
+| DELETE /api/documents (query param) — enforcement viewer | ✅ **YA IMPLEMENTADO** | Exige `role !== "admin"` (nota: solo admin puede borrar por esta ruta) |
+| POST /api/projects — enforcement viewer | 🐛 **FALTA** | Sin guard. Viewer puede crear obras |
+| DELETE /api/documents/[id] — enforcement viewer | 🐛 **FALTA** | Sin guard. Viewer puede borrar archivos por ruta dinámica |
+| GET/POST/PATCH/DELETE /api/admin/* | ✅ funciona | Todas usan `requireAuth(req, { role: "admin" })` |
+| Chat UI — botón adjuntar bloqueado para viewer | ✅ funciona | `canUpload = role !== "viewer"` en `chat/page.tsx` |
+| Sidebar — link admin oculto para no-admins | ✅ funciona | `AdminNavLink` verifica `role === "admin"` |
 
 ---
 
-## 4. Rol `viewer` — qué tiene que bloquear
+## 4. Rol `viewer` — qué falta bloquear
 
-El rol existe en el schema (`organization_members.role = 'viewer'`) pero no tiene restricciones reales en las rutas. Hay que agregar guards en:
+El rol existe en el schema (`organization_members.role = 'viewer'`) y ALGUNAS rutas ya lo bloquean, pero faltan 2:
 
-| Ruta | Acción bloqueada para viewer |
-|---|---|
-| `POST /api/upload` | Subir documentos |
-| `DELETE /api/documents/[id]` | Borrar documento |
-| `POST /api/projects` | Crear obra |
-| `DELETE /api/projects/[id]` | Borrar obra |
-| `POST /api/admin/members` | Invitar miembros |
-| `PATCH /api/admin/members` | Cambiar roles |
+| Ruta | Viewer bloqueado? | TAREA |
+|---|---|---|
+| `POST /api/upload` | ✅ Ya hecho | — |
+| `PATCH /api/projects/[id]` | ✅ Ya hecho | — |
+| `DELETE /api/documents` (query param) | ✅ Ya hecho (solo admin) | — |
+| `POST /api/projects` | 🐛 **FALTA** | Agregar `if (auth.role === "viewer") return apiForbidden("Los visualizadores no pueden crear obras.")` después del `requireAuth` |
+| `DELETE /api/documents/[id]` | 🐛 **FALTA** | Agregar guard similar. Decidir: ¿solo admin puede borrar, o admin + engineer? |
+| `POST /api/admin/members` | ✅ Ya hecho | Usa `requireAuth(req, { role: "admin" })` |
+| `PATCH /api/admin/members` | ✅ Ya hecho | Usa `requireAuth(req, { role: "admin" })` |
 
-El chat (`POST /api/chat`) y la lectura de documentos (`GET /api/documents`) sí deben estar disponibles para viewer.
+### Nota sobre `requireAuth` y jerarquía de roles
 
-El pattern es simple: en `requireAuth` se puede pasar `{ role: "admin" | "engineer" }` pero no hay un "no debe ser viewer". Se puede agregar `opts.minRole` o simplemente una helper `requireNotViewer(auth)`.
+`requireAuth(req, { role: "admin" })` hace comparación `===`, lo que significa que rechaza engineers. Esto hace que engineers NO pueden:
+- Ver la lista de miembros
+- Invitar gente
+- Cambiar configuración de la empresa
+
+Esto puede ser intencional pero debería documentarse. Si se quiere una jerarquía (admin > engineer > viewer), habría que agregar un helper `isAtLeast(role, minRole)`.
 
 ---
 
@@ -107,7 +112,7 @@ Hay dos tipos de invitación:
 - **org_founder_invitations** → para el primer admin de una empresa (usa claim-founder)
 - **organization_invitations** → para miembros adicionales (admin/engineer/viewer)
 
-La ruta `POST /api/auth/register` necesita verificar si el email tiene una `organization_invitation` pendiente y, si existe, ejecutar el claim automáticamente (crear membresía en la org). Esto puede estar roto o incompleto — verificar antes de implementar el flujo de viewer.
+**TAREA**: Verificar end-to-end que `POST /api/auth/register` busca una `organization_invitation` pendiente por email y, si existe, crea automáticamente la membresía en la org. Si no lo hace, implementar el claim.
 
 ---
 
@@ -118,26 +123,26 @@ La ruta `POST /api/auth/register` necesita verificar si el email tiene una `orga
 2. ✅ **BUG-1** — Logging real en POST /api/projects.
 3. ✅ **BUG-3** — requireAuth verifica org activa.
 
-### Fase 2 — Completar flujo de onboarding
-4. Probar end-to-end: super admin invita fundador → fundador se registra → queda como admin → puede crear obra.
-5. Verificar que `POST /api/auth/register` hace claim de invitation si existe.
-6. Probar: admin invita viewer → viewer se registra → viewer puede chatear pero no borrar.
+### Fase 2 — Guards de roles faltantes
+4. 🐛 **Agregar guard viewer en `POST /api/projects`** — 1 línea.
+5. 🐛 **Agregar guard viewer en `DELETE /api/documents/[id]`** — 1 línea.
+6. Verificar que el flujo de registro con `organization_invitation` funciona end-to-end.
 
-### Fase 3 — Enforcement de roles
-7. Agregar guard "no viewer" en las rutas de escritura listadas en §4.
-8. Agregar check `organizations.deleted_at` en `requireAuth`.
+### Fase 3 — Completar flujo de onboarding
+7. Probar end-to-end: super admin invita fundador → fundador se registra → queda como admin → puede crear obra.
+8. Probar: admin invita viewer → viewer se registra → viewer puede chatear pero no borrar.
 
 ### Fase 4 — UX de roles en el dashboard
-9. El sidebar del viewer debe ocultar los botones de "Subir documento", "Crear obra", "Administración".
-10. Las rutas `/dashboard/admin` deben redirigir si el rol es viewer.
+9. ❌ El sidebar del viewer debe ocultar los botones de "Subir documento" y "Crear obra" (ya oculta Admin).
+10. ❌ Las rutas `/dashboard/admin` redirigen si el rol no es admin (ya hecho en el componente con `useEffect`).
 
 ---
 
 ## 7. Lo que NO hay que tocar en esta fase
-- La UI de los bloques de respuesta (ya está completa).
-- El sistema de RAG / búsqueda semántica (funciona).
-- El procesamiento de archivos (funciona).
-- El agente y sus tools (funciona excepto el bug del token).
+- La UI de los bloques de respuesta (ya está completa ✅).
+- El sistema de RAG / búsqueda semántica (funciona ✅).
+- El procesamiento de archivos (funciona ✅).
+- El agente y sus tools (funciona ✅).
 
 ---
 
@@ -148,4 +153,5 @@ La ruta `POST /api/auth/register` necesita verificar si el email tiene una `orga
 - [ ] El fundador puede subir un PDF y hacerle una pregunta al agente sin UNAUTHORIZED.
 - [ ] El fundador puede invitar un viewer por email.
 - [ ] El viewer puede chatear pero no ve los botones de edición.
+- [ ] El viewer NO puede crear obras ni borrar archivos (verificar en backend, no solo UI).
 - [ ] Si super admin deshabilita la empresa, el próximo request de cualquier usuario de esa empresa devuelve 403.

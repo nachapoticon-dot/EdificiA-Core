@@ -34,7 +34,7 @@ Para mantener la raíz del proyecto ordenada, toda la documentación de avance, 
 | UI | Shadcn UI · Tailwind CSS v4 · Framer Motion |
 | Data fetching | TanStack Query v5 |
 | Validación | Zod v3 — schemas compartidos E2E |
-| AI / Agente | Vercel AI SDK v6 · Claude (Anthropic) |
+| AI / Agente | Vercel AI SDK v6 · DeepSeek (OpenAI-compatible) |
 | Embeddings | OpenAI `text-embedding-3-small` |
 | Vector DB | Qdrant Cloud |
 | Backend / Auth / Storage | InsForge BaaS |
@@ -115,7 +115,7 @@ Ver `.env.local.example` para la lista completa. Las mínimas para correr el cha
 | `NEXT_PUBLIC_INSFORGE_PROJECT_ID` | ID del proyecto en InsForge |
 | `NEXT_PUBLIC_INSFORGE_URL` | URL del backend InsForge |
 | `INSFORGE_SERVICE_ROLE_KEY` | Clave admin InsForge (solo server-side) |
-| `ANTHROPIC_API_KEY` | Clave API de Anthropic (Claude) |
+| `DEEPSEEK_API_KEY` | Clave API de DeepSeek |
 
 Para RAG y embeddings también se requieren `OPENAI_API_KEY` y las variables de Qdrant.
 
