@@ -6,6 +6,16 @@ import type { PdfProcessedFile } from "./types";
  * Scanned PDFs are not yet converted to images server-side — Claude handles them via
  * client-side File upload (sendMessage({ files }) in the chat).
  */
+
+/** Counts /Type /Page objects in raw PDF bytes as a fallback when pdf-parse fails. */
+function estimatePageCountFromBytes(buffer: ArrayBuffer): number {
+  const sampleSize = Math.min(buffer.byteLength, 600_000);
+  const text = new TextDecoder("latin1").decode(new Uint8Array(buffer, 0, sampleSize));
+  // Match /Type /Page but NOT /Type /Pages (the catalog node)
+  const matches = text.match(/\/Type\s*\/Page(?!s)/g);
+  return matches ? matches.length : 1;
+}
+
 export async function processPdf(
   buffer: ArrayBuffer,
   fileName: string,
@@ -20,11 +30,13 @@ export async function processPdf(
   try {
     result = await pdfParse(Buffer.from(buffer));
   } catch {
+    // pdf-parse failed (encoding issues, PDF/A, security features, etc.)
+    // Estimate page count from raw bytes so the UI shows the real number.
     return {
       type: "pdf",
       fileName,
       fileSize: buffer.byteLength,
-      pageCount: 0,
+      pageCount: estimatePageCountFromBytes(buffer),
       text: "",
       isScanned: true,
       pageImages: [],

@@ -1,14 +1,12 @@
 import { generatePresupuestoBuffer, type PresupuestoData } from "@/lib/export/generate-xlsx";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const token = req.headers.get("authorization")?.slice(7) ?? null;
-  if (!token) return new Response("Unauthorized", { status: 401 });
-  const userId = decodeUserId(token);
-  if (!userId) return new Response("Invalid token", { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   let body: PresupuestoData & { fileName?: string };
   try {
@@ -21,18 +19,15 @@ export async function POST(req: Request) {
     return new Response("obraName and items are required", { status: 400 });
   }
 
-  // Optionally enrich with company name from org
+  // Enrich with company name from org (best-effort)
   try {
     const client = getInsForgeAdminClient();
     const result = await client.database
-      .from("organization_members")
-      .select("organizations(name)")
-      .eq("user_id", userId)
-      .is("deleted_at", null)
-      .limit(1)
+      .from("organizations")
+      .select("name")
+      .eq("id", auth.orgId)
       .single();
-    const orgName = (result.data as { organizations: { name: string } | null } | null)
-      ?.organizations?.name;
+    const orgName = (result.data as { name?: string } | null)?.name;
     if (orgName && !body.companyName) body.companyName = orgName;
   } catch { /* best-effort */ }
 

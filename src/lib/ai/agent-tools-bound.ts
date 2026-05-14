@@ -23,6 +23,11 @@ export function createBoundTools(orgId: string) {
     reportar_hallazgos_batch:       agentTools.reportar_hallazgos_batch,
     comparar_presupuestos:          agentTools.comparar_presupuestos,
 
+    // ── Bloques de UI generativa — pure computation, no org context ─────────
+    proyectar_metricas:    agentTools.proyectar_metricas,
+    proyectar_comparativa: agentTools.proyectar_comparativa,
+    proyectar_cronograma:  agentTools.proyectar_cronograma,
+
     // ── Org-sensitive tools — organizationId removed from schema ───────────
 
     buscar_en_base_documental: tool({
@@ -143,14 +148,31 @@ export function createBoundTools(orgId: string) {
         if (input.cacheId && items.length === 0) {
           const { getItems } = await import("@/lib/file-cache");
           const cached = await getItems(input.cacheId);
-          if (cached) items = cached;
+          if (cached) {
+            items = cached;
+          } else {
+            // Cache expired (server restart or >2h). Tell the agent to inform the user.
+            return {
+              error: true as const,
+              message: "El caché del archivo Excel expiró. Pedile al usuario que suba el archivo nuevamente.",
+            };
+          }
+        }
+        if (items.length === 0) {
+          return {
+            error: true as const,
+            message: "No hay ítems para generar el presupuesto. Necesito que el usuario suba el archivo Excel o que me indique los ítems explícitamente.",
+          };
         }
         const safeDate = new Date().toISOString().slice(0, 10);
         const safeName = input.obraName.replace(/\s+/g, "_").slice(0, 40);
+        const fileName = `Presupuesto_${safeName}_${safeDate}`;
         return {
-          type: "doc_generation_proposal" as const, docType: "presupuesto_excel" as const,
-          fileName: `Presupuesto_${safeName}_${safeDate}`,
-          description: `Presupuesto de obra "${input.obraName}" · ${items.length} ítems`,
+          type: "doc_generation_proposal" as const,
+          docType: "presupuesto_excel" as const,
+          fileName,
+          // itemCount only — keeps the LLM context lean; full payload is in the card below
+          description: `Presupuesto "${input.obraName}" generado · ${items.length} ítems · listo para descargar.`,
           payload: { obraName: input.obraName, items, notes: input.notes },
           organizationId: orgId,
         };
@@ -176,6 +198,60 @@ export function createBoundTools(orgId: string) {
           description: `Memoria descriptiva de "${input.obraName}" · ${input.sections.length} secciones`,
           payload: { obraName: input.obraName, sections: input.sections, redactor: input.redactor },
           organizationId: orgId,
+        };
+      },
+    }),
+
+    proyectar_legajo_grafico: tool({
+      description: agentTools.proyectar_legajo_grafico.description,
+      inputSchema: z.object({
+        query:     z.string().describe("Consulta de búsqueda para documentos visuales (ej: 'planos arquitectura', 'fotos inspección')"),
+        projectId: z.string().optional().describe("ID del proyecto activo — limita la búsqueda a esta obra"),
+        obraCode:  z.string().describe("Código o nombre corto de la obra para el footer del bloque"),
+        title:     z.string().optional().describe("Título del bloque — si se omite, se genera automáticamente"),
+      }),
+      execute: async (input) => {
+        const { searchDocuments } = await import("@/lib/rag/search");
+        const results = await searchDocuments(input.query, {
+          organizationId: orgId,
+          projectId: input.projectId,
+          topK: 8,
+        });
+
+        const VISUAL_TYPES = ["plano", "dxf", "cad", "render", "foto", "imagen", "jpg", "png", "dwg"];
+        const scored = results
+          .map((r) => {
+            const combined = `${r.fileName} ${r.documentType} ${r.constructionDocType}`.toLowerCase();
+            return { r, isVisual: VISUAL_TYPES.some((t) => combined.includes(t)) };
+          })
+          .sort((a, b) => Number(b.isVisual) - Number(a.isVisual))
+          .slice(0, 4);
+
+        if (scored.length === 0) {
+          return {
+            kind: "media" as const,
+            title: input.title ?? `Legajo gráfico — ${input.obraCode}`,
+            obra: input.obraCode,
+            items: [{ kind: "plano" as const, title: "Sin documentos visuales disponibles en esta obra", seed: 1 }],
+          };
+        }
+
+        const items = scored.map(({ r }) => {
+          const name = r.fileName.toLowerCase();
+          const kind: "plano" | "render" | "obra" =
+            name.includes("plano") || name.includes("dxf") || name.includes("cad") || name.includes("dwg") ? "plano" :
+            name.includes("render") || name.includes("fachada") ? "render" : "obra";
+          const seed = (r.fileName.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 5) + 1;
+          const ext = r.fileName.split(".").pop()?.toUpperCase();
+          return { kind, title: r.fileName.replace(/\.[^.]+$/, ""), documentId: r.fileId ?? undefined, ext, seed };
+        });
+
+        return {
+          kind: "media" as const,
+          title: input.title ?? `Legajo gráfico — ${input.obraCode}`,
+          obra: input.obraCode,
+          synced: "ahora",
+          items,
         };
       },
     }),

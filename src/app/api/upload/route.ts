@@ -1,11 +1,11 @@
-import { decodeUserId } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { processFile } from "@/lib/file-processor";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { extractPatterns } from "@/lib/pattern-extractor";
 import { ingestDocument } from "@/lib/rag/ingest";
 import { cacheItems } from "@/lib/file-cache";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { apiRateLimited, apiTooLarge, apiBadRequest } from "@/lib/api/errors";
+import { apiRateLimited, apiTooLarge, apiBadRequest, apiForbidden } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -19,7 +19,6 @@ const ACCEPTED_EXTENSIONS = [
   ".png", ".jpg", ".jpeg", ".gif", ".webp",
 ];
 
-// MIME types per extension. Empty array = any MIME accepted (e.g. DXF uses octet-stream).
 const ACCEPTED_MIME: Record<string, string[]> = {
   ".xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   ".xls":  ["application/vnd.ms-excel"],
@@ -40,6 +39,15 @@ export async function POST(req: Request) {
     return apiRateLimited("Límite de subidas alcanzado. Intentá en una hora.");
   }
 
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
+
+  const { userId, orgId, role } = auth;
+
+  if (role === "viewer") {
+    return apiForbidden("Los visualizadores no pueden subir archivos. Contactá a un admin de tu empresa.");
+  }
+
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -48,9 +56,7 @@ export async function POST(req: Request) {
   }
 
   const file = formData.get("file") as File | null;
-  if (!file) {
-    return apiBadRequest("No se recibió ningún archivo.");
-  }
+  if (!file) return apiBadRequest("No se recibió ningún archivo.");
 
   const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
   if (file.size > MAX_BYTES) {
@@ -68,38 +74,7 @@ export async function POST(req: Request) {
     return apiBadRequest(`Tipo de contenido inválido para "${ext}".`);
   }
 
-  // Decode auth early — needed to populate uploaded_by + organization_id
-  const authHeader = req.headers.get("authorization") ?? "";
-  const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  const userId = accessToken ? decodeUserId(accessToken) : null;
-
-  // Active project — scopes the file and its chunks to this obra
   const projectId = req.headers.get("x-project-id") ?? null;
-
-  // Get org membership — viewers cannot upload files
-  let orgId: string | null = null;
-  if (userId) {
-    try {
-      const client = getInsForgeAdminClient();
-      const memberResult = await client.database
-        .from("organization_members")
-        .select("organization_id, role")
-        .eq("user_id", userId)
-        .is("deleted_at", null)
-        .limit(1)
-        .single();
-      const member = memberResult.data as { organization_id: string; role: string } | null;
-      if (member?.role === "viewer") {
-        return Response.json(
-          { error: "Los visualizadores no pueden subir archivos. Contactá a un admin de tu empresa." },
-          { status: 403 },
-        );
-      }
-      orgId = member?.organization_id ?? null;
-    } catch {
-      // Non-fatal — local dev without DB still works
-    }
-  }
 
   const buffer = await file.arrayBuffer();
   const processed = await processFile(buffer, file.name, file.type || undefined);
@@ -108,7 +83,6 @@ export async function POST(req: Request) {
     return Response.json({ error: processed.message, suggestion: processed.suggestion }, { status: 422 });
   }
 
-  // Persist to InsForge storage + DB (best-effort)
   let fileId: string | null = null;
   try {
     const client = getInsForgeAdminClient();
@@ -126,37 +100,30 @@ export async function POST(req: Request) {
       : processed.type === "image" ? "image"
       : "other";
 
-    // Only insert if we have the required NOT NULL fields
-    if (orgId && userId) {
-      const dbResult = await client.database
-        .from("uploaded_files")
-        .insert({
-          organization_id: orgId,
-          project_id: projectId,
-          uploaded_by: userId,
-          file_name: file.name,
-          file_type: fileTypeForDb,
-          storage_path: storagePath,
-          file_size_bytes: file.size,
-          processing_status: "ready",
-        })
-        .select("id")
-        .single();
+    const dbResult = await client.database
+      .from("uploaded_files")
+      .insert({
+        organization_id: orgId,
+        project_id: projectId,
+        uploaded_by: userId,
+        file_name: file.name,
+        file_type: fileTypeForDb,
+        storage_path: storagePath,
+        file_size_bytes: file.size,
+        processing_status: "ready",
+      })
+      .select("id")
+      .single();
 
-      if (dbResult.data) {
-        fileId = (dbResult.data as { id: string }).id;
-      }
+    if (dbResult.data) {
+      fileId = (dbResult.data as { id: string }).id;
     }
   } catch {
-    // Non-fatal
+    // Storage/DB error is non-fatal — file was processed successfully
   }
 
-  // Patterns + RAG ingest (best-effort, non-fatal)
-  if (orgId) {
-    void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
-  }
+  void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
 
-  // Cache Excel items so the AI tools can retrieve them by ID (avoids re-sending large JSON in tool calls)
   const cacheId = processed.type === "excel" ? cacheItems(processed.items) : null;
 
   return Response.json({ ...processed, fileId, cacheId });
@@ -164,16 +131,14 @@ export async function POST(req: Request) {
 
 async function persistPatternsAndIngest(
   processed: Awaited<ReturnType<typeof processFile>>,
-  userId: string | null,
+  userId: string,
   orgId: string,
   fileId: string | null,
   projectId: string | null,
 ): Promise<void> {
   try {
-    // Ingest into RAG (Qdrant + document_chunks)
     void ingestDocument(processed, { organizationId: orgId, fileId, projectId });
 
-    // Classify into obra phase and record coverage
     if (projectId && fileId) {
       const { detectPhaseKey, detectDocType } = await import("@/lib/obra/phases");
       const contentHint = "text" in processed ? (processed.text as string).slice(0, 500) : undefined;
@@ -204,7 +169,6 @@ async function persistPatternsAndIngest(
 
     const client = getInsForgeAdminClient();
 
-    // Fetch existing patterns for this org + document_type in one query
     const existingResult = await client.database
       .from("company_learned_patterns")
       .select("id, pattern_key, sample_count")
@@ -219,7 +183,6 @@ async function persistPatternsAndIngest(
     for (const [key, value] of Object.entries(extracted.patterns)) {
       const existing = existingMap.get(key);
       if (existing) {
-        // Increment sample_count so confidence grows with each upload
         await client.database
           .from("company_learned_patterns")
           .update({
