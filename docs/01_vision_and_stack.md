@@ -1,7 +1,7 @@
 # Visión del Producto y Stack Tecnológico
 
 ## Concepto y Filosofía del Producto
-**"Gemini para la Construcción"**: NO es un sistema rígido de botones disfrazado de chat. Es un **Asistente de Inteligencia Artificial Conversacional General** que tiene "superpoderes" multimodales para la construcción. 
+**EdificIA** (antes "Gemini para la Construcción"): NO es un sistema rígido de botones disfrazado de chat. Es un **Asistente de Inteligencia Artificial Conversacional General** que tiene "superpoderes" multimodales para la construcción. 
 
 - **Omnivoro de Datos (Multimodal)**: El sistema debe ser capaz de recibir y entender cualquier formato de archivo que la empresa le arroje: **Excel, Word, planos CAD, PDFs, o incluso FOTOS** de planillas escritas a mano o reportes de obra.
 - **Salidas Dinámicas**: Debe tener la capacidad de devolver la información en el formato exacto y con el diseño que la empresa solicite por chat (ej. "Devuélveme esto en un PDF con el logo de mi empresa", o "Pásame este presupuesto en formato CSV").

@@ -9,7 +9,7 @@ Este documento contiene el mapa estructural del proyecto.
 
 > **Middleware real**: `src/middleware.ts` protege `/dashboard/*` y redirige a `/login` si no hay cookie `edificia_session`. Redirige también de `/login` → `/dashboard/chat` si ya hay sesión activa.
 >
-> **Verificación JWT**: `verifyUserId()` en `src/lib/auth/jwt.ts` valida el token contra `${INSFORGE_URL}/auth/v1/user` server-side (cache 60 s). Fallback a decode-only si InsForge no responde.
+> **Verificación JWT**: `verifyUserId()` en `src/lib/auth/jwt.ts` valida el token contra `${INSFORGE_URL}/auth/v1/user` server-side (cache 60 s). ⚠️ **Fallback peligroso**: si InsForge no responde, acepta el JWT sin verificar firma. Pendiente: agregar `AUTH_STRICT_MODE` para producción.
 >
 > **Función centralizada**: `requireAuth(req, opts?)` en `src/lib/auth/require-auth.ts` extrae token, verifica, resuelve org membership. Los 18 route handlers la usan.
 >
@@ -208,12 +208,14 @@ src/
 │   └── useMessageHistory.ts        → Mensajes de una sesión
 ├── lib/
 │   ├── auth/
-│   │   └── jwt.ts                  → ⚠️ JWT decode SIN verificación de firma
+│   │   ├── jwt.ts                  → Verificación JWT con InsForge + fallback decode-only
+│   │   ├── require-auth.ts         → Guard centralizado para API routes (auth + org + role)
+│   │   └── reset-token.ts          → HMAC-SHA256 tokens para password reset
 │   ├── api/
 │   │   ├── errors.ts               → Helpers de error estandarizados
 │   │   └── rate-limit.ts           → Rate limiter in-memory
 │   ├── insforge/
-│   │   ├── client.ts               → Browser client (token en sessionStorage)
+│   │   ├── client.ts               → Browser client (token en localStorage + cookie edificia_session)
 │   │   └── server.ts               → Admin client (service role key)
 │   ├── ai/
 │   │   ├── agent.ts                → Config del agente + system prompt
@@ -229,13 +231,16 @@ src/
 │   ├── indices/
 │   │   ├── query.ts                → Queries de índices de precios
 │   │   └── compare.ts              → Comparación de índices
+│   ├── excel/
+│   │   └── parser.ts               → Parser de Excel (separado del file-processor)
 │   ├── pattern-extractor/          → Extractor de patrones de archivos
 │   ├── file-processor/             → Procesador multimodal de archivos
 │   ├── file-cache.ts               → Cache de items de Excel
 │   ├── logger.ts                   → Logger estructurado (Pino)
-│   ├── validators/index.ts         → Schemas Zod compartidos
+│   ├── validators/
+│   │   ├── index.ts                → Schemas Zod compartidos (login, signUp, tenant)
+│   │   └── blocks.ts               → Schemas Zod de los bloques de UI Generativa
 │   └── utils.ts                    → Utilidades (cn, etc.)
-└── types/                          → [eliminado — nadie importaba @/types]
 
 db/
 └── migrations/
@@ -279,3 +284,4 @@ migrations/ (InsForge CLI)
 | 2026-05-13 | Fix | Removido `/super-admin` de rutas protegidas del proxy (bloqueaba acceso al panel) |
 | 2026-05-13 | Limpieza | Auditoría de 133+ archivos: eliminados 10 archivos muertos (proxy.ts, OrgSwitcher.tsx, demo-data.ts, types/index.ts, scripts debug, .mcp.json, .claude-flow/, zip raíz) |
 | 2026-05-14 | Seguridad | Fix completo de auth: middleware.ts real, requireAuth() centralizado, verifyUserId vía InsForge, localStorage+cookie, logout limpio. 18 routes refactorizadas. |
+| 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |

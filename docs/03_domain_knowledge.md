@@ -2,7 +2,7 @@
 
 Este documento define la lógica fundacional del motor de cálculo. **IMPORTANTE: Los valores numéricos extraídos de los proyectos legados NO son valores absolutos ni leyes universales.** Son ejemplos del contexto de un proyecto específico. 
 
-El objetivo del "Gemini Corporativo" es ser un **Motor de Auditoría Dinámico y Agnóstico** capaz de adaptarse a cualquier legajo que se le suba.
+El objetivo de **EdificIA** es ser un **Motor de Auditoría Dinámico y Agnóstico** capaz de adaptarse a cualquier legajo que se le suba.
 
 ## 1. El Concepto del Motor de Reglas Dinámicas y Aprendizaje Continuo
 El sistema **no impone matemáticas rígidas**. No asume que existe una única forma correcta de hacer presupuestos. Por el contrario, el motor es agnóstico y **aprende la forma de trabajo única de cada empresa**:

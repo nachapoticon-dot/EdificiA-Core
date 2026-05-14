@@ -1,6 +1,6 @@
 # Roadmap de Visión Futura — EdificIA
 
-> **Última auditoría de estado**: 2026-05-13
+> **Última auditoría de estado**: 2026-05-14 (verificado contra código fuente)
 > 
 > Leyenda: ✅ = Hecho | 🔶 = Parcial | ❌ = Pendiente
 
@@ -58,7 +58,7 @@ Este documento captura las ideas de mayor impacto que **NO están en el MVP actu
 
 - **Approach**: GPT-4 / Claude genera código Python `ezdxf` o `DXF scripting` → ejecutar en sandbox → devolver archivo DXF
 - **Viabilidad**: Alta técnicamente, pero requiere validación por un ingeniero estructural.
-- **Modelo de negocio**: Feature premium — "Gemini Design".
+- **Modelo de negocio**: Feature premium — "EdificIA Design".
 - **Estado**: No iniciado.
 
 ### ❌ BIM / IFC Integration
