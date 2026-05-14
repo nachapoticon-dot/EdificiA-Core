@@ -5,6 +5,7 @@ import {
   Loader2, Plus, Trash2, RefreshCw, ShieldCheck, Building2,
   CheckCircle2, Clock, AlertTriangle, Users, FolderOpen,
   HardDrive, ToggleLeft, ToggleRight, CreditCard, BarChart3, Copy, KeyRound,
+  UserPlus, RotateCcw, X, Ban,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -89,8 +90,17 @@ export default function SuperAdminPage() {
   const [lastCreatedToken, setLastCreatedToken] = useState<string | null>(null);
 
   // Companies state
-  const [companies, setCompanies]     = useState<CompanyStats[]>([]);
-  const [toggling, setToggling]       = useState<string | null>(null);
+  const [companies, setCompanies]       = useState<CompanyStats[]>([]);
+  const [toggling, setToggling]         = useState<string | null>(null);
+  const [addingAdminFor, setAddingAdminFor] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail]     = useState("");
+  const [adminRole, setAdminRole]       = useState<"admin" | "engineer" | "viewer">("admin");
+  const [adminSubmitting, setAdminSubmitting] = useState(false);
+  const [adminError, setAdminError]     = useState<string | null>(null);
+  const [adminSuccess, setAdminSuccess] = useState<string | null>(null);
+
+  // Founders state — reactivation
+  const [reactivating, setReactivating] = useState<string | null>(null);
 
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
@@ -185,6 +195,37 @@ export default function SuperAdminPage() {
     setCompanies((prev) => prev.map((c) => c.id === id ? { ...c, subscriptionStatus: status } : c));
   };
 
+  const handleAddAdmin = async (orgId: string) => {
+    if (!adminEmail.trim()) return;
+    setAdminSubmitting(true);
+    setAdminError(null);
+    const res = await fetch("/api/super-admin/members", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ orgId, email: adminEmail.trim(), role: adminRole }),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string };
+    setAdminSubmitting(false);
+    if (!res.ok) { setAdminError(data.error ?? "Error al enviar la invitación"); return; }
+    setAdminSuccess(adminEmail.trim());
+    setAdminEmail("");
+    setTimeout(() => { setAdminSuccess(null); setAddingAdminFor(null); }, 4000);
+  };
+
+  const handleReactivate = async (id: string) => {
+    setReactivating(id);
+    const res = await fetch("/api/super-admin/founders", {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) {
+      const data = await res.json() as { invitation: FounderInvitation };
+      setInvitations((prev) => prev.map((inv) => inv.id === id ? data.invitation : inv));
+    }
+    setReactivating(null);
+  };
+
   const handleTabChange = async (t: typeof tab) => {
     setTab(t);
     // Stats tab also needs companies data
@@ -276,9 +317,11 @@ export default function SuperAdminPage() {
           creating={creating} createError={createError} lastCreated={lastCreated}
           lastCreatedToken={lastCreatedToken}
           revoking={revoking}
+          reactivating={reactivating}
           resetting={resetting} resetLog={resetLog}
           onCreate={handleCreate}
           onRevoke={handleRevoke}
+          onReactivate={handleReactivate}
           onReset={handleReset}
         />
       )}
@@ -289,9 +332,20 @@ export default function SuperAdminPage() {
           companies={companies}
           loading={loading}
           toggling={toggling}
+          addingAdminFor={addingAdminFor}
+          adminEmail={adminEmail}
+          adminRole={adminRole}
+          adminSubmitting={adminSubmitting}
+          adminError={adminError}
+          adminSuccess={adminSuccess}
           onToggle={handleToggleCompany}
           onSubStatus={handleSubStatus}
           onRefresh={fetchCompanies}
+          onOpenAddAdmin={(id) => { setAddingAdminFor(id); setAdminEmail(""); setAdminError(null); setAdminSuccess(null); }}
+          onCloseAddAdmin={() => setAddingAdminFor(null)}
+          onAdminEmailChange={setAdminEmail}
+          onAdminRoleChange={setAdminRole}
+          onAddAdmin={handleAddAdmin}
         />
       )}
 
@@ -316,8 +370,8 @@ export default function SuperAdminPage() {
 function FoundersTab({
   invitations, email, setEmail, companyName, setCompanyName,
   notes, setNotes, creating, createError, lastCreated, lastCreatedToken,
-  revoking, resetting, resetLog,
-  onCreate, onRevoke, onReset,
+  revoking, reactivating, resetting, resetLog,
+  onCreate, onRevoke, onReactivate, onReset,
 }: {
   invitations: FounderInvitation[];
   email: string; setEmail: (v: string) => void;
@@ -325,9 +379,11 @@ function FoundersTab({
   notes: string; setNotes: (v: string) => void;
   creating: boolean; createError: string | null; lastCreated: string | null; lastCreatedToken: string | null;
   revoking: string | null;
+  reactivating: string | null;
   resetting: boolean; resetLog: string[] | null;
   onCreate: (e: React.FormEvent) => Promise<void>;
   onRevoke: (id: string) => Promise<void>;
+  onReactivate: (id: string) => Promise<void>;
   onReset: () => Promise<void>;
 }) {
   const pending = invitations.filter((i) => i.status === "pending");
@@ -392,7 +448,7 @@ function FoundersTab({
             <Clock className="h-4 w-4" /> Pendientes ({pending.length})
           </h2>
           <div className="divide-y rounded-xl border bg-card overflow-hidden">
-            {pending.map((inv) => <InvitationRow key={inv.id} inv={inv} onRevoke={onRevoke} revoking={revoking} />)}
+            {pending.map((inv) => <InvitationRow key={inv.id} inv={inv} onRevoke={onRevoke} onReactivate={onReactivate} revoking={revoking} reactivating={reactivating} />)}
           </div>
         </section>
       )}
@@ -402,7 +458,16 @@ function FoundersTab({
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Historial</h2>
           <div className="divide-y rounded-xl border bg-card overflow-hidden">
-            {rest.map((inv) => <InvitationRow key={inv.id} inv={inv} onRevoke={onRevoke} revoking={revoking} />)}
+            {rest.map((inv) => (
+              <InvitationRow
+                key={inv.id}
+                inv={inv}
+                onRevoke={onRevoke}
+                onReactivate={onReactivate}
+                revoking={revoking}
+                reactivating={reactivating}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -447,14 +512,28 @@ function FoundersTab({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CompaniesTab({
-  companies, loading, toggling, onToggle, onSubStatus, onRefresh,
+  companies, loading, toggling,
+  addingAdminFor, adminEmail, adminRole, adminSubmitting, adminError, adminSuccess,
+  onToggle, onSubStatus, onRefresh,
+  onOpenAddAdmin, onCloseAddAdmin, onAdminEmailChange, onAdminRoleChange, onAddAdmin,
 }: {
   companies: CompanyStats[];
   loading: boolean;
   toggling: string | null;
+  addingAdminFor: string | null;
+  adminEmail: string;
+  adminRole: "admin" | "engineer" | "viewer";
+  adminSubmitting: boolean;
+  adminError: string | null;
+  adminSuccess: string | null;
   onToggle: (id: string, disabled: boolean) => Promise<void>;
   onSubStatus: (id: string, status: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  onOpenAddAdmin: (id: string) => void;
+  onCloseAddAdmin: () => void;
+  onAdminEmailChange: (v: string) => void;
+  onAdminRoleChange: (v: "admin" | "engineer" | "viewer") => void;
+  onAddAdmin: (orgId: string) => Promise<void>;
 }) {
   if (loading && companies.length === 0) {
     return (
@@ -479,73 +558,142 @@ function CompaniesTab({
   return (
     <div className="space-y-3">
       {companies.map((company) => (
-        <div key={company.id}
-          className={`rounded-xl border bg-card p-4 transition-opacity ${company.disabled ? "opacity-60" : ""}`}
-        >
-          {/* Header row */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Building2 className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{company.name}</p>
-                <p className="text-xs text-muted-foreground font-mono">
-                  desde {new Date(company.createdAt).toLocaleDateString("es-AR")}
-                </p>
-              </div>
+        <div key={company.id} className="rounded-xl border bg-card overflow-hidden">
+          {/* Disabled banner */}
+          {company.disabled && (
+            <div className="flex items-center gap-2 bg-destructive/10 border-b border-destructive/20 px-4 py-1.5">
+              <Ban className="h-3.5 w-3.5 text-destructive shrink-0" />
+              <span className="text-xs font-medium text-destructive">Acceso deshabilitado — los usuarios de esta empresa reciben 403</span>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Subscription status selector */}
-              <select
-                value={company.subscriptionStatus}
-                onChange={(e) => { void onSubStatus(company.id, e.target.value); }}
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium border cursor-pointer bg-transparent focus:outline-none ${SUB_STATUS_STYLES[company.subscriptionStatus] ?? ""}`}
-              >
-                {Object.entries(SUB_STATUS_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
+          )}
 
-              {/* Enable/disable toggle */}
-              <button
-                onClick={() => { void onToggle(company.id, company.disabled); }}
-                disabled={toggling === company.id}
-                title={company.disabled ? "Habilitar acceso" : "Deshabilitar acceso"}
-                className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-              >
-                {toggling === company.id
-                  ? <Loader2 className="h-5 w-5 animate-spin" />
-                  : company.disabled
-                    ? <ToggleLeft className="h-5 w-5 text-destructive" />
-                    : <ToggleRight className="h-5 w-5 text-emerald-600" />
-                }
-              </button>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <MiniStat icon={Users} label="Miembros" value={company.members} />
-            <MiniStat icon={FolderOpen} label="Obras" value={company.projects} />
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <HardDrive className="h-3 w-3 text-muted-foreground/50" />
-                  <span className="font-mono text-[10px] text-muted-foreground">Storage</span>
+          <div className="p-4">
+            {/* Header row */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${company.disabled ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+                  <Building2 className="h-4 w-4" />
                 </div>
-                <span className="font-mono text-[10px] font-semibold">{company.storage.pct}%</span>
+                <div className="min-w-0">
+                  <p className={`truncate text-sm font-semibold ${company.disabled ? "text-muted-foreground" : ""}`}>{company.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    desde {new Date(company.createdAt).toLocaleDateString("es-AR")}
+                  </p>
+                </div>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-border">
-                <div
-                  className={`h-full rounded-full ${company.storage.pct >= 90 ? "bg-destructive" : "bg-primary"}`}
-                  style={{ width: `${company.storage.pct}%` }}
-                />
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Subscription status selector */}
+                <select
+                  value={company.subscriptionStatus}
+                  onChange={(e) => { void onSubStatus(company.id, e.target.value); }}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium border cursor-pointer bg-transparent focus:outline-none ${SUB_STATUS_STYLES[company.subscriptionStatus] ?? ""}`}
+                >
+                  {Object.entries(SUB_STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+
+                {/* Add member */}
+                <button
+                  onClick={() => addingAdminFor === company.id ? onCloseAddAdmin() : onOpenAddAdmin(company.id)}
+                  title="Agregar miembro"
+                  className="rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Agregar
+                </button>
+
+                {/* Enable/disable toggle */}
+                <button
+                  onClick={() => { void onToggle(company.id, company.disabled); }}
+                  disabled={toggling === company.id}
+                  title={company.disabled ? "Habilitar acceso" : "Deshabilitar acceso"}
+                  className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors flex items-center gap-1 disabled:opacity-40 ${
+                    company.disabled
+                      ? "border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      : "border-destructive/30 text-destructive hover:bg-destructive/10"
+                  }`}
+                >
+                  {toggling === company.id
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : company.disabled
+                      ? <><ToggleLeft className="h-3.5 w-3.5" /> Habilitar</>
+                      : <><ToggleRight className="h-3.5 w-3.5" /> Deshabilitar</>
+                  }
+                </button>
               </div>
-              <span className="font-mono text-[9px] text-muted-foreground/60">
-                {fmtBytes(company.storage.usedBytes)} / {fmtBytes(company.storage.quotaBytes)}
-              </span>
             </div>
+
+            {/* Stats row */}
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <MiniStat icon={Users} label="Miembros" value={company.members} />
+              <MiniStat icon={FolderOpen} label="Obras" value={company.projects} />
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <HardDrive className="h-3 w-3 text-muted-foreground/50" />
+                    <span className="font-mono text-[10px] text-muted-foreground">Storage</span>
+                  </div>
+                  <span className="font-mono text-[10px] font-semibold">{company.storage.pct}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                  <div
+                    className={`h-full rounded-full ${company.storage.pct >= 90 ? "bg-destructive" : "bg-primary"}`}
+                    style={{ width: `${company.storage.pct}%` }}
+                  />
+                </div>
+                <span className="font-mono text-[9px] text-muted-foreground/60">
+                  {fmtBytes(company.storage.usedBytes)} / {fmtBytes(company.storage.quotaBytes)}
+                </span>
+              </div>
+            </div>
+
+            {/* Add admin inline form */}
+            {addingAdminFor === company.id && (
+              <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                    <UserPlus className="h-3.5 w-3.5" /> Invitar miembro a {company.name}
+                  </p>
+                  <button onClick={onCloseAddAdmin} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => onAdminEmailChange(e.target.value)}
+                    placeholder="email@empresa.com"
+                    className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    onKeyDown={(e) => { if (e.key === "Enter") void onAddAdmin(company.id); }}
+                  />
+                  <select
+                    value={adminRole}
+                    onChange={(e) => onAdminRoleChange(e.target.value as "admin" | "engineer" | "viewer")}
+                    className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="engineer">Ingeniero</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                  <button
+                    onClick={() => { void onAddAdmin(company.id); }}
+                    disabled={adminSubmitting || !adminEmail.trim()}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {adminSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    Invitar
+                  </button>
+                </div>
+                {adminError && <p className="text-xs text-destructive">{adminError}</p>}
+                {adminSuccess && (
+                  <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Invitación enviada a <strong>{adminSuccess}</strong>
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -685,12 +833,15 @@ function FormField({ label, value, onChange, placeholder, type = "text", require
 }
 
 function InvitationRow({
-  inv, onRevoke, revoking,
+  inv, onRevoke, onReactivate, revoking, reactivating,
 }: {
   inv: FounderInvitation;
   onRevoke: (id: string) => Promise<void>;
+  onReactivate: (id: string) => Promise<void>;
   revoking: string | null;
+  reactivating: string | null;
 }) {
+  const busy = revoking === inv.id || reactivating === inv.id;
   return (
     <div className="px-4 py-3 space-y-1.5">
       <div className="flex items-center gap-3">
@@ -711,18 +862,34 @@ function InvitationRow({
             Expira {new Date(inv.expires_at).toLocaleDateString("es-AR")}
           </p>
         </div>
-        {inv.status === "pending" && (
-          <button
-            onClick={() => { void onRevoke(inv.id); }}
-            disabled={revoking === inv.id}
-            className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-            title="Revocar invitación"
-          >
-            {revoking === inv.id
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Trash2 className="h-3.5 w-3.5" />}
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Revocar — solo si está pendiente */}
+          {inv.status === "pending" && (
+            <button
+              onClick={() => { void onRevoke(inv.id); }}
+              disabled={busy}
+              className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+              title="Revocar invitación"
+            >
+              {revoking === inv.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Trash2 className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          {/* Re-invitar — si fue revocada o ya expiró */}
+          {(inv.status === "revoked" || inv.status === "accepted") && (
+            <button
+              onClick={() => { void onReactivate(inv.id); }}
+              disabled={busy}
+              className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+              title={inv.status === "revoked" ? "Re-activar invitación" : "Volver a invitar (nueva sesión)"}
+            >
+              {reactivating === inv.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <RotateCcw className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
       {inv.status === "pending" && inv.invite_token && (
         <div className="ml-11 flex items-center gap-1.5 rounded-md border border-amber-300/30 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-1">

@@ -62,7 +62,7 @@ function LoginForm() {
     const rawToken = getInsForgeClient().getHttpClient().getHeaders().Authorization as string | undefined;
     if (rawToken) {
       // Strip "Bearer " prefix — setAuthToken expects the raw token
-      persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""));
+      persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""), data?.refreshToken ?? undefined);
     }
 
     // Si el usuario tiene una invitación de fundador pendiente, crear la org automáticamente

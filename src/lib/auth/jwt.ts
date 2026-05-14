@@ -55,16 +55,19 @@ export async function verifyUserId(token: string): Promise<string | null> {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(3000),
       });
-      const userId = res.ok ? claims.sub : null;
-      _verifyCache.set(cacheKey, { userId, expiresAt: Date.now() + CACHE_TTL_MS });
-      // Prune stale entries
-      if (_verifyCache.size > 1000) {
-        const now = Date.now();
-        for (const [k, v] of _verifyCache) {
-          if (v.expiresAt < now) _verifyCache.delete(k);
+      if (res.ok) {
+        _verifyCache.set(cacheKey, { userId: claims.sub, expiresAt: Date.now() + CACHE_TTL_MS });
+        // Prune stale entries
+        if (_verifyCache.size > 1000) {
+          const now = Date.now();
+          for (const [k, v] of _verifyCache) {
+            if (v.expiresAt < now) _verifyCache.delete(k);
+          }
         }
+        return claims.sub;
       }
-      return userId;
+      // InsForge returned non-ok (token from a different project, or project recreated)
+      // Fall through to decode-only fallback below
     } catch {
       // Network error — fall through to decode-only fallback
     }
