@@ -30,22 +30,25 @@ export async function POST(req: Request) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos." }, { status: 400 });
   }
 
-  const { email, password, name } = parsed.data;
+  const { email, password, name, inviteToken } = parsed.data;
   const normalizedEmail = email.toLowerCase();
   const admin = getInsForgeAdminClient();
 
   // 1a. Verificar si es un fundador pre-autorizado (crea org nueva)
   const { data: founderRows } = await admin.database
     .from("org_founder_invitations")
-    .select("id, company_name")
+    .select("id, company_name, invite_token")
     .eq("email", normalizedEmail)
     .eq("status", "pending")
     .gt("expires_at", new Date().toISOString())
     .limit(1);
 
-  const founderInvitation = (founderRows ?? [])[0] as { id: string; company_name: string } | undefined;
+  const founderInvitation = (founderRows ?? [])[0] as { id: string; company_name: string; invite_token?: string | null } | undefined;
 
   if (founderInvitation) {
+    if (founderInvitation.invite_token && founderInvitation.invite_token !== (inviteToken ?? "")) {
+      return Response.json({ error: "Token de invitación inválido." }, { status: 403 });
+    }
     // Crear usuario
     const { data: authData, error: authErr } = await admin.auth.signUp({ email, password, name, autoConfirm: true });
     if (authErr) {

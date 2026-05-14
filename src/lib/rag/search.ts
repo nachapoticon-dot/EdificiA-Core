@@ -19,14 +19,9 @@ interface SearchOptions {
 }
 
 interface QueryIntent {
-  /** Construction doc types to pre-filter. Undefined = search all. */
   docTypes?: string[];
 }
 
-/**
- * Detects which construction document type(s) the query is about.
- * Uses simple keyword matching — fast and deterministic.
- */
 function detectQueryIntent(query: string): QueryIntent {
   const q = query;
   const types: string[] = [];
@@ -46,18 +41,12 @@ function detectQueryIntent(query: string): QueryIntent {
   if (/certific|habilitac|aprobac|inspecc/i.test(q))
     types.push("certificado");
 
-  // Deduplicate
   return { docTypes: types.length > 0 ? [...new Set(types)] : undefined };
 }
 
 /**
- * Semantic search over company documents.
- *
- * Priority:
- *   1. Qdrant vector search with intent-based pre-filter on construction_doc_type
- *      If the filtered search returns nothing, retries without the type filter.
- *   2. PostgreSQL full-text search (Spanish stemming)
- *   3. PostgreSQL ILIKE fallback
+ * Hybrid search: runs Qdrant semantic and PostgreSQL full-text concurrently,
+ * merges by score, deduplicates by (fileName + chunkText prefix).
  */
 export async function searchDocuments(
   query: string,
@@ -66,53 +55,89 @@ export async function searchDocuments(
   const topK   = opts.topK ?? 5;
   const intent = detectQueryIntent(query);
 
-  if (isQdrantConfigured()) {
-    const embedding = await embedText(query);
-    if (embedding) {
-      try {
-        const baseMust: object[] = [
-          { key: "org_id", match: { value: opts.organizationId } },
-        ];
-        if (opts.projectId) {
-          baseMust.push({ key: "project_id", match: { value: opts.projectId } });
-        }
+  const [semanticResults, textResults] = await Promise.all([
+    semanticSearch(query, opts, topK, intent),
+    textSearchFallback(query, opts.organizationId, topK, opts.projectId),
+  ]);
 
-        // First pass: filtered by construction doc type when intent is clear
-        if (intent.docTypes) {
-          const filtered = await getQdrantClient().search(COLLECTION_NAME, {
-            vector: embedding,
-            limit: topK,
-            filter: {
-              must: [
-                ...baseMust,
-                { key: "construction_doc_type", match: { any: intent.docTypes } },
-              ],
-            },
-            with_payload: true,
-          });
+  // If no semantic results, return text results only
+  if (semanticResults.length === 0) return textResults;
 
-          const relevant = filtered.filter((r) => r.score >= 0.65);
-          if (relevant.length >= 2) {
-            return relevant.map(toSearchResult);
-          }
-          // Not enough typed results — fall through to unfiltered search
-        }
+  // Merge: prefer semantic results, fill remaining slots with unique text results
+  const seen = new Set<string>();
+  const merged: SearchResult[] = [];
 
-        // Unfiltered search
-        const results = await getQdrantClient().search(COLLECTION_NAME, {
-          vector: embedding,
-          limit: topK,
-          filter: { must: baseMust },
-          with_payload: true,
-        });
+  for (const r of semanticResults) {
+    const key = dedupeKey(r);
+    if (!seen.has(key)) { seen.add(key); merged.push(r); }
+  }
 
-        const relevant = results.filter((r) => r.score >= 0.55);
-        if (relevant.length > 0) return relevant.map(toSearchResult);
-      } catch { /* fall through */ }
+  for (const r of textResults) {
+    if (merged.length >= topK) break;
+    const key = dedupeKey(r);
+    if (!seen.has(key)) {
+      seen.add(key);
+      // Re-score text results relative to semantic scores so merging is fair
+      const rescored = { ...r, score: r.score * 0.7 };
+      merged.push(rescored);
     }
   }
 
-  return textSearchFallback(query, opts.organizationId, topK, opts.projectId);
+  return merged.sort((a, b) => b.score - a.score).slice(0, topK);
+}
+
+function dedupeKey(r: SearchResult): string {
+  return `${r.fileName}::${r.chunkText.slice(0, 80)}`;
+}
+
+async function semanticSearch(
+  query: string,
+  opts: SearchOptions,
+  topK: number,
+  intent: QueryIntent,
+): Promise<SearchResult[]> {
+  if (!isQdrantConfigured()) return [];
+
+  const embedding = await embedText(query);
+  if (!embedding) return [];
+
+  try {
+    const baseMust: object[] = [
+      { key: "org_id", match: { value: opts.organizationId } },
+    ];
+    if (opts.projectId) {
+      baseMust.push({ key: "project_id", match: { value: opts.projectId } });
+    }
+
+    // First pass: filtered by construction doc type when intent is clear
+    if (intent.docTypes) {
+      const filtered = await getQdrantClient().search(COLLECTION_NAME, {
+        vector: embedding,
+        limit: topK,
+        filter: {
+          must: [
+            ...baseMust,
+            { key: "construction_doc_type", match: { any: intent.docTypes } },
+          ],
+        },
+        with_payload: true,
+      });
+
+      const relevant = filtered.filter((r) => r.score >= 0.65);
+      if (relevant.length >= 2) return relevant.map(toSearchResult);
+    }
+
+    const results = await getQdrantClient().search(COLLECTION_NAME, {
+      vector: embedding,
+      limit: topK,
+      filter: { must: baseMust },
+      with_payload: true,
+    });
+
+    return results.filter((r) => r.score >= 0.55).map(toSearchResult);
+  } catch {
+    return [];
+  }
 }
 
 function toSearchResult(r: {

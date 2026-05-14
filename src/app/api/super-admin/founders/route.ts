@@ -1,4 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { randomBytes } from "crypto";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,7 @@ interface FounderInvitation {
   notes: string | null;
   created_at: string;
   expires_at: string;
+  invite_token?: string | null;
 }
 
 function isAuthorized(req: Request): boolean {
@@ -25,7 +27,7 @@ export async function GET(req: Request): Promise<Response> {
   const client = getInsForgeAdminClient();
   const { data, error } = await client.database
     .from("org_founder_invitations")
-    .select("id, email, company_name, status, notes, created_at, expires_at")
+    .select("id, email, company_name, status, notes, created_at, expires_at, invite_token")
     .order("created_at", { ascending: false });
 
   if (error) return Response.json({ error: "DB error" }, { status: 500 });
@@ -40,6 +42,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "email y company_name son requeridos" }, { status: 400 });
   }
 
+  const inviteToken = randomBytes(16).toString("hex");
   const client = getInsForgeAdminClient();
   const { data, error } = await client.database
     .from("org_founder_invitations")
@@ -47,8 +50,9 @@ export async function POST(req: Request): Promise<Response> {
       email: body.email.toLowerCase().trim(),
       company_name: body.company_name.trim(),
       notes: body.notes?.trim() ?? null,
+      invite_token: inviteToken,
     })
-    .select("id, email, company_name, status, created_at, expires_at")
+    .select("id, email, company_name, status, created_at, expires_at, invite_token")
     .single();
 
   if (error) {

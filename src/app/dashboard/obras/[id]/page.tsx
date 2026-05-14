@@ -2,16 +2,34 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, MessageSquare, Building2,
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
   CheckCircle2, Circle, ChevronDown, ChevronRight,
+  Pencil, Check, X, Hash, MapPin, Banknote,
 } from "lucide-react";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { useProjectCoverage } from "@/hooks/useProjectCoverage";
 import { useProjectFiles, type ProjectFile } from "@/hooks/useProjectFiles";
+import { useProjectDetails } from "@/hooks/useProjectDetails";
+import { getInsForgeClient } from "@/lib/insforge/client";
 import type { PhaseCoverage } from "@/lib/obra/coverage";
+
+const STATUS_OPTIONS = [
+  { value: "en_obra",      label: "En obra" },
+  { value: "planificacion", label: "Planificación" },
+  { value: "finalizado",   label: "Finalizado" },
+  { value: "pausado",      label: "Pausado" },
+] as const;
+
+const STATUS_COLORS: Record<string, string> = {
+  en_obra:      "bg-[oklch(0.93_0.08_145)] text-[var(--ok)]",
+  planificacion: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  finalizado:   "bg-accent text-muted-foreground",
+  pausado:      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -138,11 +156,48 @@ function PhaseRow({ phase, index }: { phase: PhaseCoverage; index: number }) {
 export default function ObraDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { projects, activateProject } = useProjectContext();
 
   const project = projects.find((p) => p.id === id);
   const { data: coverage, isLoading: coverageLoading } = useProjectCoverage(id);
   const { data: files = [], isLoading: filesLoading } = useProjectFiles(id);
+  const { data: details } = useProjectDetails(id);
+
+  const [editing, setEditing]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [editStatus, setEditStatus] = useState("");
+  const [editCode, setEditCode]   = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+
+  function startEdit() {
+    const p = details?.project;
+    setEditStatus(p?.status ?? "en_obra");
+    setEditCode(p?.code ?? "");
+    setEditLocation(p?.location ?? "");
+    setEditAmount(p?.contract_amount != null ? String(p.contract_amount) : "");
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    setSaving(true);
+    const h = getInsForgeClient().getHttpClient().getHeaders();
+    await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: (h.Authorization as string) ?? "" },
+      body: JSON.stringify({
+        status: editStatus,
+        code: editCode.trim() || null,
+        location: editLocation.trim() || null,
+        contract_amount: editAmount.trim() ? parseFloat(editAmount.replace(/[^0-9.]/g, "")) : null,
+      }),
+    });
+    await queryClient.invalidateQueries({ queryKey: ["project-details", id] });
+    await queryClient.invalidateQueries({ queryKey: ["projects"] });
+    setSaving(false);
+    setEditing(false);
+  }
 
   function handleConverse() {
     if (project) activateProject(project);
@@ -150,6 +205,7 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   const projectName = project?.name ?? "Obra";
+  const meta = details?.project;
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-background">
@@ -195,6 +251,83 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Metadata band */}
+      <div className="border-b border-border bg-background/60 px-8 py-3">
+        <div className="mx-auto max-w-5xl">
+          {!editing ? (
+            <div className="flex items-center gap-4 flex-wrap">
+              {meta?.status && (
+                <span className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] ${STATUS_COLORS[meta.status] ?? "bg-accent text-muted-foreground"}`}>
+                  {STATUS_OPTIONS.find((s) => s.value === meta.status)?.label ?? meta.status}
+                </span>
+              )}
+              {meta?.code && (
+                <span className="flex items-center gap-1 text-[12px] text-muted-foreground">
+                  <Hash className="h-3 w-3" />{meta.code}
+                </span>
+              )}
+              {meta?.location && (
+                <span className="flex items-center gap-1 text-[12px] text-muted-foreground">
+                  <MapPin className="h-3 w-3" />{meta.location}
+                </span>
+              )}
+              {meta?.contract_amount != null && (
+                <span className="flex items-center gap-1 text-[12px] text-muted-foreground">
+                  <Banknote className="h-3 w-3" />
+                  {Number(meta.contract_amount).toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })}
+                </span>
+              )}
+              <button
+                onClick={startEdit}
+                className="ml-auto flex items-center gap-1.5 rounded-[8px] border border-border px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+              >
+                <Pencil className="h-3 w-3" />
+                Editar datos
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Estado</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+                >
+                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Código</label>
+                <input value={editCode} onChange={(e) => setEditCode(e.target.value)} placeholder="OP-001"
+                  className="w-24 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Ubicación</label>
+                <input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="Ciudad, Provincia"
+                  className="w-44 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monto contrato</label>
+                <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} placeholder="0.00"
+                  className="w-32 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+              </div>
+              <div className="flex items-center gap-2 pb-0.5">
+                <button onClick={() => { void saveEdit(); }} disabled={saving}
+                  className="flex items-center gap-1.5 rounded-[8px] bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground transition-opacity disabled:opacity-50 hover:opacity-90">
+                  {saving ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <Check className="h-3 w-3" />}
+                  Guardar
+                </button>
+                <button onClick={() => setEditing(false)}
+                  className="flex items-center gap-1 rounded-[8px] border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent">
+                  <X className="h-3 w-3" /> Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

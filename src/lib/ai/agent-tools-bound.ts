@@ -131,20 +131,27 @@ export function createBoundTools(orgId: string) {
       description: agentTools.generar_presupuesto_excel.description,
       inputSchema: z.object({
         obraName: z.string().describe("Nombre de la obra o proyecto"),
+        cacheId:  z.string().optional().describe("ID de caché del archivo Excel subido — preferido cuando está disponible"),
         items: z.array(z.object({
           code: z.string(), description: z.string(), quantity: z.number(),
           unit: z.string(), unitPrice: z.number(), group: z.string().optional(),
-        })).describe("Ítems del presupuesto"),
+        })).optional().describe("Ítems del presupuesto — omitir si se pasa cacheId"),
         notes: z.string().optional().describe("Notas o aclaraciones al pie del presupuesto"),
       }),
       execute: async (input) => {
+        let items = input.items ?? [];
+        if (input.cacheId && items.length === 0) {
+          const { getItems } = await import("@/lib/file-cache");
+          const cached = await getItems(input.cacheId);
+          if (cached) items = cached;
+        }
         const safeDate = new Date().toISOString().slice(0, 10);
         const safeName = input.obraName.replace(/\s+/g, "_").slice(0, 40);
         return {
           type: "doc_generation_proposal" as const, docType: "presupuesto_excel" as const,
           fileName: `Presupuesto_${safeName}_${safeDate}`,
-          description: `Presupuesto de obra "${input.obraName}" · ${input.items.length} ítems`,
-          payload: { obraName: input.obraName, items: input.items, notes: input.notes },
+          description: `Presupuesto de obra "${input.obraName}" · ${items.length} ítems`,
+          payload: { obraName: input.obraName, items, notes: input.notes },
           organizationId: orgId,
         };
       },

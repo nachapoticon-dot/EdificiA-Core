@@ -14,6 +14,10 @@ export interface OrgMember {
     logoUrl: string | null;
     agentName: string;
   };
+  stats: {
+    activeProjects: number;
+    memberCount: number;
+  };
 }
 
 type State =

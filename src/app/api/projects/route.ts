@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     const client = getInsForgeAdminClient();
     const result = await client.database
       .from("projects")
-      .insert({ organization_id: orgId, name, created_by: userId })
+      .insert({ id: crypto.randomUUID(), organization_id: orgId, name, created_by: userId })
       .select("id, name, created_at, updated_at")
       .single();
 

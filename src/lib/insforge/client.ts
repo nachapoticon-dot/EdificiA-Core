@@ -7,15 +7,15 @@ let _client: InsForgeClient | null = null;
 
 /**
  * Returns the singleton browser InsForge client.
- * Token is persisted in localStorage so it survives hot reloads and page refreshes.
+ * Token is persisted in sessionStorage so it survives hot reloads and page refreshes.
  * Only call from Client Components or browser-side code.
  */
 export function getInsForgeClient(): InsForgeClient {
   if (!_client) {
     _client = createClient({ baseUrl: BASE_URL });
-    // Restore token from localStorage (survives hot reload + page refresh)
+    // Restore token from sessionStorage (survives hot reload + page refresh)
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(TOKEN_KEY);
+      const saved = sessionStorage.getItem(TOKEN_KEY);
       if (saved) _client.getHttpClient().setAuthToken(saved);
     }
   }
@@ -25,14 +25,14 @@ export function getInsForgeClient(): InsForgeClient {
 /** Call after successful sign-in to persist the token across reloads. */
 export function persistAuthToken(rawToken: string) {
   if (typeof window !== "undefined") {
-    localStorage.setItem(TOKEN_KEY, rawToken);
+    sessionStorage.setItem(TOKEN_KEY, rawToken);
   }
 }
 
 /** Call on sign-out to remove the persisted token. */
 export function clearPersistedToken() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
   }
   _client = null;
 }

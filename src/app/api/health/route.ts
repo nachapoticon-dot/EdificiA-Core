@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getQdrantClient, isQdrantConfigured } from "@/lib/qdrant/client";
+import { httpLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -10,18 +11,19 @@ type ServiceStatus = {
 };
 
 export async function GET() {
+  const t0 = Date.now();
   const [postgres, qdrant] = await Promise.all([checkPostgres(), checkQdrant()]);
 
   const healthy = postgres.status === "ok" && qdrant.status !== "error";
+  const payload = {
+    status: healthy ? "ok" : "degraded",
+    services: { postgres, qdrant },
+    timestamp: new Date().toISOString(),
+  };
 
-  return Response.json(
-    {
-      status: healthy ? "ok" : "degraded",
-      services: { postgres, qdrant },
-      timestamp: new Date().toISOString(),
-    },
-    { status: healthy ? 200 : 503 },
-  );
+  httpLogger.info({ ...payload, latencyMs: Date.now() - t0 }, "health check");
+
+  return Response.json(payload, { status: healthy ? 200 : 503 });
 }
 
 async function checkPostgres(): Promise<ServiceStatus> {

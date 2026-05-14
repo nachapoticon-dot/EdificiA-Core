@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_PATHS = ["/dashboard", "/super-admin"];
+const PROTECTED_PATHS = ["/dashboard"];
 const AUTH_COOKIE = "insforge_csrf_token";
 
 export function proxy(request: NextRequest) {
@@ -29,5 +29,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/super-admin/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/login"],
 };

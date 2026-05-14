@@ -19,6 +19,22 @@ const ACCEPTED_EXTENSIONS = [
   ".png", ".jpg", ".jpeg", ".gif", ".webp",
 ];
 
+// MIME types per extension. Empty array = any MIME accepted (e.g. DXF uses octet-stream).
+const ACCEPTED_MIME: Record<string, string[]> = {
+  ".xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ".xls":  ["application/vnd.ms-excel"],
+  ".csv":  ["text/csv", "text/plain", "application/csv"],
+  ".pdf":  ["application/pdf"],
+  ".dxf":  [],
+  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ".doc":  ["application/msword"],
+  ".png":  ["image/png"],
+  ".jpg":  ["image/jpeg"],
+  ".jpeg": ["image/jpeg"],
+  ".gif":  ["image/gif"],
+  ".webp": ["image/webp"],
+};
+
 export async function POST(req: Request) {
   if (!checkRateLimit(rateLimitKey(req, "upload"), "upload")) {
     return apiRateLimited("Límite de subidas alcanzado. Intentá en una hora.");
@@ -44,6 +60,12 @@ export async function POST(req: Request) {
   const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
   if (!ACCEPTED_EXTENSIONS.includes(ext)) {
     return apiBadRequest(`Formato "${ext}" no soportado.`);
+  }
+
+  const allowedMimes: string[] = ACCEPTED_MIME[ext] ?? [];
+  const actualMime = ((file.type || "").split(";")[0] ?? "").trim().toLowerCase();
+  if (allowedMimes.length > 0 && actualMime && !allowedMimes.includes(actualMime)) {
+    return apiBadRequest(`Tipo de contenido inválido para "${ext}".`);
   }
 
   // Decode auth early — needed to populate uploaded_by + organization_id

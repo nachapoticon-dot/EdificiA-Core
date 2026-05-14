@@ -390,6 +390,16 @@ function safeStr(s: string, max = 120): string {
   return s.replace(/[\x00-\x1f\x7f]/g, "").slice(0, max);
 }
 
+// Strip common prompt-injection patterns from document text content
+function sanitizeDocText(text: string, max = 8000): string {
+  return text
+    .replace(/ignore\s+(all\s+)?(previous|prior|above|your)\s+(instructions?|prompt|context|directives?)/gi, "[filtrado]")
+    .replace(/<\|(?:im_start|im_end|system|endoftext)\|>/gi, "")
+    .replace(/\[INST\]|\[\/INST\]/gi, "")
+    .replace(/^\s*#{1,3}\s*(system|assistant|user|instruction|override|reset|forget)\b.*$/gim, "")
+    .slice(0, max);
+}
+
 function buildFilePrompt(file: AttachedFile): string {
   switch (file.type) {
     case "excel": {
@@ -423,7 +433,7 @@ Identificá el tipo de documento, extraé todos los datos numéricos (ítems, ca
 PDF "${safeStr(file.fileName)}" (${file.pageCount} páginas). Texto extraído:
 
 ---
-${file.text.slice(0, 8000)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
+${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
 ---
 
 ¿Es un presupuesto, cómputo métrico o memoria descriptiva? Si hay datos de costos o cantidades, extraélos y analizálos.`;
@@ -451,7 +461,7 @@ Documento Word "${safeStr(file.fileName)}" (${file.wordCount} palabras).
 
 Contenido:
 ---
-${file.text.slice(0, 8000)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
+${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
 ---
 
 ¿Es relevante para un presupuesto de construcción? Identificá especificaciones técnicas, listados de materiales, memorias descriptivas o datos de costos.`;

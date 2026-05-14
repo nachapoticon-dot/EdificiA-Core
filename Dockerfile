@@ -24,4 +24,5 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+# Run migrations then start the app
+CMD ["sh", "-c", "node scripts/migrate.js 2>/dev/null || true && node server.js"]

@@ -22,7 +22,7 @@ export async function POST(req: Request): Promise<Response> {
   const userId = decodeUserId(token);
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = (await req.json()) as { email?: string };
+  const body = (await req.json()) as { email?: string; inviteToken?: string };
   if (!body.email) return Response.json({ error: "email requerido" }, { status: 400 });
 
   const email = body.email.toLowerCase().trim();
@@ -31,14 +31,18 @@ export async function POST(req: Request): Promise<Response> {
   // Verificar invitación de fundador pendiente
   const { data: founderRows } = await admin.database
     .from("org_founder_invitations")
-    .select("id, company_name")
+    .select("id, company_name, invite_token")
     .eq("email", email)
     .eq("status", "pending")
     .gt("expires_at", new Date().toISOString())
     .limit(1);
 
-  const founder = (founderRows ?? [])[0] as { id: string; company_name: string } | undefined;
+  const founder = (founderRows ?? [])[0] as { id: string; company_name: string; invite_token?: string | null } | undefined;
   if (!founder) return Response.json({ orgCreated: false });
+
+  if (founder.invite_token && founder.invite_token !== (body.inviteToken ?? "")) {
+    return Response.json({ error: "Token de invitación inválido." }, { status: 403 });
+  }
 
   // Verificar que el usuario no tenga ya una organización
   const { data: existing } = await admin.database

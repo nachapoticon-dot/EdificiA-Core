@@ -361,9 +361,10 @@ export const agentTools = {
 
   generar_presupuesto_excel: tool({
     description:
-      "Genera un presupuesto de obra en formato .xlsx listo para descargar. Úsalo cuando el usuario pide 'haceme un presupuesto', 'generá la planilla', 'exportá los ítems en Excel', etc. Los ítems pueden venir de la conversación, del análisis de un documento o de lo que el usuario dicte.",
+      "Genera un presupuesto de obra en formato .xlsx listo para descargar. Úsalo cuando el usuario pide 'haceme un presupuesto', 'generá la planilla', 'exportá los ítems en Excel', etc. Si el archivo fue subido en esta sesión, pasá cacheId (más eficiente que re-listar todos los ítems).",
     inputSchema: z.object({
       obraName: z.string().describe("Nombre de la obra o proyecto"),
+      cacheId:  z.string().optional().describe("ID de caché del archivo Excel subido — preferido cuando está disponible"),
       items: z.array(z.object({
         code:        z.string().describe("Código del ítem (ej. '1.1', 'MOB-01')"),
         description: z.string().describe("Descripción del ítem"),
@@ -371,21 +372,26 @@ export const agentTools = {
         unit:        z.string().describe("Unidad de medida (m², ml, un, hs, kg, etc.)"),
         unitPrice:   z.number().describe("Precio unitario en pesos"),
         group:       z.string().optional().describe("Rubro o capítulo al que pertenece el ítem"),
-      })).describe("Ítems del presupuesto a incluir en el Excel"),
+      })).optional().describe("Ítems del presupuesto — omitir si se pasa cacheId"),
       notes:          z.string().optional().describe("Notas o aclaraciones al pie del presupuesto"),
       organizationId: z.string().describe("ID de la organización activa"),
     }),
     execute: async (input) => {
+      let items = input.items ?? [];
+      if (input.cacheId && items.length === 0) {
+        const cached = await getItems(input.cacheId);
+        if (cached) items = cached;
+      }
       const safeDate = new Date().toISOString().slice(0, 10);
       const safeName = input.obraName.replace(/\s+/g, "_").slice(0, 40);
       return {
         type:        "doc_generation_proposal" as const,
         docType:     "presupuesto_excel" as const,
         fileName:    `Presupuesto_${safeName}_${safeDate}`,
-        description: `Presupuesto de obra "${input.obraName}" · ${input.items.length} ítems`,
+        description: `Presupuesto de obra "${input.obraName}" · ${items.length} ítems`,
         payload: {
           obraName: input.obraName,
-          items:    input.items,
+          items,
           notes:    input.notes,
         },
         organizationId: input.organizationId,
