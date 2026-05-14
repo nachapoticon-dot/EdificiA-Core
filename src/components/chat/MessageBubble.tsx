@@ -128,6 +128,10 @@ const SPECIAL_TOOLS = new Set([
   "reportar_hallazgo",
   "reportar_hallazgos_batch",
   "comparar_presupuestos",
+  "proyectar_metricas",
+  "proyectar_legajo_grafico",
+  "proyectar_comparativa",
+  "proyectar_cronograma",
 ]);
 
 /* ── Segment types for the grouped renderer ── */

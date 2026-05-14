@@ -7,6 +7,7 @@ import { DefaultChatTransport, type FileUIPart } from "ai";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { DropZone } from "@/components/chat/DropZone";
+import { UploadProgressCard } from "@/components/chat/FileCard";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
 import { Compass, Download, Sheet } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";
@@ -313,6 +314,8 @@ export default function ChatPage() {
       {/* Input area */}
       <div className="shrink-0 border-t bg-background py-4">
         <div className="mx-auto max-w-[720px] px-6">
+          {isUploading && <UploadProgressCard />}
+
           {(uploadError ?? streamError) && (
             <div className="mb-2 flex items-center justify-between rounded-[8px] bg-destructive/10 px-3 py-2">
               <p className="text-xs text-destructive">{uploadError ?? streamError}</p>

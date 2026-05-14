@@ -1,7 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { verifyUserId, extractBearerToken } from "@/lib/auth/jwt";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { apiRateLimited } from "@/lib/api/errors";
+import { apiRateLimited, apiUnauthorized } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -18,9 +18,10 @@ function slugify(name: string, suffix: string): string {
 
 export async function POST(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "claim-founder"), "auth")) return apiRateLimited("Demasiados intentos. Esperá un minuto.");
-  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const token = extractBearerToken(req.headers.get("authorization") ?? "");
+  if (!token) return apiUnauthorized();
+  const userId = await verifyUserId(token);
+  if (!userId) return apiUnauthorized("Token inválido o expirado.");
 
   const body = (await req.json()) as { email?: string; inviteToken?: string };
   if (!body.email) return Response.json({ error: "email requerido" }, { status: 400 });

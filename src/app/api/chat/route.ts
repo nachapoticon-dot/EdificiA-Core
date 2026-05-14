@@ -1,8 +1,8 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { AI_MODEL, buildSystemPrompt, agentTools, createBoundTools } from "@/lib/ai/agent";
+import { AI_MODEL, buildSystemPrompt, createBoundTools } from "@/lib/ai/agent";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { verifyUserId } from "@/lib/auth/jwt";
+import { requireAuth, type AuthResult } from "@/lib/auth/require-auth";
 import { learnFromSession } from "@/lib/ai/session-learner";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
@@ -34,18 +34,17 @@ export async function POST(req: Request) {
     return Response.json({ error: "Mensaje demasiado largo." }, { status: 413 });
   }
 
-  const authHeader = req.headers.get("authorization") ?? "";
-  const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-
-  const projectName    = req.headers.get("x-project-name") ?? undefined;
-  const projectId      = req.headers.get("x-project-id")   ?? undefined;
-  const requestedOrgId = req.headers.get("x-org-id")       ?? undefined;
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   if (!checkRateLimit(rateLimitKey(req, "chat"), "chat")) {
     return apiRateLimited("Límite diario alcanzado. Intentá mañana.");
   }
 
-  const { systemPrompt, tools, orgId } = await resolveContext(accessToken, projectName, projectId, requestedOrgId);
+  const projectName = req.headers.get("x-project-name") ?? undefined;
+  const projectId   = req.headers.get("x-project-id")   ?? undefined;
+
+  const { systemPrompt, tools } = await resolveContext(auth, projectName, projectId);
 
   const t0 = Date.now();
   try {
@@ -57,14 +56,12 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(20),
       onFinish: async ({ steps, usage }) => {
         aiLogger.info({
-          orgId,
+          orgId: auth.orgId,
           steps: steps.length,
           tokens: usage,
           latencyMs: Date.now() - t0,
         }, "chat finished");
-        if (orgId) {
-          void learnFromSession(steps as unknown as Parameters<typeof learnFromSession>[0], orgId);
-        }
+        void learnFromSession(steps as unknown as Parameters<typeof learnFromSession>[0], auth.orgId);
       },
     });
 
@@ -82,12 +79,6 @@ export async function POST(req: Request) {
   }
 }
 
-type ResolvedContext = {
-  systemPrompt: string;
-  tools: ReturnType<typeof createBoundTools> | typeof agentTools;
-  orgId?: string;
-};
-
 interface RecentSession {
   title: string;
   file_type: string | null;
@@ -96,45 +87,20 @@ interface RecentSession {
 }
 
 async function resolveContext(
-  accessToken: string | null,
+  auth: AuthResult,
   projectName?: string,
   projectId?: string,
-  requestedOrgId?: string,
-): Promise<ResolvedContext> {
-  const fallback = { systemPrompt: buildSystemPrompt({ projectName, projectId }), tools: agentTools };
-
-  if (!accessToken) return fallback;
-
-  const userId = await verifyUserId(accessToken);
-  if (!userId) return { systemPrompt: buildSystemPrompt(), tools: agentTools };
+): Promise<{ systemPrompt: string; tools: ReturnType<typeof createBoundTools> }> {
+  const { userId, orgId } = auth;
+  const fallback = {
+    systemPrompt: buildSystemPrompt({ organizationId: orgId, projectName, projectId }),
+    tools: createBoundTools(orgId),
+  };
 
   try {
     const client = getInsForgeAdminClient();
 
-    let memberQuery = client.database
-      .from("organization_members")
-      .select("organization_id, organizations(name, agent_name, primary_color)")
-      .eq("user_id", userId)
-      .is("deleted_at", null);
-
-    if (requestedOrgId) {
-      memberQuery = memberQuery.eq("organization_id", requestedOrgId);
-    }
-
-    const memberResult = await memberQuery.limit(1).single();
-
-    const member = memberResult.data as {
-      organization_id: string;
-      organizations: { name: string; agent_name: string; primary_color: string } | null;
-    } | null;
-
-    if (!member) return { systemPrompt: buildSystemPrompt(), tools: agentTools };
-
-    const orgId = member.organization_id;
-    const org   = member.organizations;
-
-    // Run patterns + recent sessions + project validation in parallel
-    const [patternsResult, recentSessionsResult, projectCheckResult] = await Promise.all([
+    const [patternsResult, recentSessionsResult, projectCheckResult, orgResult] = await Promise.all([
       client.database
         .from("company_learned_patterns")
         .select("document_type, pattern_key, pattern_value")
@@ -150,7 +116,7 @@ async function resolveContext(
         .order("started_at", { ascending: false })
         .limit(4),
 
-      projectId && orgId
+      projectId
         ? client.database
             .from("projects")
             .select("id")
@@ -159,7 +125,19 @@ async function resolveContext(
             .limit(1)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+
+      client.database
+        .from("organizations")
+        .select("name, agent_name, primary_color")
+        .eq("id", orgId)
+        .single(),
     ]);
+
+    const org = orgResult.data as {
+      name: string;
+      agent_name: string | null;
+      primary_color: string | null;
+    } | null;
 
     const rawPatterns = (patternsResult.data ?? []) as {
       document_type: string;
@@ -174,7 +152,6 @@ async function resolveContext(
     }
 
     const validatedProjectId = projectId && projectCheckResult.data ? projectId : undefined;
-
     const recentSessions = (recentSessionsResult.data ?? []) as RecentSession[];
 
     const systemPrompt = buildSystemPrompt({
@@ -187,9 +164,8 @@ async function resolveContext(
       recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
     });
 
-    // A-04: use bound tools — organizationId is server-verified, not LLM-controlled
-    return { systemPrompt, tools: createBoundTools(orgId), orgId };
+    return { systemPrompt, tools: createBoundTools(orgId) };
   } catch {
-    return { systemPrompt: buildSystemPrompt(), tools: agentTools };
+    return fallback;
   }
 }

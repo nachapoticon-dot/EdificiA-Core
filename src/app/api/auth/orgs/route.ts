@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { verifyUserId, extractBearerToken } from "@/lib/auth/jwt";
+import { apiUnauthorized } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -9,13 +10,13 @@ export interface OrgOption {
   role: string;
 }
 
+/** GET /api/auth/orgs — returns all organizations the caller belongs to (for org switcher). */
 export async function GET(req: Request): Promise<Response> {
-  const authHeader = req.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const token = extractBearerToken(req.headers.get("authorization") ?? "");
+  if (!token) return apiUnauthorized();
 
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const userId = await verifyUserId(token);
+  if (!userId) return apiUnauthorized("Token inválido o expirado.");
 
   try {
     const client = getInsForgeAdminClient();
@@ -35,11 +36,7 @@ export async function GET(req: Request): Promise<Response> {
 
     const orgs: OrgOption[] = rows.map((r) => {
       const org = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations;
-      return {
-        orgId: r.organization_id,
-        orgName: org?.name ?? r.organization_id,
-        role: r.role,
-      };
+      return { orgId: r.organization_id, orgName: org?.name ?? r.organization_id, role: r.role };
     });
 
     return Response.json({ orgs });

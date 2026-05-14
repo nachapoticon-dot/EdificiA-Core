@@ -1,32 +1,10 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/require-auth";
 
 export const runtime = "nodejs";
 
-async function requireAdmin(req: Request): Promise<{ userId: string; orgId: string } | Response> {
-  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-  const client = getInsForgeAdminClient();
-  const result = await client.database
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .is("deleted_at", null)
-    .limit(1)
-    .single();
-
-  const member = result.data as { organization_id: string } | null;
-  if (!member) return Response.json({ error: "Admin role required" }, { status: 403 });
-  return { userId, orgId: member.organization_id };
-}
-
-// ── GET /api/admin/settings ───────────────────────────────────────────────────
-
 export async function GET(req: Request): Promise<Response> {
-  const auth = await requireAdmin(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const client = getInsForgeAdminClient();
@@ -41,10 +19,8 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json(result.data);
 }
 
-// ── PATCH /api/admin/settings ─────────────────────────────────────────────────
-
 export async function PATCH(req: Request): Promise<Response> {
-  const auth = await requireAdmin(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const body = (await req.json()) as {

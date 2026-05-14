@@ -1,5 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeClaims } from "@/lib/auth/jwt";
+import { verifyUserId, decodeClaims } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
 
@@ -30,9 +30,12 @@ export async function GET(req: Request): Promise<Response> {
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Use async verifyUserId so InsForge validates the JWT signature server-side
   const claims = decodeClaims(token);
   if (!claims) return Response.json({ error: "Invalid token" }, { status: 401 });
-  const { sub: userId, email } = claims;
+  const userId = await verifyUserId(token);
+  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const { email } = claims;
 
   // Respect the active org selection from the client (org switcher stores this)
   const requestedOrgId = req.headers.get("x-org-id") ?? null;

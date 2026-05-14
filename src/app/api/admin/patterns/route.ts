@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { apiForbidden } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -12,33 +13,19 @@ interface PatternRow {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   const client = getInsForgeAdminClient();
-
-  const memberResult = await client.database
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .limit(1)
-    .single();
-
-  const orgId = (memberResult.data as { organization_id: string } | null)?.organization_id;
-  if (!orgId) return Response.json({ error: "Org not found" }, { status: 404 });
-
   const result = await client.database
     .from("company_learned_patterns")
     .select("document_type, pattern_key, pattern_value, sample_count, updated_at")
-    .eq("organization_id", orgId)
+    .eq("organization_id", auth.orgId)
     .order("document_type", { ascending: true })
     .order("pattern_key", { ascending: true });
 
   const rows = (result.data ?? []) as PatternRow[];
 
-  // Group by document_type
   const grouped: Record<string, { patterns: PatternRow[]; maxSampleCount: number }> = {};
   for (const row of rows) {
     if (!grouped[row.document_type]) {
@@ -54,35 +41,23 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ grouped, totalPatterns: rows.length });
 }
 
-/** POST /api/admin/patterns — promote a pattern to industry_benchmarks (cross-company learning) */
+/** POST — promote a pattern to industry_benchmarks */
 export async function POST(req: Request): Promise<Response> {
-  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-  const client = getInsForgeAdminClient();
-  const memberResult = await client.database
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .limit(1)
-    .single();
-
-  const member = memberResult.data as { organization_id: string; role: string } | null;
-  if (!member) return Response.json({ error: "Org not found" }, { status: 404 });
-  if (member.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
+  if (auth.role !== "admin") return apiForbidden();
 
   const body = (await req.json()) as { documentType?: string; patternKey?: string };
   if (!body.documentType || !body.patternKey) {
     return Response.json({ error: "documentType and patternKey son requeridos" }, { status: 400 });
   }
 
-  // Fetch the pattern to promote
+  const client = getInsForgeAdminClient();
+
   const patternResult = await client.database
     .from("company_learned_patterns")
     .select("pattern_value, sample_count")
-    .eq("organization_id", member.organization_id)
+    .eq("organization_id", auth.orgId)
     .eq("document_type", body.documentType)
     .eq("pattern_key", body.patternKey)
     .limit(1)
@@ -91,13 +66,11 @@ export async function POST(req: Request): Promise<Response> {
   const pattern = patternResult.data as { pattern_value: unknown; sample_count: number } | null;
   if (!pattern) return Response.json({ error: "Patrón no encontrado" }, { status: 404 });
 
-  // Map document type to industry category
   const categoryMap: Record<string, string> = {
     excel: "general", pdf: "general", dxf: "civil", docx: "general",
   };
   const category = categoryMap[body.documentType] ?? "general";
 
-  // Upsert into industry_benchmarks (anonymized — no org reference stored)
   await client.database
     .from("industry_benchmarks")
     .upsert({
@@ -113,33 +86,20 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 export async function DELETE(req: Request): Promise<Response> {
-  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-  const client = getInsForgeAdminClient();
-
-  const memberResult = await client.database
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .limit(1)
-    .single();
-
-  const member = memberResult.data as { organization_id: string; role: string } | null;
-  if (!member) return Response.json({ error: "Org not found" }, { status: 404 });
-  if (member.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
+  if (auth.role !== "admin") return apiForbidden();
 
   const body = (await req.json()) as { documentType?: string; patternKey?: string };
   if (!body.documentType || !body.patternKey) {
     return Response.json({ error: "documentType and patternKey are required" }, { status: 400 });
   }
 
+  const client = getInsForgeAdminClient();
   await client.database
     .from("company_learned_patterns")
     .delete()
-    .eq("organization_id", member.organization_id)
+    .eq("organization_id", auth.orgId)
     .eq("document_type", body.documentType)
     .eq("pattern_key", body.patternKey);
 

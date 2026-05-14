@@ -1,95 +1,145 @@
 # Plan de Mejora y Despliegue: EdificIA
 
-Este documento sirve como hoja de ruta para las próximas implementaciones en el proyecto EdificIA. Está formateado para que asistentes como Claude Code puedan leerlo y ejecutar los pasos de forma secuencial. Se han agregado casillas de verificación para dar seguimiento a su estado actual.
+> **Última auditoría de estado**: 2026-05-14
+> 
+> Leyenda: ✅ = Hecho | 🔶 = Parcial | ❌ = Pendiente
+
+Este documento sirve como hoja de ruta para las próximas implementaciones en el proyecto EdificIA. Está formateado para que asistentes como Claude Code puedan leerlo y ejecutar los pasos de forma secuencial.
+
+---
 
 ## 1. Montaje y Dockerización (Servidor y Servicios)
 **Objetivo:** Contenerizar la aplicación para facilitar su despliegue en cualquier servidor (VPS, AWS, etc.) y unificar el entorno de desarrollo.
 
-- **[x] Paso 1: Dockerfile para Next.js:** 
-  - Crear un `Dockerfile` en la raíz del proyecto configurado para Next.js en modo `standalone`. Esto reduce drásticamente el peso de la imagen de producción.
-- **[~] Paso 2: Orquestación con Docker Compose (`docker-compose.yml`):**
-  - Definir el servicio `web` (Next.js). *(Completado)*
-  - Definir un servicio `qdrant` (Base de datos vectorial) local para evitar depender siempre de Qdrant Cloud en desarrollo. Mapear volúmenes (`./qdrant_data:/qdrant/storage`) para persistencia. *(Completado)*
-  - Definir un servicio `postgres` (si se desea reemplazar InsForge temporalmente para desarrollo local) con su volumen correspondiente. *(Pendiente)*
-- **[x] Paso 3: Variables de entorno:**
-  - Actualizar `.env.local.example` y crear un `.env.docker` que conecte automáticamente los servicios dentro de la red de Docker.
+- ✅ **Paso 1: Dockerfile para Next.js**
+  - `Dockerfile` creado en raíz, modo `standalone`.
+- 🔶 **Paso 2: Orquestación con Docker Compose (`docker-compose.yml`)**
+  - ✅ Servicio `web` (Next.js) definido.
+  - ✅ Servicio `qdrant` definido con volumen persistente.
+  - ❌ Servicio `postgres` local para desarrollo sin InsForge.
+- ✅ **Paso 3: Variables de entorno**
+  - `.env.local.example` y `.env.docker.example` creados.
+
+---
 
 ## 2. Persistencia por Base de Datos
-**Objetivo:** Asegurar que tanto los datos relacionales (usuarios, obras) como los vectoriales (documentos RAG) no se pierdan al reiniciar el servidor.
+**Objetivo:** Asegurar que los datos relacionales y vectoriales no se pierdan al reiniciar.
 
-- **[x] Paso 1: Configuración de Volúmenes Docker:** Como se mencionó en el paso anterior, asegurar que la base de datos relacional y vectorial apunten a volúmenes físicos en el host.
-- **[ ] Paso 2: Migraciones Automáticas:** Asegurar que el script de inicio del contenedor o el CI/CD ejecute `npm run migrate` (usando InsForge o Drizzle/Prisma) antes de levantar la app. *(Scripts creados pero falta automatización en el arranque)*
+- ✅ **Paso 1: Configuración de Volúmenes Docker**
+  - Volúmenes configurados en `docker-compose.yml`.
+- ✅ **Paso 2: Migraciones Automáticas**
+  - ✅ 14 migraciones en `db/migrations/` + 3 en `migrations/` (InsForge CLI).
+  - ✅ Script `scripts/migrate.js` creado.
+  - ✅ `CMD` en `Dockerfile`: `node scripts/migrate.js || true && node server.js`.
+
+---
 
 ## 3. Monitoreo del Estado de los Servicios
-**Objetivo:** Tener visibilidad en tiempo real de si el frontend, la base de datos relacional y Qdrant están operativos.
+**Objetivo:** Visibilidad en tiempo real de si los servicios están operativos.
 
-- **[x] Paso 1: Endpoint de Health Check (`/api/health`):**
-  - Crear una ruta GET en Next.js que haga un ping a PostgreSQL y otro a Qdrant.
-  - Retornar estado HTTP 200 si todo está OK, o 503 si algún servicio falla, junto con un JSON detallando el estado de cada uno.
-- **[~] Paso 2: Docker Healthchecks:**
-  - Integrar `healthcheck` en el `docker-compose.yml` para que Docker sepa si un contenedor está realmente listo para recibir tráfico, asegurando que el backend no inicie antes que la DB. *(Qdrant implementado, Next.js web pendiente)*
+- ✅ **Paso 1: Endpoint de Health Check (`/api/health`)**
+  - Ruta creada, hace ping a PostgreSQL y Qdrant.
+- ✅ **Paso 2: Docker Healthchecks**
+  - ✅ Healthcheck de Qdrant en docker-compose.
+  - ✅ Healthcheck del servicio web: `wget -qO- http://localhost:3000/api/health`.
+
+---
 
 ## 4. Conexión y Consistencia Frontend-Backend
-**Objetivo:** Garantizar que la comunicación en el monorepo (Next.js) sea robusta y segura.
+**Objetivo:** Comunicación robusta y segura en el monorepo.
 
-- **[x] Paso 1: Validación E2E:** Asegurar que todas las peticiones a la API utilicen los esquemas de Zod definidos en `src/lib/validators` para validar tanto los body de las requests (Frontend) como las respuestas (Backend).
-- **[x] Paso 2: Manejo de errores global:** Estandarizar las respuestas de error de la API y capturarlas en el Frontend usando interceptores o manejadores de TanStack Query para mostrar *toasts* informativos al usuario.
+- ✅ **Paso 1: Validación E2E**
+  - Schemas Zod en `src/lib/validators/index.ts` (login, signUp, tenant).
+  - API routes validan con Zod.
+- ✅ **Paso 2: Manejo de errores global**
+  - `src/lib/api/errors.ts` con helpers estandarizados (apiUnauthorized, apiForbidden, etc.).
+  - Rate limiter en `src/lib/api/rate-limit.ts`.
+
+---
 
 ## 5. Mejora en la Información y Base de Datos (RAG)
-**Objetivo:** El agente debe recibir mejor contexto y metadatos de lo que lee.
+**Objetivo:** El agente debe recibir mejor contexto y metadatos.
 
-- **[x] Paso 1: Enriquecimiento de Metadatos:** Al procesar un PDF/Excel/DXF, no solo extraer el texto, sino guardar en Qdrant metadatos como: `autor`, `fecha_creacion`, `tipo_documento` (plano, presupuesto, memoria), y `obra_id`.
-- **[x] Paso 2: Pre-procesamiento Inteligente:** Mejorar el `file-processor`. Si es un Excel, formatearlo como tabla Markdown antes de vectorizarlo. Si es un plano DXF, extraer capas y cotas de forma estructurada.
-- **[ ] Paso 3: Búsqueda Híbrida:** Configurar Qdrant para usar no solo búsqueda por similitud semántica (embeddings), sino combinarla con búsqueda por palabras clave exactas (BM25) para términos técnicos muy específicos de ingeniería.
+- ✅ **Paso 1: Enriquecimiento de Metadatos**
+  - Al procesar archivos se guardan metadatos en Qdrant (tipo, org, proyecto).
+  - Tabla `document_chunks` con `organization_id`, `project_id`, `file_id`.
+- ✅ **Paso 2: Pre-procesamiento Inteligente**
+  - `file-processor` maneja Excel, PDF, DXF, DOCX, imágenes.
+  - Excel se formatea como tabla estructurada con items.
+  - DXF extrae capas, bloques, entidades.
+- ✅ **Paso 3: Búsqueda Híbrida (semántica + FTS)**
+  - `src/lib/rag/search.ts`: semántica (Qdrant) + PostgreSQL FTS (`tsquery spanish`) + ilike fallback.
+  - Merge por score: semántica preferida, FTS re-scored × 0.7 para completar slots.
+
+---
 
 ## 6. Mejora de Interfaz y System Prompt
-**Objetivo:** Hacer la subida de archivos intuitiva y profesional, y darle al agente reglas estrictas de comportamiento.
+**Objetivo:** Subida de archivos intuitiva y agente con reglas estrictas.
 
-- **[ ] Paso 1: UI de Subida (Estética):**
-  - Rediseñar el componente de subida en `src/components/chat/` o `documents/`. *(Componente base creado)*
-  - Usar un área de *Drag & Drop* de Shadcn con animaciones de Framer Motion. *(Pendiente)*
-  - Mostrar barras de progreso reales durante la extracción de texto y el guardado en Qdrant. *(Pendiente)*
-- **[x] Paso 2: Refinamiento del System Prompt (Transición a "Project Manager Digital"):**
-  - Actualizar el archivo de prompt (`src/lib/ai/agent-prompt.ts`).
-  - Añadir directivas estrictas de citado (siempre citar el documento y la página usando metadatos).
-  - **Evolución de Rol**: Ya no es solo un "Auditor Técnico" pasivo, sino un **Project Manager de Obra Digital**. Debe mantener el rigor técnico, pero sumar un rol de gestión integral: administrar el cronograma, coordinar el directorio de contratistas y servicios, y analizar proactivamente los desvíos del proyecto.
+- ✅ **Paso 1: UI de Subida (Estética)**
+  - ✅ DropZone con drag & drop + Framer Motion (`src/components/chat/DropZone.tsx`).
+  - ✅ FileCard con metadatos reales (`src/components/chat/FileCard.tsx`).
+  - ✅ `UploadProgressCard`: barra animada con etapas (Subiendo → Procesando → Indexando) mientras el POST está en vuelo.
+- ✅ **Paso 2: Refinamiento del System Prompt**
+  - System prompt en `src/lib/ai/agent-prompt.ts` con flujo obligatorio.
+  - Incluye patrones aprendidos por empresa, sesiones recientes, proyecto activo.
+  - ✅ Reglas de generación: STOP tras herramientas de doc, no llamar buscar antes de generar.
+- ✅ **Paso 3 (extra): Corrección de procesadores de archivos**
+  - `pdf-processor.ts`: fallback `estimatePageCountFromBytes()` cuando `pdf-parse` lanza excepción.
+  - `agent-tools-bound.ts`: guard de caché nulo en `generar_presupuesto_excel`.
+- ✅ **Paso 4 (extra): UI Generativa activada**
+  - `proyectar_metricas`, `proyectar_comparativa`, `proyectar_cronograma`, `proyectar_legajo_grafico` conectadas en `createBoundTools()`.
+  - `SPECIAL_TOOLS` actualizado en `MessageBubble.tsx`.
+
+---
 
 ## 7. Seguridad y Resiliencia en Producción
-**Objetivo:** Garantizar que la aplicación sea segura, robusta y escalable para entornos empresariales, protegiendo los datos y asegurando la continuidad del servicio.
+**Objetivo:** App segura, robusta y escalable para entornos empresariales.
 
-- **[x] Paso 1: Aislamiento y Control de Acceso:**
-  - **Multi-tenancy:** Implementar aislamiento estricto de datos. Cuando un usuario hace log in, solo debe poder acceder a los datos de su propia empresa (implementar Row-Level Security en la base de datos o filtros obligatorios por `company_id`).
-  - **Políticas de CORS (CORS Policy):** Configurar políticas restrictivas para asegurar que solo dominios autorizados puedan hacer peticiones a la API.
-  - **Seguridad en Password Reset:** Implementar flujos seguros con tokens de un solo uso, expiración corta y mitigación contra ataques de enumeración de usuarios.
-- **[x] Paso 2: Protección contra Ataques y Abusos:**
-  - **Input Validation y Sanitización:** Validar tipos y sanitizar estrictamente todas las entradas (ej. con Zod) para bloquear ataques de inyección (SQL Injection, NoSQL Injection, XSS).
-  - **Rate Limiting:** Implementar limitación de tasa (rate limiting) en endpoints críticos para prevenir fuerza bruta, scraping o ataques de denegación de servicio (DDoS).
-- **[~] Paso 3: Optimización y Manejo de Errores:**
-  - **Database Indexes:** Analizar consultas recurrentes y crear índices adecuados para mantener el rendimiento a medida que los datos escalan. *(Depende de migraciones completas)*
-  - **Manejo de Errores (Error Handling):** Implementar fallbacks limpios y amigables para los usuarios (clean fallbacks). Nunca exponer *stack traces* o información sensible del sistema en producción. *(Implementado con validadores y fallbacks de API)*
-- **[ ] Paso 4: Observabilidad y Recuperación:**
-  - **Logging en Producción:** Implementar un sistema de logs estructurado que permita debuggear problemas eficientemente en producción.
-  - **Sistema de Alertas (Alert System):** Configurar monitoreo proactivo para que el equipo reciba notificaciones inmediatas si algo se rompe.
-  - **Write-Ahead Logging (WAL):** Asegurar que WAL esté activado en la base de datos para garantizar la durabilidad de las transacciones y prevenir corrupción de datos ante caídas repentinas.
-  - **Estrategia de Rollback:** Diseñar un plan automatizado para revertir rápidamente a la versión anterior si un nuevo despliegue causa fallos críticos.
+- ✅ **Paso 1: Aislamiento y Control de Acceso**
+  - ✅ Multi-tenancy: Todas las queries filtran por `organization_id` derivado del token del usuario. RLS en DB.
+  - ✅ CORS configurado en `next.config.ts` (headers restrictivos).
+  - ✅ Password Reset seguro: HMAC-SHA256 token (1h TTL) · `POST /api/auth/forgot-password` · `PUT /api/auth/reset-password` · páginas `/forgot-password` + `/reset-password` · email vía Resend.
+- ✅ **Paso 2: Protección contra Ataques**
+  - ✅ Input Validation con Zod en todas las API routes.
+  - ✅ Rate Limiting en endpoints críticos (auth, chat, upload).
+- 🔶 **Paso 3: Optimización y Manejo de Errores**
+  - ✅ Error handling estandarizado con `src/lib/api/errors.ts`.
+  - ✅ Índices de DB creados en migraciones 003, 005.
+  - ❌ Performance profiling bajo carga real.
+- 🔶 **Paso 4: Observabilidad y Recuperación**
+  - ✅ Logger con Pino creado (`src/lib/logger.ts`).
+  - ❌ Sistema de alertas (Sentry, etc.).
+  - ❌ WAL verification en PostgreSQL.
+  - ❌ Estrategia de rollback automatizada.
+
+### ✅ Auth arreglada (2026-05-14)
+> - `src/middleware.ts` real protege `/dashboard/*` → redirect a `/login`.
+> - `verifyUserId()` verifica JWT con InsForge server-side + cache de 60 s.
+> - `requireAuth()` centralizado — 18 route handlers refactorizadas.
+> - Token en `localStorage` + cookie `edificia_session` (7 días).
+> - Logout limpia localStorage + cookie del servidor.
+
+### ❌ Pendiente en Auth
+> - Password reset seguro.
+> - Cookie httpOnly (requeriría arquitectura de refresh token separada).
+
+---
 
 ## 8. Funciones Proactivas y Gestión Integral de Obra
-**Objetivo:** Evolucionar de un auditor reactivo a un "Project Manager de Obra Digital". El agente debe procesar y anticiparse a todas las variables críticas de la ejecución de obra: clima, cadena de suministros, seguridad del personal (HSE) y finanzas.
+**Objetivo:** Evolucionar de auditor reactivo a "Project Manager de Obra Digital".
 
-- **[ ] Paso 1: Arquitectura de Datos Extendida para la Obra Real:**
-  - **Cronograma y Finanzas:** Registro de curva de inversión, hitos de Certificados de Avance y pagos a subcontratistas.
-  - **Directorio y Subcontratos:** Base de datos de obreros, cuadrillas, proveedores y servicios de alquiler (ej. grúas, volquetes).
-  - **HSE (Salud, Seguridad y Medio Ambiente):** Control de pólizas de seguros (ART), fechas de vencimiento de permisos municipales, y control de entrega de EPP (Elementos de Protección Personal).
-  - **Acopios y Suministros:** Control de inventario en obra, seguimiento de órdenes de compra críticas (ej. fechas de colada de hormigón, llegada de perfilería).
-
-- **[ ] Paso 2: Motor de Proactividad y Clima (Notificaciones Inteligentes):**
-  - Implementar un sistema de background (CRON jobs / Workers) que analice el estado de la obra cada día.
-  - **Integración Meteorológica:** El agente revisará el clima y cruzará los datos con el cronograma. (Ej. *"Aviso: Dan lluvia intensa para el jueves. Sugiero reprogramar el hormigonado de la losa 2 y reasignar a esa cuadrilla a tareas de mampostería interior"*).
-  - **Alertas Preventivas:** Enviar notificaciones (Mail/Push) si el seguro de un subcontratista vence mañana (para no dejarlo entrar a la obra) o si falta pedir el material para la semana que viene.
-
-- **[ ] Paso 3: Tools Avanzadas para el Agente IA:**
-  - Dotar al agente de herramientas (Tool Calling) para gestionar la realidad de la obra:
-    - `evaluar_impacto_clima(fecha)`: Cruza clima vs. tareas de ruta crítica.
-    - `verificar_ingreso_personal(cuadrilla)`: Valida seguros, ART y capacitaciones antes de autorizar ingreso.
-    - `reprogramar_e_informar(tarea, fecha)`: Mueve una tarea en el Gantt y genera borradores de mensajes/emails para enviar a los capataces.
-    - `auditar_curva_inversion()`: Compara lo gastado vs. el avance físico real para alertar sobre desfasajes de caja.
+- ❌ **Paso 1: Arquitectura de Datos Extendida para la Obra Real**
+  - Cronograma y finanzas.
+  - Directorio y subcontratos.
+  - HSE (seguridad laboral).
+  - Acopios y suministros.
+- ❌ **Paso 2: Motor de Proactividad y Clima**
+  - CRON jobs / Workers para análisis diario.
+  - Integración meteorológica.
+  - Alertas preventivas (seguros, materiales).
+- ❌ **Paso 3: Tools Avanzadas para el Agente IA**
+  - `evaluar_impacto_clima(fecha)`
+  - `verificar_ingreso_personal(cuadrilla)`
+  - `reprogramar_e_informar(tarea, fecha)`
+  - `auditar_curva_inversion()`

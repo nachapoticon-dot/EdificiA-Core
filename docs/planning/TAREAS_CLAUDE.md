@@ -1,33 +1,92 @@
 # Tareas Pendientes para Claude
 
+> **Última auditoría de estado**: 2026-05-14
+> 
+> Leyenda: ✅ = Hecho | 🔶 = Parcial | ❌ = Pendiente
+
 Este documento recopila los errores encontrados y las nuevas características o mejoras que deben ser implementadas en el proyecto. 
 
+---
+
 ## 🐛 Errores a Corregir
-- **Error al generar Excel**: El agente se queda "trabado" (no finaliza la respuesta ni muestra el archivo) cuando se le pide que genere un archivo Excel limpio o modificado. El flujo se interrumpe después del mensaje inicial de intención (por ejemplo, después de decir "voy a buscar en la base documental... y de paso armo la estructura"). Posible fallo silencioso en la tool de exportación o en la cadena de LLM al usar la tool `buscar_en_base_documental` combinada con la generación.
+
+- ✅ **Error al generar Excel** — Corregido (2026-05-14):
+  - Guard en `generar_presupuesto_excel`: si `cacheId` expiró → error explícito en lugar de propuesta con 0 ítems.
+  - Guard adicional: si no hay `cacheId` ni `items` → error explícito.
+  - System prompt actualizado: regla estricta de STOP tras llamar herramientas de generación + instrucción de no llamar `buscar_en_base_documental` antes de generar.
+
+- ✅ **PDF con 0 páginas y OCR falso** — Corregido (2026-05-14):
+  - Cuando `pdf-parse` lanza excepción (PDF/A, encoding, seguridad), `pageCount` ya no es 0.
+  - `estimatePageCountFromBytes()`: cuenta `/Type /Page` en raw bytes (sin confundir con `/Type /Pages`).
+  - `isScanned: true` se mantiene correcto (texto no extraíble = tratar como escaneado).
+
+- ✅ **Auth rota (CRÍTICO)** — Corregido:
+  - `src/middleware.ts` real protege `/dashboard/*`, redirige a `/login`
+  - `verifyUserId()` verifica JWT contra InsForge server-side (cache 60 s)
+  - `requireAuth()` centralizado en `src/lib/auth/require-auth.ts` — 18 routes refactorizadas
+  - `/api/chat` y `/api/upload` ahora requieren auth estricta (sin fallbacks)
+  - Token en `localStorage` + cookie `edificia_session` (7 días), logout limpia ambos
+
+---
 
 ## ✨ Mejoras y Cosas a Agregar
-- **Selector/Card de Organización Dinámico**: Implementar de forma real el componente de organización (ej. "Estudio Argañaraz"). *Nota de UI: Este es el componente que actualmente se encuentra ubicado arriba a la izquierda en el layout principal.* No debe ser un menú desplegable, sino mostrar esta información directamente a simple vista tomando los datos de la base de datos: el rol del usuario (ej. "FOUNDER"), la cantidad de obras/proyectos activos (ej. "3 obras activas") y la cantidad total de miembros en la organización (ej. "24 miembros").
-- **Tarjeta de Obra Activa**: Implementar de forma real el componente de "OBRA ACTIVA" ubicado justo debajo de la tarjeta de Organización. Este componente debe mostrar datos dinámicos de la obra seleccionada:
-  - Título de la obra (ej. "Las Lomas - Torre A").
-  - Estado o etiqueta visual (ej. "EN OBRA" en verde).
-  - Detalles textuales: Código (ej. "LL-2024-01"), Ubicación (ej. "Tigre, BA") y Contrato (ej. "$128.45M").
-  - **Cobertura Documental**: La barra de progreso y el porcentaje (ej. "78%") deben reflejar **el espacio de almacenamiento consumido/restante que tiene esa empresa en nuestro servidor**, y no un porcentaje de archivos de la obra en sí.
-- **Íconos de Acción (Búsqueda y Configuración)**: Agregar en la esquina superior derecha de la interfaz general (layout) los íconos interactivos de **Buscar** (lupa) y **Configuración** (engranaje), listos para conectarse con sus respectivas funcionalidades futuras.
-- **Rediseño de Tarjetas de Documentos Subidos**: Actualizar el componente visual de los archivos subidos para que adopte una estética refinada (que se adapte correctamente al modo claro u oscuro, sin forzar el fondo oscuro si el sistema está en modo claro). Debe mostrar:
-  - Ícono del archivo a la izquierda (ej. ícono verde para Excel).
-  - Nombre del archivo en la parte superior (ej. `PRESUPUESTO_LAS_LOMAS_R3.xlsx`).
-  - Una fila de metadatos sutil debajo, usando tipografía monoespaciada o color tenue para contraste. Estos metadatos deben conectarse con la data real que se extrae al procesar el archivo:
-    - **Cantidad de ítems**: El número de filas/elementos detectados (ej. `247 ítems`).
-    - **Nombre de la hoja o sección**: La ubicación principal dentro del archivo (ej. `hoja "COMPUTO"` en el caso de Excel).
-    - **Monto total**: El valor monetario total identificado en el documento (ej. `$128.450.000`).
-- **Componentes de UI Generativa (Generative UI Blocks)**: Mejorar el agente IA para que, además del texto, renderice de forma nativa bloques visuales interactivos en el chat cuando el contexto lo amerite. Se han identificado 4 bloques de la demo de diseño que deben volverse funcionales:
-  1. **Bloque de Métricas e Incidencias (Gráficos de Barra)**: Para mostrar desgloses (ej. "Incidencia por rubro"). Debe incluir KPIs superiores (Total de obra, Avance, Desvíos) y una lista de barras horizontales mostrando porcentajes y valores monetarios.
-  2. **Bloque de Ranking (Comparativa)**: Para cotejar proveedores o materiales. Es una lista rankeada que muestra etiquetas ("RECOMENDADO"), precios, plazos de entrega, estado IRAM, obras previas y una barra visual de "Score".
-  3. **Bloque de Legajo Gráfico (Media Grid)**: Un visor para planos e imágenes. Muestra miniaturas organizadas con etiquetas flotantes (ej. `PLANO`, `INSPECCIÓN`, `RENDER`) y metadatos del archivo en la parte inferior (fecha, vista, extensión).
-  4. **Bloque de Cronograma (Timeline)**: Para avances de obra. Presenta un eje de meses arriba, tareas apiladas con barras verdes indicando progreso, una línea vertical naranja marcando el día de "HOY", y un detalle inferior con los hitos (fechas clave).
-  *(Importante: En todos estos bloques, el agente debe mostrar antes una lista tipo consola de las herramientas usadas con sus checkmarks verdes, ej: "✅ Calculando totales del presupuesto... ok").*
-- **Panel SuperAdmin y Seguridad de Datos**: Mejorar la interfaz del administrador global y la lógica de conexión para gestionar a las empresas de forma segura sin comprometer su aislamiento de datos (Multi-tenant). Debe incluir:
-  - **Alta y Gestión de Empresas**: Capacidad de dar de alta nuevas constructoras/organizaciones en la plataforma.
-  - **Auditoría de Bases de Datos**: Verificación del estado de los datos de cada cliente (ej. última fecha de actualización, espacio de servidor consumido).
-  - **Estado de Pagos y Suscripción**: Panel de control para verificar si la empresa está al día con la facturación y habilitar/deshabilitar accesos automáticamente.
-  - **Conexión Segura (Zero Leak)**: Asegurar que, al conectarse a los archivos y a la base de datos de una empresa, el flujo esté estrictamente aislado para que no haya fugas de información hacia otras organizaciones.
+
+- ✅ **Selector/Card de Organización Dinámico**
+  - Componente `OrganizationCard.tsx` creado.
+  - Se renderiza en el dashboard layout (`src/app/dashboard/layout.tsx`).
+  - Muestra datos de la organización activa del usuario.
+  - *Estado*: Componente creado y conectado, datos dinámicos desde `/api/auth/me`.
+
+- ✅ **Tarjeta de Obra Activa**
+  - Componente `ActiveProjectSection.tsx` creado.
+  - Se renderiza en el dashboard layout debajo de la card de organización.
+  - Hook `useProjectDetails.ts` para datos dinámicos.
+  - Hook `useProjectCoverage.ts` para cobertura documental.
+  - *Estado*: Funcional con datos reales de la obra seleccionada.
+
+- ✅ **Íconos de Acción (Búsqueda y Configuración)**
+  - Íconos de Buscar (lupa) y Configuración (engranaje) agregados en el header del sidebar.
+  - Link de configuración apunta a `/dashboard/admin/settings`.
+  - *Estado*: En el layout, visibles y funcionales.
+
+- ✅ **Rediseño de Tarjetas de Documentos Subidos**
+  - Componente `FileCard.tsx` rediseñado con:
+    - Ícono del archivo según tipo a la izquierda.
+    - Nombre del archivo.
+    - Metadatos reales: cantidad de ítems, hoja/sección, monto total.
+    - Adaptación a modo claro/oscuro.
+  - *Estado*: Funcional con datos extraídos del procesamiento de archivos.
+
+- ✅ **Componentes de UI Generativa (Generative UI Blocks)** — Activados (2026-05-14):
+  - Los 4 bloques ya estaban implementados visualmente pero faltaba conectarlos al agente.
+  - **Fix**: Las 4 tools (`proyectar_metricas`, `proyectar_comparativa`, `proyectar_cronograma`, `proyectar_legajo_grafico`) agregadas a `createBoundTools()` en `agent-tools-bound.ts`.
+  - **Fix**: Las 4 tools agregadas a `SPECIAL_TOOLS` en `MessageBubble.tsx` para suprimir el rendering genérico.
+  - `proyectar_legajo_grafico` está bound con `orgId` del servidor (sin `organizationId` en el schema del LLM).
+  - *Estado*: Funcional. El agente puede proyectar métricas, ranking, cronograma y legajo gráfico.
+
+- ✅ **Panel SuperAdmin y Seguridad de Datos**
+  - Panel completo en `/super-admin` con auth propia (SUPER_ADMIN_KEY).
+  - 3 tabs: Fundadores, Empresas, Estadísticas.
+  - API routes: `/api/super-admin/founders`, `/api/super-admin/companies`, `/api/super-admin/reset`.
+  - Gestión de invitaciones de fundador con tokens.
+  - Toggle habilitar/deshabilitar empresas.
+  - Selector de estado de suscripción.
+  - Stats de storage, miembros, proyectos por empresa.
+  - Reset completo (DB + Qdrant) con confirmación.
+  - *Estado*: Funcional. ⚠️ El middleware estaba bloqueando el acceso (ya corregido: se sacó `/super-admin` de `proxy.ts`).
+
+---
+
+## 📋 Resumen rápido
+
+| Feature | Estado |
+|---------|--------|
+| OrganizationCard dinámico | ✅ |
+| Tarjeta de Obra Activa | ✅ |
+| Íconos Búsqueda/Config | ✅ |
+| FileCard con metadatos reales | ✅ |
+| Panel SuperAdmin | ✅ |
+| UI Generativa (4 bloques) | ✅ |
+| Fix error Excel gen | ✅ |
+| Fix PDF 0 páginas / isScanned falso | ✅ |
+| Fix Auth completo | ✅ |

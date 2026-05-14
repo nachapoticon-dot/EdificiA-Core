@@ -187,7 +187,8 @@ export default function SuperAdminPage() {
 
   const handleTabChange = async (t: typeof tab) => {
     setTab(t);
-    if (t === "companies" && companies.length === 0) await fetchCompanies();
+    // Stats tab also needs companies data
+    if ((t === "companies" || t === "stats") && companies.length === 0) await fetchCompanies();
   };
 
   // ── Auth gate ──────────────────────────────────────────────────────────────

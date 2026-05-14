@@ -1,5 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
 
@@ -13,48 +13,18 @@ interface SessionRow {
   project_id: string | null;
 }
 
-function resolveOrg(req: Request, userId: string) {
-  return {
-    userId,
-    orgId: req.headers.get("x-org-id") ?? null,
-  };
-}
-
-async function getOrgId(
-  client: ReturnType<typeof getInsForgeAdminClient>,
-  userId: string,
-  requestedOrgId: string | null,
-): Promise<string | null> {
-  let q = client.database
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", userId)
-    .is("deleted_at", null);
-
-  if (requestedOrgId) q = q.eq("organization_id", requestedOrgId);
-
-  const result = await q.limit(1).single();
-  return (result.data as { organization_id: string } | null)?.organization_id ?? null;
-}
-
 /** GET /api/sessions — Returns the last 30 sessions for the authenticated user+org */
 export async function GET(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "sessions"), "standard")) return apiRateLimited();
-  const token = req.headers.get("authorization")?.slice(7) ?? null;
-  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   const client = getInsForgeAdminClient();
-  const { orgId: requestedOrgId } = resolveOrg(req, userId);
-  const orgId = await getOrgId(client, userId, requestedOrgId);
-  if (!orgId) return Response.json({ error: "Not a member" }, { status: 403 });
-
   const result = await client.database
     .from("chat_sessions")
     .select("id, title, file_type, started_at, project_id")
-    .eq("organization_id", orgId)
-    .eq("user_id", userId)
+    .eq("organization_id", auth.orgId)
+    .eq("user_id", auth.userId)
     .is("deleted_at", null)
     .order("started_at", { ascending: false })
     .limit(30);
@@ -74,10 +44,8 @@ export async function GET(req: Request): Promise<Response> {
 /** POST /api/sessions — Upsert a session entry */
 export async function POST(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "sessions"), "standard")) return apiRateLimited();
-  const token = req.headers.get("authorization")?.slice(7) ?? null;
-  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   const body = (await req.json()) as {
     id: string;
@@ -88,15 +56,11 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   const client = getInsForgeAdminClient();
-  const { orgId: requestedOrgId } = resolveOrg(req, userId);
-  const orgId = await getOrgId(client, userId, requestedOrgId);
-  if (!orgId) return Response.json({ error: "Not a member" }, { status: 403 });
-
   await client.database.from("chat_sessions").upsert(
     {
       id: body.id,
-      organization_id: orgId,
-      user_id: userId,
+      organization_id: auth.orgId,
+      user_id: auth.userId,
       title: body.title,
       file_type: body.fileType ?? null,
       started_at: body.startedAt,
@@ -110,31 +74,23 @@ export async function POST(req: Request): Promise<Response> {
 
 /** DELETE /api/sessions?id=xxx  or  ?clearAll=true */
 export async function DELETE(req: Request): Promise<Response> {
-  const token = req.headers.get("authorization")?.slice(7) ?? null;
-  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const clearAll = url.searchParams.get("clearAll") === "true";
 
-  const client = getInsForgeAdminClient();
-  const { orgId: requestedOrgId } = resolveOrg(req, userId);
-  const orgId = await getOrgId(client, userId, requestedOrgId);
-  if (!orgId) return Response.json({ error: "Not a member" }, { status: 403 });
+  if (!clearAll && !id) return Response.json({ error: "id or clearAll required" }, { status: 400 });
 
+  const client = getInsForgeAdminClient();
   let q = client.database
     .from("chat_sessions")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("organization_id", orgId)
-    .eq("user_id", userId);
+    .eq("organization_id", auth.orgId)
+    .eq("user_id", auth.userId);
 
-  if (!clearAll && id) {
-    q = q.eq("id", id);
-  } else if (!clearAll) {
-    return Response.json({ error: "id or clearAll required" }, { status: 400 });
-  }
+  if (!clearAll && id) q = q.eq("id", id);
 
   await q;
   return Response.json({ ok: true });

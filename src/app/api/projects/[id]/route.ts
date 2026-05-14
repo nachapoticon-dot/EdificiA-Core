@@ -1,51 +1,36 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { decodeUserId } from "@/lib/auth/jwt";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { apiForbidden } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
 /** GET /api/projects/[id] — fetch full project details + org storage stats */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-
-  const token = req.headers.get("authorization")?.slice(7) ?? null;
-  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
   try {
     const client = getInsForgeAdminClient();
-
-    const memberResult = await client.database
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .is("deleted_at", null)
-      .limit(1)
-      .single();
-
-    const orgId = (memberResult.data as { organization_id: string } | null)?.organization_id;
-    if (!orgId) return Response.json({ error: "No organization" }, { status: 403 });
 
     const [projectResult, storageResult, quotaResult] = await Promise.all([
       client.database
         .from("projects")
         .select("id, name, description, status, code, location, contract_amount, created_at, updated_at")
         .eq("id", id)
-        .eq("organization_id", orgId)
+        .eq("organization_id", auth.orgId)
         .is("deleted_at", null)
         .single(),
 
-      // Total storage used by org (sum of file sizes)
       client.database
         .from("uploaded_files")
         .select("file_size_bytes")
-        .eq("organization_id", orgId),
+        .eq("organization_id", auth.orgId),
 
-      // Org storage quota
       client.database
         .from("organizations")
         .select("storage_quota_bytes")
-        .eq("id", orgId)
+        .eq("id", auth.orgId)
         .single(),
     ]);
 
@@ -71,30 +56,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 /** PATCH /api/projects/[id] — touch updated_at or update editable metadata */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const auth = await requireAuth(req);
+  if (auth instanceof Response) return auth;
 
-  const token = req.headers.get("authorization")?.slice(7) ?? null;
-  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
+  if (auth.role === "viewer") return apiForbidden("Sin permisos.");
 
   try {
     const client = getInsForgeAdminClient();
 
-    const memberResult = await client.database
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .is("deleted_at", null)
-      .limit(1)
-      .single();
-
-    const member = memberResult.data as { organization_id: string; role: string } | null;
-    if (!member) return Response.json({ error: "No organization" }, { status: 403 });
-    if (member.role === "viewer") return Response.json({ error: "Sin permisos" }, { status: 403 });
-
-    const orgId = member.organization_id;
-
-    // Parse optional metadata fields from body
     let body: { name?: string; status?: string; code?: string; location?: string; contract_amount?: number | null } = {};
     try { body = (await req.json()) as typeof body; } catch { /* activation ping — no body */ }
 
@@ -123,7 +92,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .from("projects")
       .update(patch)
       .eq("id", id)
-      .eq("organization_id", orgId)
+      .eq("organization_id", auth.orgId)
       .is("deleted_at", null)
       .select("id, name, status, code, location, contract_amount, created_at, updated_at")
       .single();

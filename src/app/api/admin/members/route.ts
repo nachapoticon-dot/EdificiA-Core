@@ -1,36 +1,11 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { sendInvitationEmail } from "@/lib/email/resend";
-import { decodeUserId } from "@/lib/auth/jwt";
 
 export const runtime = "nodejs";
 
-// ── Shared auth helper ────────────────────────────────────────────────────────
-
-async function requireAdmin(req: Request): Promise<{ userId: string; orgId: string } | Response> {
-  const token = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  const userId = decodeUserId(token);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-  const client = getInsForgeAdminClient();
-  const result = await client.database
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .is("deleted_at", null)
-    .limit(1)
-    .single();
-
-  const member = result.data as { organization_id: string; role: string } | null;
-  if (!member) return Response.json({ error: "Admin role required" }, { status: 403 });
-
-  return { userId, orgId: member.organization_id };
-}
-
-// ── GET /api/admin/members — list members + pending invitations ───────────────
-
 export async function GET(req: Request): Promise<Response> {
-  const auth = await requireAdmin(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const client = getInsForgeAdminClient();
@@ -56,10 +31,8 @@ export async function GET(req: Request): Promise<Response> {
   });
 }
 
-// ── POST /api/admin/members — create invitation ───────────────────────────────
-
 export async function POST(req: Request): Promise<Response> {
-  const auth = await requireAdmin(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const body = (await req.json()) as { email?: string; role?: string };
@@ -72,7 +45,6 @@ export async function POST(req: Request): Promise<Response> {
 
   const client = getInsForgeAdminClient();
 
-  // Fetch org name for the email template
   const orgResult = await client.database
     .from("organizations")
     .select("name")
@@ -80,7 +52,6 @@ export async function POST(req: Request): Promise<Response> {
     .single();
   const orgName = (orgResult.data as { name?: string } | null)?.name ?? "tu empresa";
 
-  // Revoke any existing pending invite for this email in this org
   await client.database
     .from("organization_invitations")
     .update({ status: "revoked", updated_at: new Date().toISOString() })
@@ -105,7 +76,6 @@ export async function POST(req: Request): Promise<Response> {
 
   const { token } = insertResult.data as { id: string; token: string };
 
-  // Send invitation email — non-blocking: don't fail the request if email fails
   sendInvitationEmail({ toEmail: email, orgName, role, token }).catch((err: unknown) => {
     console.error("[invite] Failed to send invitation email:", err);
   });
@@ -113,10 +83,8 @@ export async function POST(req: Request): Promise<Response> {
   return Response.json({ invitation: insertResult.data, emailSent: true }, { status: 201 });
 }
 
-// ── PATCH /api/admin/members — change member role ─────────────────────────────
-
 export async function PATCH(req: Request): Promise<Response> {
-  const auth = await requireAdmin(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const body = (await req.json()) as { memberId?: string; newRole?: string };
@@ -138,10 +106,8 @@ export async function PATCH(req: Request): Promise<Response> {
   return Response.json({ ok: true });
 }
 
-// ── DELETE /api/admin/members — revoke member or invitation ──────────────────
-
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = await requireAdmin(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const url = new URL(req.url);
