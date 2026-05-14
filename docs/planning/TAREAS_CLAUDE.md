@@ -77,6 +77,18 @@ Este documento recopila los errores encontrados y las nuevas características o 
 
 ---
 
+## 🐛 Errores corregidos — 2026-05-14 (sesión 2)
+
+- ✅ **BUG-2 Chat UNAUTHORIZED** — `jwt.ts` cae a fallback decode-only en non-ok de InsForge. `client.ts` agrega `getAuthToken()` con refresh automático + persiste `refreshToken`. `chat/page.tsx` usa `getAuthToken()`.
+- ✅ **BUG-1 POST /api/projects error genérico** — ahora retorna el error real de DB en el response JSON.
+- ✅ **BUG-3 org deshabilitada sigue con acceso** — `requireAuth` hace segundo query a `organizations` verificando `deleted_at IS NULL`.
+
+## ✨ Mejoras — 2026-05-14 (sesión 2)
+
+- ✅ **Super Admin — Re-activar invitaciones** — `PATCH /api/super-admin/founders` resetea status a pending con nuevo token y +30 días de expiración. Botón ↺ en el historial.
+- ✅ **Super Admin — Agregar miembro a empresa existente** — `POST /api/super-admin/members` crea `organization_invitation` y envía email. Botón "Agregar" inline en cada empresa.
+- ✅ **Super Admin — Visual de empresas deshabilitadas** — banner rojo explícito en lugar de opacity-60. Botones "Habilitar/Deshabilitar" con texto en vez de solo íconos.
+
 ## 📋 Resumen rápido
 
 | Feature | Estado |
@@ -90,3 +102,7 @@ Este documento recopila los errores encontrados y las nuevas características o 
 | Fix error Excel gen | ✅ |
 | Fix PDF 0 páginas / isScanned falso | ✅ |
 | Fix Auth completo | ✅ |
+| Fix Chat UNAUTHORIZED (token refresh) | ✅ |
+| Fix org deshabilitada sin efecto | ✅ |
+| Super Admin — re-activar invitaciones | ✅ |
+| Super Admin — agregar miembro a empresa | ✅ |

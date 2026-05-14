@@ -40,6 +40,7 @@
   "exclude": [
     "node_modules",
     "_referencias_legadas",
-    "mcp-servers"
+    "mcp-servers",
+    "handoff"
   ]
 }

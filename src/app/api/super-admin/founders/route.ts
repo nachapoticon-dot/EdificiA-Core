@@ -65,6 +65,30 @@ export async function POST(req: Request): Promise<Response> {
   return Response.json({ invitation: data }, { status: 201 });
 }
 
+export async function PATCH(req: Request): Promise<Response> {
+  if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = (await req.json()) as { id?: string };
+  if (!body.id) return Response.json({ error: "id requerido" }, { status: 400 });
+
+  const newToken = randomBytes(16).toString("hex");
+  const client = getInsForgeAdminClient();
+
+  const { data, error } = await client.database
+    .from("org_founder_invitations")
+    .update({
+      status: "pending",
+      invite_token: newToken,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .eq("id", body.id)
+    .select("id, email, company_name, status, notes, created_at, expires_at, invite_token")
+    .single();
+
+  if (error) return Response.json({ error: "No se pudo reactivar la invitación" }, { status: 500 });
+  return Response.json({ invitation: data });
+}
+
 export async function DELETE(req: Request): Promise<Response> {
   if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 

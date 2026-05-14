@@ -45,10 +45,15 @@ export async function POST(req: Request) {
       .select("id, name, created_at, updated_at")
       .single();
 
-    if (result.error) throw result.error;
+    if (result.error) {
+      const dbErr = result.error as { message?: string; code?: string; details?: string };
+      console.error("[POST /api/projects] DB error:", dbErr.code, dbErr.message, dbErr.details);
+      return Response.json({ error: dbErr.message ?? "Error al crear el proyecto", code: dbErr.code }, { status: 500 });
+    }
     return Response.json({ project: result.data }, { status: 201 });
   } catch (err) {
-    console.error("[POST /api/projects]", err);
-    return Response.json({ error: "Internal error" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[POST /api/projects] Unexpected error:", msg);
+    return Response.json({ error: msg }, { status: 500 });
   }
 }

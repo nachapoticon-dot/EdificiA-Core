@@ -43,10 +43,10 @@ export default function ChatPage() {
     transport: new DefaultChatTransport({
       api: "/api/chat",
       headers: async (): Promise<Record<string, string>> => {
-        const { getInsForgeClient } = await import("@/lib/insforge/client");
-        const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
+        const { getAuthToken } = await import("@/lib/insforge/client");
+        const token = await getAuthToken();
         const headers: Record<string, string> = {};
-        if (allHeaders.Authorization) headers.Authorization = allHeaders.Authorization;
+        if (token) headers.Authorization = `Bearer ${token}`;
         const project = activeProjectRef.current;
         if (project?.name) headers["x-project-name"] = project.name;
         if (project?.id)   headers["x-project-id"]   = project.id;

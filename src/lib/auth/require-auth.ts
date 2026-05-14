@@ -47,6 +47,17 @@ export async function requireAuth(
 
     if (!member) return apiForbidden("No pertenecés a ninguna organización.");
 
+    // Verify the organization is not disabled (BUG-3 fix)
+    const orgResult = await client.database
+      .from("organizations")
+      .select("id")
+      .eq("id", member.organization_id)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!orgResult.data) return apiForbidden("La organización está deshabilitada.");
+
     if (opts?.role && member.role !== opts.role) {
       return apiForbidden(`Se requiere rol "${opts.role}".`);
     }

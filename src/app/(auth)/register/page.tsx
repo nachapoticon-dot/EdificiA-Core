@@ -100,7 +100,7 @@ function RegisterForm() {
       }
 
       // Auto sign-in after successful registration
-      const { error: signInErr } = await getInsForgeClient().auth.signInWithPassword({
+      const { data: signInData, error: signInErr } = await getInsForgeClient().auth.signInWithPassword({
         email: parsed.data.email,
         password: parsed.data.password,
       });
@@ -113,7 +113,7 @@ function RegisterForm() {
 
       const rawToken = getInsForgeClient().getHttpClient().getHeaders().Authorization as string | undefined;
       if (rawToken) {
-        persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""));
+        persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""), signInData?.refreshToken ?? undefined);
       }
 
       router.push("/dashboard/chat");
