@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getQdrantClient, COLLECTION_NAME, EMBEDDING_DIM } from "@/lib/qdrant/client";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,9 @@ function isAuthorized(req: Request): boolean {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  if (!checkRateLimit(rateLimitKey(req, "super-admin-reset"), { limit: 3, windowMs: 3_600_000 })) {
+    return Response.json({ error: "Too many requests" }, { status: 429 });
+  }
   if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = getInsForgeAdminClient().database;

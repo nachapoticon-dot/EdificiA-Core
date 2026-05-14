@@ -14,6 +14,10 @@ interface MeResponse {
     logoUrl: string | null;
     agentName: string;
   };
+  stats: {
+    activeProjects: number;
+    memberCount: number;
+  };
 }
 
 /**
@@ -66,12 +70,26 @@ export async function GET(req: Request): Promise<Response> {
       return Response.json({ error: "Not a member of any organization" }, { status: 403 });
     }
 
-    const orgResult = await client.database
-      .from("organizations")
-      .select("name, primary_color, logo_url, agent_name")
-      .eq("id", resolvedMember.organization_id)
-      .is("deleted_at", null)
-      .single();
+    const orgId = resolvedMember.organization_id;
+
+    const [orgResult, projectsResult, membersResult] = await Promise.all([
+      client.database
+        .from("organizations")
+        .select("name, primary_color, logo_url, agent_name")
+        .eq("id", orgId)
+        .is("deleted_at", null)
+        .single(),
+      client.database
+        .from("projects")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .is("deleted_at", null),
+      client.database
+        .from("organization_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .is("deleted_at", null),
+    ]);
 
     const org = orgResult.data as {
       name: string;
@@ -83,13 +101,17 @@ export async function GET(req: Request): Promise<Response> {
     const body: MeResponse = {
       userId,
       email,
-      orgId: resolvedMember.organization_id,
+      orgId,
       role: resolvedMember.role,
       orgName: org?.name ?? "",
       branding: {
         primaryColor: org?.primary_color ?? "#6366f1",
         logoUrl: org?.logo_url ?? null,
         agentName: org?.agent_name ?? "EdificIA",
+      },
+      stats: {
+        activeProjects: projectsResult.count ?? 0,
+        memberCount:    membersResult.count   ?? 0,
       },
     };
 

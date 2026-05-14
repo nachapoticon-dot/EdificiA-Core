@@ -6,6 +6,7 @@ import { verifyUserId } from "@/lib/auth/jwt";
 import { learnFromSession } from "@/lib/ai/session-learner";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
+import { aiLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
 
   const { systemPrompt, tools, orgId } = await resolveContext(accessToken, projectName, projectId, requestedOrgId);
 
+  const t0 = Date.now();
   try {
     const result = streamText({
       model: deepseek.chat(AI_MODEL),
@@ -53,14 +55,23 @@ export async function POST(req: Request) {
       messages: await convertToModelMessages(messages),
       tools,
       stopWhen: stepCountIs(20),
-      onFinish: orgId
-        ? async ({ steps }) => { void learnFromSession(steps as unknown as Parameters<typeof learnFromSession>[0], orgId); }
-        : undefined,
+      onFinish: async ({ steps, usage }) => {
+        aiLogger.info({
+          orgId,
+          steps: steps.length,
+          tokens: usage,
+          latencyMs: Date.now() - t0,
+        }, "chat finished");
+        if (orgId) {
+          void learnFromSession(steps as unknown as Parameters<typeof learnFromSession>[0], orgId);
+        }
+      },
     });
 
     return result.toUIMessageStreamResponse();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    aiLogger.error({ err: msg, latencyMs: Date.now() - t0 }, "chat error");
     if (msg.includes("429") || msg.toLowerCase().includes("rate limit")) {
       return Response.json({ error: "Cuota NVIDIA agotada. Intentá en unos minutos." }, { status: 429 });
     }

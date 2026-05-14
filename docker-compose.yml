@@ -9,6 +9,14 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
 
   qdrant:
@@ -24,5 +32,24 @@ services:
       retries: 5
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    env_file: .env.docker
+    environment:
+      POSTGRES_DB: edificia
+      POSTGRES_USER: ${POSTGRES_USER:-edificia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edificia_dev}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edificia} -d edificia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   qdrant_data:
+  postgres_data:

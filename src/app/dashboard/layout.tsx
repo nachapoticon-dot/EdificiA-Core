@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { MessageSquare, Database, Building2 } from "lucide-react";
+import { MessageSquare, Database, Building2, Search, Settings } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
@@ -8,7 +8,7 @@ import { DashboardSidebar } from "@/components/chat/DashboardSidebar";
 import { ActiveProjectSection } from "@/components/chat/ActiveProjectSection";
 import { UserMenu } from "@/components/chat/UserMenu";
 import { AdminNavLink } from "@/components/chat/AdminNavLink";
-import { OrgSwitcher } from "@/components/chat/OrgSwitcher";
+import { OrganizationCard } from "@/components/chat/OrganizationCard";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -24,16 +24,36 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-foreground text-background">
                 <span className="font-display text-[15px] font-semibold italic leading-none select-none">E</span>
               </div>
-              <div className="flex flex-col leading-tight">
+              <div className="flex flex-col leading-tight flex-1">
                 <span className="font-display text-[15px] font-medium tracking-[-0.01em]">EdificIA</span>
                 <span className="font-mono text-[9px] uppercase tracking-[0.05em] text-muted-foreground">
                   v0.6 · construcción
                 </span>
               </div>
+              {/* Action icons */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  title="Buscar"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label="Buscar"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </button>
+                <Link
+                  href="/dashboard/admin/settings"
+                  title="Configuración"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label="Configuración"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </div>
 
-            {/* Org switcher — only visible for multi-org users (consultants) */}
-            <OrgSwitcher />
+            {/* Organization info card */}
+            <div className="px-0 pt-2 pb-1">
+              <OrganizationCard />
+            </div>
 
             {/* Nav */}
             <nav className="space-y-0.5 p-2">

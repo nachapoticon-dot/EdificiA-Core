@@ -11,7 +11,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2 } from "lucide-react";
+import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2, Circle } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./ChartBlock";
 import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
 import { FindingCallout, type FindingSpec } from "./FindingCallout";
@@ -435,37 +435,41 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
 /* ── Grouped tool timeline card ── */
 
 function ToolGroupCard({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] }) {
-  const pendingParts = parts.filter(p => {
-    const state = getToolInvocation(p)?.state;
-    return state === "call" || state === "partial-call";
-  });
-
-  // Hide completed tool groups — only show while streaming
-  if (pendingParts.length === 0) return null;
+  const relevant = parts.filter(p => isToolUIPart(p));
+  if (relevant.length === 0) return null;
 
   return (
     <div className="w-full overflow-hidden rounded-[10px] border border-border bg-card">
-      {pendingParts.map((p, i) => {
+      {relevant.map((p, i) => {
         if (!isToolUIPart(p)) return null;
         const ti = getToolInvocation(p);
         const name = ti?.toolName ?? "herramienta";
+        const isPending = ti?.state === "call" || ti?.state === "partial-call";
+        const isDone = ti?.state === "result";
 
         return (
           <div
             key={i}
             className={cn(
               "flex items-center gap-3 px-3.5 py-2.5 text-xs",
-              i < pendingParts.length - 1 ? "border-b border-border" : "",
+              i < relevant.length - 1 ? "border-b border-border" : "",
             )}
           >
             <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-              <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
+              {isDone ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-[oklch(0.58_0.15_145)]" />
+              ) : isPending ? (
+                <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
+              ) : (
+                <Circle className="h-2.5 w-2.5 text-muted-foreground/30" />
+              )}
             </div>
-            <Wrench className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="flex-1 text-[11px] text-muted-foreground">
+            <Wrench className={cn("h-3 w-3 shrink-0", isDone ? "text-[oklch(0.58_0.15_145)]" : "text-muted-foreground")} />
+            <span className={cn("flex-1 text-[11px]", isDone ? "text-foreground" : "text-muted-foreground")}>
               {TOOL_LABELS[name] ?? name}
             </span>
-            <span className="eb-pulse font-mono text-[10px] text-primary">en curso…</span>
+            {isPending && <span className="eb-pulse font-mono text-[10px] text-primary">en curso…</span>}
+            {isDone    && <span className="font-mono text-[10px] text-[oklch(0.58_0.15_145)]">ok</span>}
           </div>
         );
       })}
