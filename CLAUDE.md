@@ -4,7 +4,50 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 ---
 
-## Stack real (lo que usa el código)
+## 1 · Comportamiento del agente
+
+### Flujo de trabajo obligatorio
+
+1. **Leer antes de actuar.** Antes de proponer o escribir código, leer los archivos involucrados. No asumir contenido.
+2. **Verificar tareas activas.** Al inicio de cada sesión, leer `ROADMAP.md` (raíz) para saber qué hay pendiente y la prioridad sugerida.
+3. **Preguntar ante ambigüedad.** Si una instrucción admite más de una interpretación, preguntar. No inventar requerimientos.
+4. **Un cambio, un propósito.** Cada edición debe resolver exactamente lo que se pidió. No refactorizar "de paso", no mejorar nombres, no reordenar imports, a menos que se pida explícitamente.
+5. **Probar lo que se toca.** Después de cada cambio, verificar que compila (`npm run type-check`) si es un cambio de tipos, o validar lógica si es runtime. Reportar resultado.
+
+### Comunicación
+
+- Responder en **español** (el idioma del equipo).
+- Ser directo. Ir al punto sin rodeos ni explicaciones innecesarias.
+- Al terminar una tarea, dar un resumen breve: qué se hizo, qué archivos se tocaron, y si quedó algo pendiente.
+- No repetir contexto que ya se dio. Si el usuario ya explicó algo, no parafrasearlo de vuelta.
+
+### Toma de decisiones
+
+- **Priorizar lo simple y lo existente.** Usar las librerías que ya están en `package.json` antes de proponer nuevas.
+- **No instalar dependencias sin autorización.**
+- **Seguir las convenciones existentes.** Mirar archivos vecinos para copiar patrones (naming, imports, estructura).
+- Si se detecta un bug no relacionado con la tarea actual, **reportarlo pero no arreglarlo** a menos que se pida.
+
+---
+
+## 2 · Economía de tokens — reglas de eficiencia
+
+> Estas reglas reducen gasto de tokens y mejoran la velocidad de respuesta.
+
+| Regla | Detalle |
+|-------|---------|
+| **Lectura incremental** | No leer archivos enteros si solo se necesita una sección. Usar rangos de líneas (`StartLine`/`EndLine`). |
+| **Ediciones quirúrgicas** | Editar solo las líneas que cambian. Nunca reescribir un archivo completo para cambiar una función. |
+| **No repetir código** | No copiar el archivo entero en la respuesta. Mostrar solo el diff o las líneas relevantes. |
+| **Respuestas cortas** | Evitar explicaciones extensas. Si el cambio es obvio, basta con: "Hecho. Se cambió X en `archivo.ts:42`." |
+| **Agrupar ediciones** | Si hay múltiples cambios en un archivo, hacerlos en una sola operación multi-edit en vez de varias individuales. |
+| **No recapitular** | No resumir lo que el usuario acaba de decir. No repetir el contexto del proyecto al inicio de cada respuesta. |
+| **Evitar búsquedas amplias** | Usar `grep` con paths específicos, no buscar en todo el proyecto. Filtrar por extensión (`*.ts`, `*.tsx`). |
+| **Un solo plan** | No presentar múltiples opciones salvo que se pidan. Ir con la mejor solución directamente. |
+
+---
+
+## 3 · Stack real (lo que usa el código)
 
 | Capa | Tecnología | Archivo clave |
 |------|-----------|---------------|
@@ -18,7 +61,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 | Email | Resend | `src/lib/email/resend.ts` |
 | UI | Shadcn + Tailwind v4 + Framer Motion | `src/components/` |
 
-## Autenticación — Cómo funciona
+## 4 · Autenticación — Cómo funciona
 
 1. **Middleware** (`src/middleware.ts`): Protege `/dashboard/*`. Lee cookie `edificia_session`, valida JWT localmente, redirige a `/login` si no hay sesión.
 2. **API routes**: Usan `requireAuth(req)` de `src/lib/auth/require-auth.ts`. Extrae Bearer token, verifica contra InsForge, resuelve org membership.
@@ -27,11 +70,11 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 > ⚠️ **NO crear rutas de API sin `requireAuth()`**. Excepción: `/api/health`, `/api/auth/register`, `/api/super-admin/*` (auth propia con `SUPER_ADMIN_KEY`).
 
-## Multi-tenancy — Regla absoluta
+## 5 · Multi-tenancy — Regla absoluta
 
 Toda query a la DB o Qdrant **DEBE** filtrar por `organization_id` (derivado de `auth.orgId`). Columna real: `organization_id`, **NO** `company_id`. Jamás asumir que los datos pueden cruzarse entre orgs.
 
-## Estructura principal
+## 6 · Estructura principal
 
 ```
 src/
@@ -49,19 +92,17 @@ src/
 └── lib/api/          → errors.ts (helpers estandarizados), rate-limit.ts
 ```
 
-## Documentación de planificación
+## 7 · Documentación de planificación
 
 **ANTES de proponer cambios arquitectónicos, leer estos archivos:**
 
 | Archivo | Cuándo leerlo |
 |---------|---------------|
-| `docs/planning/TAREAS_CLAUDE.md` | **Siempre al inicio**. Lista de bugs activos y tareas pendientes con archivo y línea exacta. |
-| `docs/planning/PLAN_DE_MEJORA.md` | Para entender el roadmap general y qué ya está hecho. |
-| `docs/planning/PLAN_LOGIN_FRONTEND_BACKEND.md` | Si vas a tocar autenticación o cookies. |
-| `docs/planning/PLAN_FLUJO_EMPRESAS.md` | Si vas a tocar roles, invitaciones, o registro. |
+| `ROADMAP.md` (raíz) | **Siempre al inicio**. Pendientes, mejoras estratégicas y orden recomendado. |
 | `docs/04_architecture_map.md` | Para ver el grafo de dependencias y el stack de paquetes. |
+| `docs/03_domain_knowledge.md` | Antes de tocar lógica de auditoría / dominio de obra. |
 
-## Reglas de código
+## 8 · Reglas de código
 
 1. **TypeScript estricto**. Validar con Zod. No usar `any` sin justificación.
 2. **Ediciones quirúrgicas**: No reescribir archivos enteros si solo cambia una función.
@@ -69,7 +110,7 @@ src/
 4. **UI Generativa**: Bloques visuales bajo `src/components/chat/blocks/`. No imprimir tablas en Markdown cuando existe un bloque.
 5. **Identidad**: Nunca llamar al producto "startup", "bot" o "SaaS". Es un **Sistema Integral de Gestión** o **Infraestructura Empresarial**.
 
-## Lo que NO hay que tocar (estable y funcional)
+## 9 · Lo que NO hay que tocar (estable y funcional)
 
 - `src/lib/rag/` — Búsqueda híbrida funcionando. No refactorizar sin razón.
 - `src/lib/file-processor/` — Procesadores de PDF, Excel, DXF, DOCX, imagen. Funcionan.

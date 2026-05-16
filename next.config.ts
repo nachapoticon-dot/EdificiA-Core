@@ -1,21 +1,18 @@
 import type { NextConfig } from "next";
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
-  .split(",")
-  .map((o) => o.trim());
-
+// CORS is handled dynamically by src/middleware.ts (supports multiple origins correctly).
 const nextConfig: NextConfig = {
   output: "standalone",
   typedRoutes: true,
+  // pdf-parse v2 dynamically requires pdfjs-dist and its worker; bundling them
+  // with Turbopack/webpack breaks the runtime path resolution → silent failures
+  // that fall back to byte-count estimation. Keep them as runtime-resolved.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
   async headers() {
     return [
       {
-        source: "/api/:path*",
+        source: "/:path*",
         headers: [
-          { key: "Access-Control-Allow-Origin", value: ALLOWED_ORIGINS.join(",") },
-          { key: "Access-Control-Allow-Methods", value: "GET,POST,PUT,PATCH,DELETE,OPTIONS" },
-          { key: "Access-Control-Allow-Headers", value: "Content-Type,Authorization,x-org-id,x-project-id,x-project-name" },
-          { key: "Access-Control-Max-Age", value: "86400" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
         ],

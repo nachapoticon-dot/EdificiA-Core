@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus, CheckCircle2, Brain, TrendingUp } from "lucide-react";
+import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus, CheckCircle2, Brain, TrendingUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrgMember } from "@/hooks/useOrgMember";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
 interface Member {
   id: string;
@@ -49,6 +49,7 @@ export default function AdminMembersPage() {
   const [inviting, setInviting] = useState(false);
   const [lastInvited, setLastInvited] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [confirmingRevoke, setConfirmingRevoke] = useState<{ type: "member" | "invitation"; id: string } | null>(null);
 
   // Redirect non-admins
   useEffect(() => {
@@ -58,9 +59,9 @@ export default function AdminMembersPage() {
   }, [orgMember, router]);
 
   const fetchMembers = useCallback(async () => {
-    const headers = getInsForgeClient().getHttpClient().getHeaders();
+    const headers = await getAuthHeaders();
     if (!headers.Authorization) return;
-    const res = await fetch("/api/admin/members", { headers: { Authorization: headers.Authorization } });
+    const res = await fetch("/api/admin/members", { headers });
     if (!res.ok) return;
     const data = (await res.json()) as { members: Member[]; invitations: Invitation[] };
     setMembers(data.members);
@@ -75,11 +76,6 @@ export default function AdminMembersPage() {
     }
   }, [orgMember, fetchMembers]);
 
-  const getAuthHeader = (): Record<string, string> => {
-    const h = getInsForgeClient().getHttpClient().getHeaders();
-    return h.Authorization ? { Authorization: h.Authorization as string } : {};
-  };
-
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     const emailToInvite = inviteEmail.trim();
@@ -88,7 +84,7 @@ export default function AdminMembersPage() {
     try {
       await fetch("/api/admin/members", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({ email: emailToInvite, role: inviteRole }),
       });
       setInviteEmail("");
@@ -103,7 +99,7 @@ export default function AdminMembersPage() {
   const handleChangeRole = async (memberId: string, newRole: string) => {
     await fetch("/api/admin/members", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
       body: JSON.stringify({ memberId, newRole }),
     });
     await fetchMembers();
@@ -112,7 +108,7 @@ export default function AdminMembersPage() {
   const handleRevokeMember = async (memberId: string) => {
     await fetch(`/api/admin/members?memberId=${memberId}`, {
       method: "DELETE",
-      headers: getAuthHeader(),
+      headers: await getAuthHeaders(),
     });
     await fetchMembers();
   };
@@ -120,7 +116,7 @@ export default function AdminMembersPage() {
   const handleRevokeInvitation = async (invitationId: string) => {
     await fetch(`/api/admin/members?invitationId=${invitationId}`, {
       method: "DELETE",
-      headers: getAuthHeader(),
+      headers: await getAuthHeaders(),
     });
     await fetchMembers();
   };
@@ -215,25 +211,48 @@ export default function AdminMembersPage() {
               </span>
               {m.user_id !== currentUserId && (
                 <div className="flex items-center gap-1">
-                  <div className="relative">
-                    <select
-                      value={m.role}
-                      onChange={(e) => { void handleChangeRole(m.id, e.target.value); }}
-                      className="appearance-none rounded border bg-background px-2 py-1 pr-6 text-xs focus:outline-none"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="engineer">Ingeniero</option>
-                      <option value="viewer">Visualizador</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-1.5 top-1.5 h-3 w-3 text-muted-foreground" />
-                  </div>
-                  <button
-                    onClick={() => { void handleRevokeMember(m.id); }}
-                    className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                    title="Revocar acceso"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {confirmingRevoke?.type === "member" && confirmingRevoke.id === m.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-1 text-[11px] text-destructive font-medium">
+                        <AlertTriangle className="h-3 w-3" />
+                        ¿Revocar?
+                      </span>
+                      <button
+                        onClick={() => { setConfirmingRevoke(null); void handleRevokeMember(m.id); }}
+                        className="rounded border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive hover:bg-destructive/20 transition-colors"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        onClick={() => setConfirmingRevoke(null)}
+                        className="rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <select
+                          value={m.role}
+                          onChange={(e) => { void handleChangeRole(m.id, e.target.value); }}
+                          className="appearance-none rounded border bg-background px-2 py-1 pr-6 text-xs focus:outline-none"
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="engineer">Ingeniero</option>
+                          <option value="viewer">Visualizador</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-1.5 top-1.5 h-3 w-3 text-muted-foreground" />
+                      </div>
+                      <button
+                        onClick={() => setConfirmingRevoke({ type: "member", id: m.id })}
+                        className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Revocar acceso"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               {m.user_id === currentUserId && (
@@ -276,12 +295,34 @@ export default function AdminMembersPage() {
                   <Link2 className="h-3 w-3" />
                   {copied === inv.invited_email ? "¡Copiado!" : "Copiar link"}
                 </button>
-                <button
-                  onClick={() => { void handleRevokeInvitation(inv.id); }}
-                  className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {confirmingRevoke?.type === "invitation" && confirmingRevoke.id === inv.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1 text-[11px] text-destructive font-medium">
+                      <AlertTriangle className="h-3 w-3" />
+                      ¿Revocar?
+                    </span>
+                    <button
+                      onClick={() => { setConfirmingRevoke(null); void handleRevokeInvitation(inv.id); }}
+                      className="rounded border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive hover:bg-destructive/20 transition-colors"
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => setConfirmingRevoke(null)}
+                      className="rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingRevoke({ type: "invitation", id: inv.id })}
+                    className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Revocar invitación"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             ))}
           </div>

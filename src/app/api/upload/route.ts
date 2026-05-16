@@ -6,6 +6,7 @@ import { ingestDocument } from "@/lib/rag/ingest";
 import { cacheItems } from "@/lib/file-cache";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited, apiTooLarge, apiBadRequest, apiForbidden } from "@/lib/api/errors";
+import { dbLogger, ragLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -118,8 +119,8 @@ export async function POST(req: Request) {
     if (dbResult.data) {
       fileId = (dbResult.data as { id: string }).id;
     }
-  } catch {
-    // Storage/DB error is non-fatal — file was processed successfully
+  } catch (err) {
+    dbLogger.warn({ err }, "upload: storage/DB persist failed (non-fatal)");
   }
 
   void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
@@ -202,7 +203,7 @@ async function persistPatternsAndIngest(
           });
       }
     }
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    ragLogger.warn({ err }, "upload: pattern/ingest background task failed (non-fatal)");
   }
 }

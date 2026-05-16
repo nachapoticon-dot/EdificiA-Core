@@ -20,9 +20,8 @@ EdificIA es un **Entorno Operativo Unificado** de alta seguridad diseñado exclu
 
 ## Documentación y Planificación
 
-Para mantener la raíz del proyecto ordenada, toda la documentación de avance, auditorías y tareas para el equipo de desarrollo/IA se encuentra en el directorio `/docs`:
-- 📌 **[Plan de Mejora y Roadmap](./docs/planning/PLAN_DE_MEJORA.md)**: Hoja de ruta estratégica, arquitectura del Agente Integral y despliegue.
-- 📝 **[Tareas para Claude](./docs/planning/TAREAS_CLAUDE.md)**: Registro de bugs y requerimientos de UI a implementar en las próximas iteraciones.
+- 📌 **[ROADMAP.md](./ROADMAP.md)**: Roadmap consolidado — pendientes técnicos, mejoras estratégicas del agente y orden recomendado.
+- 📚 **[/docs](./docs)**: Documentación de arquitectura, dominio y stack.
 
 ---
 

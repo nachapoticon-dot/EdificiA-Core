@@ -113,11 +113,8 @@ export default function ChatPage() {
     formData.append("file", file);
 
     try {
-      const { getInsForgeClient } = await import("@/lib/insforge/client");
-      const allHeaders = getInsForgeClient().getHttpClient().getHeaders();
-      const uploadHeaders: Record<string, string> = allHeaders.Authorization
-        ? { Authorization: allHeaders.Authorization }
-        : {};
+      const { getAuthHeaders } = await import("@/lib/insforge/client");
+      const uploadHeaders = { ...(await getAuthHeaders()) };
       const activeProject = activeProjectRef.current;
       if (activeProject?.id) uploadHeaders["x-project-id"] = activeProject.id;
 
@@ -210,6 +207,30 @@ export default function ChatPage() {
     setInput("");
   }
 
+  function handleAdjustDocument(
+    proposal: { docType: string; fileName: string; payload: Record<string, unknown> },
+    instructions: string,
+  ) {
+    if (isStreaming) return;
+    const docLabel =
+      proposal.docType === "presupuesto_excel" ? "presupuesto Excel"
+      : proposal.docType === "memoria_descriptiva" ? "memoria descriptiva"
+      : proposal.docType === "informe_pdf" ? "informe PDF"
+      : "documento";
+    const payloadJson = JSON.stringify(proposal.payload).slice(0, 12_000);
+    const text = `Ajustá el ${docLabel} "${proposal.fileName}" que generaste recién según estas indicaciones:
+
+${instructions}
+
+Volvé a llamar la herramienta de generación correspondiente con el payload modificado. Payload actual (referencia):
+\`\`\`json
+${payloadJson}
+\`\`\`
+
+No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios solicitados y regenerá el archivo.`;
+    sendMessage({ text });
+  }
+
   function handleRemoveFile() {
     setPending((prev) => {
       if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
@@ -274,6 +295,8 @@ export default function ChatPage() {
             <div className="min-h-full flex flex-col justify-center">
               <AgentGreeting
                 userName={currentUser?.email ?? undefined}
+                companyName={currentUser?.orgName ?? undefined}
+                agentName={currentUser?.branding.agentName ?? undefined}
                 onQuickAction={(text) => setInput(text)}
                 onSessionSelect={switchSession}
                 onFileSelect={handleFileSelect}
@@ -294,6 +317,7 @@ export default function ChatPage() {
                   onFeedback={m.role === "assistant" ? () => {
                     void sendMessage({ text: "Esa respuesta no fue correcta. Por favor corrígela y explicá qué estuvo mal." });
                   } : undefined}
+                  onAdjustDocument={handleAdjustDocument}
                 />
               ))}
             </div>
@@ -373,7 +397,11 @@ function buildChip(file: ProcessedFile) {
 // Embed a machine-readable marker as the first line so MessageBubble can render a file card
 // without displaying raw JSON to the user. The AI model also sees this metadata.
 function fileMeta(file: ProcessedFile & { cacheId?: string | null }): string {
-  const meta: Record<string, unknown> = { fileName: file.fileName, type: file.type };
+  const meta: Record<string, unknown> = {
+    fileName: file.fileName,
+    type: file.type,
+    fileSize: file.fileSize,
+  };
   if (file.type === "excel") {
     meta.itemCount = file.itemCount;
     meta.sheetName = file.sheetName;

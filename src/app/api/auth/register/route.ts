@@ -2,19 +2,9 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { signUpSchema } from "@/lib/validators";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
+import { slugify } from "@/lib/utils";
 
 export const runtime = "nodejs";
-
-function slugify(name: string, suffix: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .slice(0, 40)
-    .concat("-", suffix);
-}
 
 export async function POST(req: Request) {
   if (!checkRateLimit(rateLimitKey(req, "register"), "auth")) return apiRateLimited("Demasiados intentos. Esperá un minuto.");
@@ -37,13 +27,13 @@ export async function POST(req: Request) {
   // 1a. Verificar si es un fundador pre-autorizado (crea org nueva)
   const { data: founderRows } = await admin.database
     .from("org_founder_invitations")
-    .select("id, company_name, invite_token")
+    .select("id, company_name, organization_id, invite_token")
     .eq("email", normalizedEmail)
     .eq("status", "pending")
     .gt("expires_at", new Date().toISOString())
     .limit(1);
 
-  const founderInvitation = (founderRows ?? [])[0] as { id: string; company_name: string; invite_token?: string | null } | undefined;
+  const founderInvitation = (founderRows ?? [])[0] as { id: string; company_name: string; organization_id?: string | null; invite_token?: string | null } | undefined;
 
   if (founderInvitation) {
     if (founderInvitation.invite_token && founderInvitation.invite_token !== (inviteToken ?? "")) {
@@ -61,15 +51,17 @@ export async function POST(req: Request) {
     const userId = authData?.user?.id;
     if (!userId) return Response.json({ error: "No se pudo crear la cuenta." }, { status: 500 });
 
-    // Crear organización
-    const { data: orgData, error: orgErr } = await admin.database
-      .from("organizations")
-      .insert({ name: founderInvitation.company_name, slug: slugify(founderInvitation.company_name, userId.slice(0, 8)) })
-      .select("id")
-      .single();
-
-    if (orgErr || !orgData) return Response.json({ error: "No se pudo crear la organización." }, { status: 500 });
-    const orgId = (orgData as { id: string }).id;
+    // Reusar la org ya creada por el super-admin, o crearla si no existe (retrocompatibilidad)
+    let orgId = founderInvitation.organization_id ?? null;
+    if (!orgId) {
+      const { data: orgData, error: orgErr } = await admin.database
+        .from("organizations")
+        .insert({ name: founderInvitation.company_name, slug: slugify(founderInvitation.company_name, userId.slice(0, 8)) })
+        .select("id")
+        .single();
+      if (orgErr || !orgData) return Response.json({ error: "No se pudo crear la organización." }, { status: 500 });
+      orgId = (orgData as { id: string }).id;
+    }
 
     // Agregar como admin
     await admin.database.from("organization_members").insert({ organization_id: orgId, user_id: userId, role: "admin", email: normalizedEmail });

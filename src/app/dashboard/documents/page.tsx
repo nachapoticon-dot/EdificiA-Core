@@ -4,21 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
-  Database, Trash2, RefreshCw, FolderOpen, Layers, Filter,
+  Database, Trash2, RefreshCw, FolderOpen, Layers, Filter, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/ProjectContext";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
-interface DocumentFile {
-  id: string;
-  file_name: string;
-  file_type: string;
-  file_size_bytes: number;
-  processing_status: string;
-  created_at: string;
-  chunkCount: number;
-  project_id?: string | null;
-}
+import type { DocumentFile } from "@/types";
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   excel: FileSpreadsheet,
@@ -59,15 +51,6 @@ function formatDate(iso: string): string {
   });
 }
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  try {
-    const { getInsForgeClient } = await import("@/lib/insforge/client");
-    const all = getInsForgeClient().getHttpClient().getHeaders();
-    return all.Authorization ? { Authorization: all.Authorization } : {};
-  } catch {
-    return {};
-  }
-}
 
 export default function DocumentsPage() {
   const { activeProject } = useProjectContext();
@@ -204,6 +187,7 @@ function FileRow({
   onDelete: () => void;
   projectName?: string;
 }) {
+  const [confirming, setConfirming] = useState(false);
   const Icon = TYPE_ICONS[file.file_type] ?? FileText;
   const colorClass = TYPE_COLOR[file.file_type] ?? TYPE_COLOR.other;
 
@@ -236,35 +220,57 @@ function FileRow({
       </div>
 
       {/* Project badge */}
-      {projectName && (
+      {projectName && !confirming && (
         <div className="hidden sm:flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.06] px-2 py-0.5 text-[10px] font-medium text-primary">
           {projectName}
         </div>
       )}
 
       {/* Chunk badge */}
-      {file.chunkCount > 0 && (
+      {file.chunkCount > 0 && !confirming && (
         <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
           <Layers className="h-3 w-3" />
           {file.chunkCount} fragmentos
         </div>
       )}
 
-      {/* Delete */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 shrink-0 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
-        onClick={onDelete}
-        disabled={deleting}
-        title="Eliminar archivo"
-      >
-        {deleting ? (
-          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-        ) : (
+      {/* Delete / Confirm */}
+      {confirming ? (
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="flex items-center gap-1 text-[11px] text-destructive font-medium">
+            <AlertTriangle className="h-3 w-3" />
+            ¿Eliminar?
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => { setConfirming(false); onDelete(); }}
+            disabled={deleting}
+          >
+            {deleting ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Confirmar"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => setConfirming(false)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+          onClick={() => setConfirming(true)}
+          disabled={deleting}
+          title="Eliminar archivo"
+        >
           <Trash2 className="h-3.5 w-3.5" />
-        )}
-      </Button>
+        </Button>
+      )}
     </motion.div>
   );
 }

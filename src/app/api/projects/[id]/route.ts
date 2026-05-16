@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiForbidden } from "@/lib/api/errors";
+import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -48,7 +49,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       storage: { usedBytes, quotaBytes, pct: storagePct },
     });
   } catch (err) {
-    console.error("[GET /api/projects/:id]", err);
+    dbLogger.error({ err }, "GET /api/projects/:id");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }
@@ -100,7 +101,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (result.error) throw result.error;
     return Response.json({ project: result.data });
   } catch (err) {
-    console.error("[PATCH /api/projects/:id]", err);
+    dbLogger.error({ err }, "PATCH /api/projects/:id");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

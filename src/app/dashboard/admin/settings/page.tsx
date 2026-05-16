@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Settings, Loader2, Check, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrgMember } from "@/hooks/useOrgMember";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
 interface OrgSettings {
   id: string;
@@ -33,21 +33,22 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     if (orgMember.status !== "ok" || orgMember.member.role !== "admin") return;
-    const headers = getInsForgeClient().getHttpClient().getHeaders();
-    if (!headers.Authorization) return;
-
-    fetch("/api/admin/settings", { headers: { Authorization: headers.Authorization } })
-      .then((r) => r.json() as Promise<OrgSettings>)
-      .then((data) => {
-        setSettings(data);
-        setForm({
-          name: data.name,
-          primaryColor: data.primary_color ?? "#6366f1",
-          logoUrl: data.logo_url ?? "",
-          agentName: data.agent_name ?? "EdificIA",
-        });
-      })
-      .catch(() => null);
+    async function load() {
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) return;
+      const data = await fetch("/api/admin/settings", { headers })
+        .then((r) => r.json() as Promise<OrgSettings>)
+        .catch(() => null);
+      if (!data) return;
+      setSettings(data);
+      setForm({
+        name: data.name,
+        primaryColor: data.primary_color ?? "#6366f1",
+        logoUrl: data.logo_url ?? "",
+        agentName: data.agent_name ?? "EdificIA",
+      });
+    }
+    void load();
   }, [orgMember]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -55,10 +56,9 @@ export default function AdminSettingsPage() {
     setSaving(true);
     setSaved(false);
     try {
-      const headers = getInsForgeClient().getHttpClient().getHeaders();
       await fetch("/api/admin/settings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: headers.Authorization ?? "" },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({
           name: form.name,
           primaryColor: form.primaryColor,

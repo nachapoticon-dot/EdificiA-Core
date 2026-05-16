@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FileSpreadsheet, FileType2, FileText, Download, CheckCircle2, AlertCircle } from "lucide-react";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { FileSpreadsheet, FileType2, FileText, Download, CheckCircle2, AlertCircle, Wand2, X } from "lucide-react";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
 export interface DocGenerationProposal {
   type: "doc_generation_proposal";
@@ -11,11 +11,6 @@ export interface DocGenerationProposal {
   description: string;
   payload: Record<string, unknown>;
   organizationId: string;
-}
-
-function getAuthHeader(): string {
-  const h = getInsForgeClient().getHttpClient().getHeaders() as Record<string, string>;
-  return h["Authorization"] ?? "";
 }
 
 const DOC_CONFIG = {
@@ -48,8 +43,17 @@ const DOC_CONFIG = {
   },
 } as const;
 
-export function GeneratedDocCard({ proposal }: { proposal: DocGenerationProposal }) {
+interface GeneratedDocCardProps {
+  proposal: DocGenerationProposal;
+  /** Called when user requests adjustments. The chat page handles re-prompting the agent. */
+  onAdjust?: (proposal: DocGenerationProposal, instructions: string) => void;
+}
+
+export function GeneratedDocCard({ proposal, onAdjust }: GeneratedDocCardProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustText, setAdjustText] = useState("");
   const cfg = DOC_CONFIG[proposal.docType];
   const { Icon } = cfg;
   const fileName = `${proposal.fileName}${cfg.ext}`;
@@ -57,17 +61,22 @@ export function GeneratedDocCard({ proposal }: { proposal: DocGenerationProposal
   async function handleDownload() {
     if (status === "loading") return;
     setStatus("loading");
+    setErrorMsg(null);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(cfg.apiRoute, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: getAuthHeader(),
+          ...authHeaders,
         },
         body: JSON.stringify({ ...proposal.payload, fileName: proposal.fileName }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ""}`);
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -77,10 +86,19 @@ export function GeneratedDocCard({ proposal }: { proposal: DocGenerationProposal
       a.click();
       URL.revokeObjectURL(url);
       setStatus("done");
-    } catch {
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Error desconocido");
       setStatus("error");
-      setTimeout(() => setStatus("idle"), 3000);
+      setTimeout(() => { setStatus("idle"); setErrorMsg(null); }, 4000);
     }
+  }
+
+  function handleAdjustSubmit() {
+    const instr = adjustText.trim();
+    if (!instr || !onAdjust) return;
+    onAdjust(proposal, instr);
+    setAdjustText("");
+    setAdjustOpen(false);
   }
 
   return (
@@ -99,8 +117,8 @@ export function GeneratedDocCard({ proposal }: { proposal: DocGenerationProposal
         </span>
       </div>
 
-      {/* Action */}
-      <div className="border-t border-white/50 px-4 py-2.5">
+      {/* Actions */}
+      <div className="border-t border-white/50 px-4 py-2.5 flex items-center gap-2 flex-wrap">
         <button
           onClick={handleDownload}
           disabled={status === "loading" || status === "done"}
@@ -117,7 +135,57 @@ export function GeneratedDocCard({ proposal }: { proposal: DocGenerationProposal
           {status === "done" && "Descargado"}
           {status === "error" && "Error — reintentar"}
         </button>
+
+        {onAdjust && status !== "loading" && (
+          <button
+            onClick={() => setAdjustOpen((v) => !v)}
+            className="flex items-center gap-1.5 rounded-[8px] border border-foreground/15 bg-white/40 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-white/60"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            Ajustar
+          </button>
+        )}
+
+        {errorMsg && (
+          <span className="font-mono text-[10px] text-[var(--err)]">{errorMsg}</span>
+        )}
       </div>
+
+      {/* Adjust input */}
+      {adjustOpen && onAdjust && (
+        <div className="border-t border-white/50 bg-white/30 px-4 py-3">
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+            ¿Qué querés cambiar?
+          </p>
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              value={adjustText}
+              onChange={(e) => setAdjustText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdjustSubmit();
+                if (e.key === "Escape") setAdjustOpen(false);
+              }}
+              placeholder="Ej: agregá una sección de exclusiones, cambiá el rubro 3 a $850.000…"
+              className="flex-1 rounded-[8px] border border-foreground/15 bg-white/80 px-3 py-2 text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:border-foreground/30 focus:outline-none"
+            />
+            <button
+              onClick={handleAdjustSubmit}
+              disabled={!adjustText.trim()}
+              className="rounded-[8px] bg-foreground px-3 py-2 text-[12px] font-semibold text-background transition-opacity hover:opacity-80 disabled:opacity-40"
+            >
+              Pedir cambio
+            </button>
+            <button
+              onClick={() => { setAdjustOpen(false); setAdjustText(""); }}
+              className="flex items-center justify-center rounded-[8px] border border-foreground/15 px-2 text-muted-foreground hover:text-foreground"
+              title="Cancelar"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

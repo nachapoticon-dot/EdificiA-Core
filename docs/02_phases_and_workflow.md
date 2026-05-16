@@ -16,12 +16,8 @@
 
 ## Fase actual: Preparación para producción
 
-El proyecto está en la fase de **hardening pre-deploy**. Las features core están construidas y funcionando. Lo que falta es:
-
-1. **Migrar autenticación a server-side** → `docs/planning/PLAN_LOGIN_FRONTEND_BACKEND.md`
-2. **Corregir bugs de seguridad y roles** → `docs/planning/TAREAS_CLAUDE.md` (sección Bugs Activos)
-3. **UX y responsive** → `docs/planning/PLAN_DE_MEJORA.md` (sección 9)
-4. **Completar flujo de onboarding** → `docs/planning/PLAN_FLUJO_EMPRESAS.md`
+El proyecto está en la fase de **hardening pre-deploy**. Las features core están construidas y funcionando.
+El listado actualizado de pendientes (técnicos + estratégicos) vive en [`ROADMAP.md`](../ROADMAP.md) en la raíz del repo.
 
 ## Lo que está estable y no se toca
 

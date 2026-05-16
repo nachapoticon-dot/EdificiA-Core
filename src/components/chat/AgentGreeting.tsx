@@ -13,6 +13,8 @@ import type { Project } from "@/hooks/useProjects";
 
 interface AgentGreetingProps {
   userName?: string;
+  companyName?: string;
+  agentName?: string;
   onQuickAction: (text: string) => void;
   onSessionSelect: (entry: SessionEntry) => void;
   onFileSelect?: (file: File) => void;
@@ -51,8 +53,10 @@ function fileTypeSummary(fileType?: SessionEntry["fileType"]): string {
 
 const ACCEPTED_EXTENSIONS = ".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp";
 
-export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFileSelect }: AgentGreetingProps) {
-  const firstName = userName?.split(" ")[0];
+export function AgentGreeting({ userName, companyName, agentName, onQuickAction, onSessionSelect, onFileSelect }: AgentGreetingProps) {
+  // Email "ana@constructora.com" → "ana"; "Ana Pérez" → "Ana"
+  const rawName = userName?.split("@")[0]?.split(" ")[0];
+  const firstName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : undefined;
   const { sessions } = useSessionHistory();
   const { projects, activeProject, createProject, activateProject, isLoading, isCreating } = useProjectContext();
   const { data: coverage } = useProjectCoverage(activeProject?.id ?? null);
@@ -94,7 +98,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
           >
             <span className="h-px w-4 bg-primary" />
             <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-primary">
-              EdificIA · v0.6 · auditoría asistida
+              {companyName ? `${companyName} · ${agentName ?? "EdificIA"}` : "EdificIA · auditoría asistida"}
             </span>
             <span className="h-px w-4 bg-primary" />
           </motion.div>
@@ -218,7 +222,7 @@ export function AgentGreeting({ userName, onQuickAction, onSessionSelect, onFile
         >
           <span className="h-px w-4 bg-primary" />
           <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-primary">
-            {activeProject.name} · v0.6 · auditoría asistida
+            {companyName ? `${companyName} · ${activeProject.name}` : `${activeProject.name} · auditoría asistida`}
           </span>
           <span className="h-px w-4 bg-primary" />
         </motion.div>

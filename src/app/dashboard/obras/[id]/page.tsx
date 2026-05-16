@@ -14,7 +14,7 @@ import { useProjectContext } from "@/contexts/ProjectContext";
 import { useProjectCoverage } from "@/hooks/useProjectCoverage";
 import { useProjectFiles, type ProjectFile } from "@/hooks/useProjectFiles";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 import type { PhaseCoverage } from "@/lib/obra/coverage";
 
 const STATUS_OPTIONS = [
@@ -182,10 +182,9 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
 
   async function saveEdit() {
     setSaving(true);
-    const h = getInsForgeClient().getHttpClient().getHeaders();
     await fetch(`/api/projects/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: (h.Authorization as string) ?? "" },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
       body: JSON.stringify({
         status: editStatus,
         code: editCode.trim() || null,

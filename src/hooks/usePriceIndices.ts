@@ -1,14 +1,9 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 import type { PriceIndexRow } from "@/lib/indices/query";
 import type { ParsedPriceRow } from "@/lib/indices/upload-parser";
-
-function getAuthHeaders(): Record<string, string> {
-  const h = getInsForgeClient().getHttpClient().getHeaders() as Record<string, string>;
-  return h["Authorization"] ? { Authorization: h["Authorization"] } : {};
-}
 
 export { type PriceIndexRow };
 
@@ -17,7 +12,7 @@ export function usePriceIndices() {
     queryKey: ["price-indices"],
     staleTime: 60_000,
     queryFn: async () => {
-      const res = await fetch("/api/indices", { headers: getAuthHeaders() });
+      const res = await fetch("/api/indices", { headers: await getAuthHeaders() });
       if (!res.ok) throw new Error("indices fetch failed");
       const json = (await res.json()) as { indices: PriceIndexRow[] };
       return json.indices ?? [];
@@ -44,7 +39,7 @@ export function useUploadPriceList() {
       if (opts.notes) fd.append("notes", opts.notes);
       const res = await fetch("/api/indices/upload", {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: fd,
       });
       if (!res.ok) throw new Error("preview failed");
@@ -61,7 +56,7 @@ export function useUploadPriceList() {
       if (opts.notes) fd.append("notes", opts.notes);
       const res = await fetch("/api/indices/upload", {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: fd,
       });
       if (!res.ok) throw new Error("upload failed");

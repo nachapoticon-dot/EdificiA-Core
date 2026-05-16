@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
+import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
 
     return Response.json({ projects: result.data ?? [] });
   } catch (err) {
-    console.error("[GET /api/projects]", err);
+    dbLogger.error({ err }, "GET /api/projects");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
   if (!checkRateLimit(rateLimitKey(req, "projects"), "standard")) return apiRateLimited();
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
+  if (auth.role === "viewer") return Response.json({ error: "Los visualizadores no pueden crear obras." }, { status: 403 });
 
   const body = (await req.json()) as { name?: string };
   const name = body.name?.trim();
@@ -47,13 +49,13 @@ export async function POST(req: Request) {
 
     if (result.error) {
       const dbErr = result.error as { message?: string; code?: string; details?: string };
-      console.error("[POST /api/projects] DB error:", dbErr.code, dbErr.message, dbErr.details);
+      dbLogger.error({ code: dbErr.code, message: dbErr.message, details: dbErr.details }, "POST /api/projects DB error");
       return Response.json({ error: dbErr.message ?? "Error al crear el proyecto", code: dbErr.code }, { status: 500 });
     }
     return Response.json({ project: result.data }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[POST /api/projects] Unexpected error:", msg);
+    dbLogger.error({ err: msg }, "POST /api/projects unexpected error");
     return Response.json({ error: msg }, { status: 500 });
   }
 }

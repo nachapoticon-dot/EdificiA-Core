@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { parsePriceListBuffer, toIndexInserts } from "@/lib/indices/upload-parser";
 import { insertPriceIndices } from "@/lib/indices/query";
+import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
       { status: 201 },
     );
   } catch (err) {
-    console.error("[POST /api/indices/upload]", err);
+    dbLogger.error({ err }, "POST /api/indices/upload");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

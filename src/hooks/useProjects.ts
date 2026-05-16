@@ -2,14 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
-export interface Project {
-  id: string;
-  name: string;
-  createdAt: number;
-  lastActiveAt: number;
-}
+import type { Project } from "@/types";
+export type { Project } from "@/types";
 
 interface ApiProject {
   id: string;
@@ -28,11 +24,6 @@ function toProject(p: ApiProject): Project {
     createdAt: new Date(p.created_at).getTime(),
     lastActiveAt: new Date(p.updated_at).getTime(),
   };
-}
-
-function getAuthHeaders(): Record<string, string> {
-  const h = getInsForgeClient().getHttpClient().getHeaders() as Record<string, string>;
-  return h["Authorization"] ? { Authorization: h["Authorization"] } : {};
 }
 
 function persistActiveId(id: string | null) {
@@ -58,7 +49,7 @@ export function useProjects() {
   const { data: projects = [], isLoading: queryLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async (): Promise<Project[]> => {
-      const res = await fetch("/api/projects", { headers: getAuthHeaders() });
+      const res = await fetch("/api/projects", { headers: await getAuthHeaders() });
       if (!res.ok) return [];
       const json = (await res.json()) as { projects: ApiProject[] };
       return (json.projects ?? []).map(toProject);
@@ -69,7 +60,7 @@ export function useProjects() {
     mutationFn: async (name: string): Promise<Project> => {
       const res = await fetch("/api/projects", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
         body: JSON.stringify({ name }),
       });
       if (!res.ok) throw new Error("Failed to create project");
@@ -90,9 +81,11 @@ export function useProjects() {
   const activateProject = useCallback(
     (project: Project) => {
       persistActiveId(project.id);
-      fetch(`/api/projects/${project.id}`, { method: "PATCH", headers: getAuthHeaders() })
-        .then(() => queryClient.invalidateQueries({ queryKey: ["projects"] }))
-        .catch(() => null);
+      void getAuthHeaders().then((headers) =>
+        fetch(`/api/projects/${project.id}`, { method: "PATCH", headers })
+          .then(() => queryClient.invalidateQueries({ queryKey: ["projects"] }))
+          .catch(() => null),
+      );
     },
     [queryClient],
   );

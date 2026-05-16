@@ -25,15 +25,21 @@ export function getInsForgeClient(): InsForgeClient {
   return _client;
 }
 
-/** Call after successful sign-in to persist the token across reloads and tabs. */
+/** Call after successful sign-in to persist the token in localStorage and sync the SDK client. */
 export function persistAuthToken(rawToken: string, refreshToken?: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem(TOKEN_KEY, rawToken);
   if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
-  // Set a cookie so Next.js middleware can detect the session server-side.
-  const maxAge = 60 * 60 * 24 * 7; // 7 days
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${SESSION_COOKIE}=${rawToken}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+  // The httpOnly session cookie is set server-side by POST /api/auth/login.
+}
+
+/**
+ * Returns Authorization headers with a valid token, refreshing it if needed.
+ * Use this instead of getInsForgeClient().getHttpClient().getHeaders() in all hooks/pages.
+ */
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 /**
@@ -76,12 +82,11 @@ export async function getAuthToken(): Promise<string | null> {
   return token;
 }
 
-/** Call on sign-out to remove the persisted token and session cookie. */
+/** Call on sign-out to clear localStorage. The httpOnly cookie is cleared by POST /api/auth/logout. */
 export function clearPersistedToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
-    document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
   }
   _client = null;
 }

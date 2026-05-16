@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Brain, FileSpreadsheet, FileText, Box, ArrowLeft, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useOrgMember } from "@/hooks/useOrgMember";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
 interface PatternRow {
   document_type: string;
@@ -60,11 +60,9 @@ export default function PatternsPage() {
 
   const fetchPatterns = useCallback(async () => {
     setLoading(true);
-    const headers = getInsForgeClient().getHttpClient().getHeaders();
+    const headers = await getAuthHeaders();
     if (!headers.Authorization) return;
-    const res = await fetch("/api/admin/patterns", {
-      headers: { Authorization: headers.Authorization as string },
-    });
+    const res = await fetch("/api/admin/patterns", { headers });
     if (!res.ok) return;
     const data = (await res.json()) as {
       grouped: Record<string, GroupedPatterns>;
@@ -99,10 +97,9 @@ export default function PatternsPage() {
       return next;
     });
     setTotalPatterns((n) => n - 1);
-    const headers = getInsForgeClient().getHttpClient().getHeaders();
     await fetch("/api/admin/patterns", {
       method: "DELETE",
-      headers: { "Content-Type": "application/json", Authorization: headers.Authorization as string },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
       body: JSON.stringify({ documentType, patternKey }),
     });
     setDeleting(null);

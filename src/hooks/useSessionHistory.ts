@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthToken } from "@/lib/insforge/client";
 
 export interface SessionEntry {
   id: string;
@@ -33,10 +33,10 @@ function persistLocally(sessions: SessionEntry[]): void {
 
 // ── API helpers (fire-and-forget, never throw) ────────────────────────────────
 
-function getApiHeaders(): Record<string, string> {
-  const h = getInsForgeClient().getHttpClient().getHeaders() as Record<string, string>;
+async function getApiHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
   const headers: Record<string, string> = {};
-  if (h["Authorization"]) headers["Authorization"] = h["Authorization"];
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const activeOrgId = localStorage.getItem("edificia:active_org_id");
   if (activeOrgId) headers["x-org-id"] = activeOrgId;
   return headers;
@@ -46,7 +46,7 @@ async function syncSessionToDb(entry: SessionEntry): Promise<void> {
   try {
     await fetch("/api/sessions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...getApiHeaders() },
+      headers: { "Content-Type": "application/json", ...(await getApiHeaders()) },
       body: JSON.stringify(entry),
     });
   } catch { /* non-blocking */ }
@@ -56,7 +56,7 @@ async function deleteSessionFromDb(id: string): Promise<void> {
   try {
     await fetch(`/api/sessions?id=${id}`, {
       method: "DELETE",
-      headers: getApiHeaders(),
+      headers: await getApiHeaders(),
     });
   } catch { /* non-blocking */ }
 }
@@ -65,14 +65,14 @@ async function clearAllSessionsFromDb(): Promise<void> {
   try {
     await fetch("/api/sessions?clearAll=true", {
       method: "DELETE",
-      headers: getApiHeaders(),
+      headers: await getApiHeaders(),
     });
   } catch { /* non-blocking */ }
 }
 
 async function fetchRemoteSessions(): Promise<SessionEntry[]> {
   try {
-    const res = await fetch("/api/sessions", { headers: getApiHeaders() });
+    const res = await fetch("/api/sessions", { headers: await getApiHeaders() });
     if (!res.ok) return [];
     const json = (await res.json()) as { sessions: SessionEntry[] };
     return json.sessions ?? [];

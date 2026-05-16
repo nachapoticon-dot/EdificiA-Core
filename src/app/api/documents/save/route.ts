@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
 
     return Response.json({ success: true, path });
   } catch (err) {
-    console.error("[documents/save]", err);
+    dbLogger.error({ err }, "documents/save");
     return Response.json({ error: "Error saving file" }, { status: 500 });
   }
 }
