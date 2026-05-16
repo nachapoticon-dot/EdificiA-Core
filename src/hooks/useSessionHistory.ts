@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback, useSyncExternalStore } from "react";
 import { getAuthToken } from "@/lib/insforge/client";
 
 export interface SessionEntry {
@@ -14,21 +14,34 @@ export interface SessionEntry {
 const STORAGE_KEY  = "edificia_sessions";
 const MAX_SESSIONS = 30;
 const UPDATE_EVENT = "edificia-session-updated";
+let cachedRawSessions: string | null = null;
+let cachedSessions: SessionEntry[] = [];
 
 // ── localStorage helpers ────────────────────────────────────────────���─────────
 
 function loadSessions(): SessionEntry[] {
   if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(STORAGE_KEY) ?? "[]";
+  if (raw === cachedRawSessions) return cachedSessions;
+
+  cachedRawSessions = raw;
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as SessionEntry[];
+    cachedSessions = JSON.parse(raw) as SessionEntry[];
   } catch {
-    return [];
+    cachedSessions = [];
   }
+  return cachedSessions;
 }
 
 function persistLocally(sessions: SessionEntry[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
   window.dispatchEvent(new Event(UPDATE_EVENT));
+}
+
+function subscribeToSessionUpdates(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(UPDATE_EVENT, callback);
+  return () => window.removeEventListener(UPDATE_EVENT, callback);
 }
 
 // ── API helpers (fire-and-forget, never throw) ────────────────────────────────
@@ -91,16 +104,9 @@ export function saveSession(entry: SessionEntry): void {
 }
 
 export function useSessionHistory() {
-  // Start empty to match SSR, then hydrate from localStorage in useEffect
-  const [sessions, setSessions] = useState<SessionEntry[]>([]);
+  const sessions = useSyncExternalStore(subscribeToSessionUpdates, loadSessions, () => []);
 
   useEffect(() => {
-    // Initial hydration from localStorage after mount
-    setSessions(loadSessions());
-
-    const handler = () => setSessions(loadSessions());
-    window.addEventListener(UPDATE_EVENT, handler);
-
     // Merge remote sessions into localStorage (provides cross-device access)
     void fetchRemoteSessions().then((remote) => {
       if (remote.length === 0) return;
@@ -113,8 +119,6 @@ export function useSessionHistory() {
         .slice(0, MAX_SESSIONS);
       persistLocally(merged);
     });
-
-    return () => window.removeEventListener(UPDATE_EVENT, handler);
   }, []);
 
   const clearAll = useCallback(() => {

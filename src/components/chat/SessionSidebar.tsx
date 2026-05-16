@@ -56,7 +56,7 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
       {/* New session */}
       <button
         onClick={onNewSession}
-        className="mx-1 flex items-center gap-2 rounded-[8px] border border-dashed border-primary/40 px-3 py-2 text-xs font-medium text-primary/80 transition-colors hover:border-primary hover:bg-primary/[0.04] hover:text-primary"
+        className="mx-1 flex items-center gap-2 rounded-[8px] border border-primary/25 bg-primary/[0.035] px-3 py-2 text-xs font-medium text-primary/85 transition-colors hover:border-primary/50 hover:bg-primary/[0.08] hover:text-primary"
       >
         <Plus className="h-3.5 w-3.5" />
         Nueva conversación
@@ -109,7 +109,7 @@ function SessionItem({
       className={cn(
         "group flex w-full items-start gap-2 rounded-[8px] px-2 py-1.5 text-xs transition-colors text-left",
         isActive
-          ? "border-l-2 border-l-primary bg-primary/[0.06] text-foreground pl-[6px]"
+          ? "border-l-2 border-l-primary bg-primary/[0.075] text-foreground pl-[6px]"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
       )}
     >

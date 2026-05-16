@@ -19,7 +19,6 @@
 
 ### 1.2 · Auth / roles
 
-- 🟡 **S** — Helper `isAtLeast(role, minRole)` con jerarquía explícita (`admin > engineer > viewer`). Hoy `requireAuth(req, { role: "admin" })` rechaza engineers; documentar o flexibilizar.
 - 🟡 **M** — Rol "external auditor" con links de vista temporal (expiry).
 
 ### 1.3 · Dominio de obra (Gestión Integral)
@@ -40,6 +39,7 @@ Lo que falta del **plan original "Project Manager Digital"**:
 
 ### 2.1 · Inteligencia del agente (lo que más cambia el producto)
 
+- 🔥 **M** — **Lectura agéntica de documentos**. Reemplazar la lógica mental de "correr tools fijas" por ciclo de clasificación, hipótesis, extracción, contraste, verificación y síntesis. Ver `docs/07_agentic_document_reading.md`.
 - 🔥 **M** — **Plan-then-execute**. Antes de invocar tools, el agente emite un plan JSON (`{steps:[{tool,why,expected}]}`) y se compromete a él. Reduce las "5 tools sueltas" porque hay un plan auditable previo.
 - 🔥 **M** — **Self-critique pre-respuesta**. Antes de cerrar el resumen, el agente revisa sus números contra una checklist y se corrige. DeepSeek aún se equivoca aritméticamente en casos de borde — esto los caza.
 - 🟡 **M** — **Router de modelos**. DeepSeek V3 para chitchat/tareas simples, Claude Sonnet 4.6+ para razonamiento complejo (cruzar 3 docs, detectar contradicciones). Cost-aware.
@@ -48,6 +48,7 @@ Lo que falta del **plan original "Project Manager Digital"**:
 
 ### 2.2 · Profundidad de dominio
 
+- 🔥 **L** — **Capa de Contexto Empresarial**. Evolucionar la Base Documental hacia conectores seguros de solo lectura, inventario empresarial, extracción de obras activas, clasificación documental y auditoría transversal de la constructora completa. Ver `docs/06_enterprise_context_layer.md`.
 - 🔥 **L** — **Knowledge graph de obra**. Tabla `obra_relations` (doc A *contradice* doc B, doc C *deriva de* doc D). Habilita queries del estilo "¿qué docs se contradicen?".
 - 🔥 **M** — **Auto-detección de contradicciones al subir**. Al ingresar un PDF, compararlo contra docs existentes del proyecto y flaguear inconsistencias automáticamente (memoria dice X, presupuesto dice Y).
 - 🟡 **M** — **Cronograma real (no demo)**. `proyectar_cronograma` pinta cosas — falta la fuente de datos: import MS Project / CSV / builder manual.
@@ -78,15 +79,18 @@ Lo que falta del **plan original "Project Manager Digital"**:
 
 1. ✅ Limpieza workspace + reorganización (hecho 2026-05-16).
 2. **Consolidar migrations** (§2.3) — cierra el bug-magnet ahora.
-3. **Plan-then-execute + self-critique** (§2.1) — 70 % del salto de calidad del agente.
-4. **Auto-detección de contradicciones al subir** (§2.2) — killer feature de dominio.
-5. **Tests del math-engine** (§2.3) — red de seguridad para todo lo demás.
-6. **Onboarding de índices** (§2.4) — desbloquea valor que ya existe.
+3. **Definir Capa de Contexto Empresarial** (§2.2) — fija el concepto de lanzamiento antes de seguir ampliando "Base Documental".
+4. **Lectura agéntica + plan-then-execute + self-critique** (§2.1) — 70 % del salto de calidad del agente.
+5. **Auto-detección de contradicciones al subir** (§2.2) — killer feature de dominio.
+6. **Tests del math-engine** (§2.3) — red de seguridad para todo lo demás.
+7. **Onboarding de índices** (§2.4) — desbloquea valor que ya existe.
 
-Si tenés solo **1 día**: 2, 3 y 6.
+Si tenés solo **1 día**: 2, 3 y 7.
 
 ---
 
 ## 4 · Cambios completados (registro corto)
 
 Los items completados de los antiguos planes están reflejados en `git log` y en los blobs históricos de `docs/planning/*.md` (acceder vía `git show HEAD~N:docs/planning/TAREAS_CLAUDE.md` si hace falta arqueología). No los repetimos acá para mantener el ROADMAP enfocado en lo pendiente.
+
+- ✅ 2026-05-16 — Helper `isAtLeast(role, minRole)` agregado en `src/lib/auth/require-auth.ts`; `requireAuth(req, { role })` ahora usa jerarquía explícita `admin > engineer > viewer`.

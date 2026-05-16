@@ -9,6 +9,19 @@ export interface AuthResult {
   email: string | null;
 }
 
+export type AuthRole = "viewer" | "engineer" | "admin";
+
+const ROLE_RANK: Record<AuthRole, number> = {
+  viewer: 0,
+  engineer: 1,
+  admin: 2,
+};
+
+export function isAtLeast(role: string, minRole: AuthRole): boolean {
+  const rank = ROLE_RANK[role as AuthRole];
+  return rank !== undefined && rank >= ROLE_RANK[minRole];
+}
+
 /**
  * Validates the Bearer token and resolves the caller's org membership.
  * Returns AuthResult on success, or a 401/403 Response on failure.
@@ -18,7 +31,7 @@ export interface AuthResult {
  */
 export async function requireAuth(
   req: Request,
-  opts?: { role?: "admin" | "engineer" },
+  opts?: { role?: AuthRole },
 ): Promise<AuthResult | Response> {
   const token = extractBearerToken(req.headers.get("authorization") ?? "");
   if (!token) return apiUnauthorized();
@@ -58,8 +71,8 @@ export async function requireAuth(
 
     if (!orgResult.data) return apiForbidden("La organización está deshabilitada.");
 
-    if (opts?.role && member.role !== opts.role) {
-      return apiForbidden(`Se requiere rol "${opts.role}".`);
+    if (opts?.role && !isAtLeast(member.role, opts.role)) {
+      return apiForbidden(`Se requiere rol mínimo "${opts.role}".`);
     }
 
     return {

@@ -10,7 +10,7 @@ EdificIA es un **Entorno Operativo Unificado** de alta seguridad diseñado exclu
 
 - **Gestión Proactiva de Obra** — Alertas de clima, vencimientos de seguros de subcontratistas (ART), cronograma de tareas y seguimiento de acopios críticos.
 - **UI Generativa en el Chat** — El agente no solo responde con texto, sino que renderiza de forma nativa bloques visuales interactivos: métricas y gráficos de barras, tablas comparativas (ranking de proveedores), visores de planos (media grid) y cronogramas tipo Gantt.
-- **RAG Jerárquico** — Sistema de recuperación semántica sobre PDFs, planillas Excel, planos DXF e imágenes, indexados por empresa y obra.
+- **Contexto Empresarial Conectado** — Evolución de la base documental hacia una capa segura de lectura sobre drives, ERPs, exports y sistemas internos de la constructora. El objetivo es detectar obras activas, clasificar documentos, construir contexto de empresa y auditar riesgos transversales.
 - **Generación Autónoma de Documentos** — Produce informes en PDF, memorias descriptivas (.docx) y presupuestos exportables a Excel (.xlsx).
 - **Dashboard Integral** — Vista completa por obra que consolida cobertura documental, contactos, agenda y certificaciones.
 - **Seguridad Multi-Tenant** — Aislamiento total de datos por constructora con Row-Level Security, ideal para consultores que operan con múltiples firmas.

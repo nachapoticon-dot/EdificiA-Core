@@ -38,7 +38,7 @@ export function OrganizationCard() {
 
   if (orgMember.status === "loading") {
     return (
-      <div className="mx-2 mb-2 animate-pulse rounded-xl border border-border bg-card p-3">
+      <div className="mx-2 mb-2 animate-pulse rounded-[8px] border border-border bg-card/70 p-3">
         <div className="h-3 w-24 rounded bg-muted" />
         <div className="mt-2 h-2 w-16 rounded bg-muted/60" />
       </div>
@@ -64,7 +64,7 @@ export function OrganizationCard() {
       {/* Card */}
       <div
         className={cn(
-          "group rounded-xl border border-border bg-card p-3 transition-colors",
+          "group rounded-[8px] border border-border bg-card/80 p-3 shadow-sm transition-colors",
           isMultiOrg && "cursor-pointer hover:border-primary/30 hover:bg-primary/[0.02]",
         )}
         onClick={() => isMultiOrg && setOpen((v) => !v)}
@@ -88,7 +88,7 @@ export function OrganizationCard() {
         </div>
 
         {/* Stats row */}
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-3 flex items-center gap-3 border-t border-border/60 pt-2">
           <Stat icon={FolderOpen} label={`${member.stats.activeProjects} obra${member.stats.activeProjects !== 1 ? "s" : ""}`} />
           <span className="h-3 w-px bg-border" />
           <Stat icon={Users} label={`${member.stats.memberCount} miembro${member.stats.memberCount !== 1 ? "s" : ""}`} />

@@ -60,24 +60,31 @@ export default function PatternsPage() {
 
   const fetchPatterns = useCallback(async () => {
     setLoading(true);
-    const headers = await getAuthHeaders();
-    if (!headers.Authorization) return;
-    const res = await fetch("/api/admin/patterns", { headers });
-    if (!res.ok) return;
-    const data = (await res.json()) as {
-      grouped: Record<string, GroupedPatterns>;
-      totalPatterns: number;
-    };
-    setGrouped(data.grouped);
-    setTotalPatterns(data.totalPatterns);
-    setLastUpdated(new Date());
-    setLoading(false);
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) return;
+      const res = await fetch("/api/admin/patterns", { headers });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        grouped: Record<string, GroupedPatterns>;
+        totalPatterns: number;
+      };
+      setGrouped(data.grouped);
+      setTotalPatterns(data.totalPatterns);
+      setLastUpdated(new Date());
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (orgMember.status === "ok" && orgMember.member.role !== "admin") {
+      router.replace("/dashboard/chat");
+      return;
+    }
     if (orgMember.status === "ok") void fetchPatterns();
-  }, [orgMember, fetchPatterns]);
+    if (orgMember.status === "error") setLoading(false);
+  }, [orgMember, fetchPatterns, router]);
 
   const handleDeletePattern = async (documentType: string, patternKey: string) => {
     const key = `${documentType}:${patternKey}`;

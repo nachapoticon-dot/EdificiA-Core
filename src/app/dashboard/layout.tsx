@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { MessageSquare, Database, Building2 } from "lucide-react";
-import { TopBarActions } from "@/components/chat/TopBarActions";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
@@ -19,15 +18,20 @@ function SidebarContent() {
   return (
     <>
       {/* Brand block */}
-      <div className="flex items-center gap-2.5 border-b px-4 py-4">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-foreground text-background">
+      <div className="border-b px-4 py-4">
+        <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-foreground text-background shadow-sm">
           <span className="font-display text-[15px] font-semibold italic leading-none select-none">E</span>
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="font-display text-[15px] font-medium tracking-[-0.01em]">EdificIA</span>
+          <span className="font-display text-[16px] font-medium">EdificIA</span>
           <span className="font-mono text-[9px] uppercase tracking-[0.05em] text-muted-foreground">
             v0.6 · construcción
           </span>
+        </div>
+        </div>
+        <div className="mt-3 h-1 rounded-full bg-muted">
+          <div className="h-full w-2/3 rounded-full bg-primary" />
         </div>
       </div>
 
@@ -37,7 +41,7 @@ function SidebarContent() {
       </div>
 
       {/* Nav */}
-      <nav className="space-y-0.5 p-2">
+      <nav className="space-y-1 p-2">
         <NavLink href="/dashboard/chat" icon={<MessageSquare className="h-3.5 w-3.5" />} label="Asistente de Obra" />
         <NavLink href="/dashboard/obras" icon={<Building2 className="h-3.5 w-3.5" />} label="Mis Obras" />
         <NavLink href="/dashboard/documents" icon={<Database className="h-3.5 w-3.5" />} label="Base Documental" />
@@ -72,10 +76,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <ProjectProvider>
         <SidebarProvider>
           <AuthWatcher />
-          <div className="flex h-screen overflow-hidden bg-background">
+          <div className="flex h-screen overflow-hidden bg-background ed-blueprint-bg">
 
             {/* Desktop sidebar — hidden on mobile */}
-            <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r bg-card">
+            <aside className="ed-rail hidden w-64 shrink-0 flex-col border-r bg-sidebar/95 shadow-sm lg:flex">
               <SidebarContent />
             </aside>
 
@@ -86,14 +90,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
             {/* Main */}
             <main className="flex flex-1 flex-col overflow-hidden">
-              {/* Top bar */}
-              <div className="flex h-[60px] shrink-0 items-center justify-between border-b px-4">
-                {/* Left: hamburger on mobile */}
+              {/* Mobile top bar */}
+              <div className="flex h-[52px] shrink-0 items-center border-b bg-background/80 px-4 backdrop-blur lg:hidden">
                 <MobileMenuButton />
-                {/* Right: action icons */}
-                <div className="ml-auto">
-                  <TopBarActions />
-                </div>
               </div>
               <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
             </main>

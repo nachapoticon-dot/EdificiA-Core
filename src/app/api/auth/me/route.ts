@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 interface MeResponse {
   userId: string;
   email: string | null;
+  displayName: string | null;
   orgId: string;
   role: string;
   orgName: string;
@@ -35,7 +36,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!claims) return Response.json({ error: "Invalid token" }, { status: 401 });
   const userId = await verifyUserId(token);
   if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
-  const { email } = claims;
+  const { email, name } = claims;
 
   // Respect the active org selection from the client (org switcher stores this)
   const requestedOrgId = req.headers.get("x-org-id") ?? null;
@@ -104,6 +105,7 @@ export async function GET(req: Request): Promise<Response> {
     const body: MeResponse = {
       userId,
       email,
+      displayName: cleanDisplayName(name),
       orgId,
       role: resolvedMember.role,
       orgName: org?.name ?? "",
@@ -122,4 +124,10 @@ export async function GET(req: Request): Promise<Response> {
   } catch {
     return Response.json({ error: "Server error" }, { status: 500 });
   }
+}
+
+function cleanDisplayName(name: string | null): string | null {
+  const trimmed = name?.replace(/\s+/g, " ").trim();
+  if (!trimmed || trimmed.includes("@") || trimmed.length < 2) return null;
+  return trimmed.slice(0, 80);
 }
