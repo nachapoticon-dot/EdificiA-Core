@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
 export interface ProjectDetails {
   id: string;
@@ -28,12 +28,9 @@ export function useProjectDetails(projectId: string | null) {
     staleTime: 2 * 60_000,
     queryFn: async () => {
       if (!projectId) return null;
-      const h = getInsForgeClient().getHttpClient().getHeaders();
-      if (!h.Authorization) return null;
-
-      const res = await fetch(`/api/projects/${projectId}`, {
-        headers: { Authorization: h.Authorization as string },
-      });
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) return null;
+      const res = await fetch(`/api/projects/${projectId}`, { headers });
       if (!res.ok) return null;
       return res.json() as Promise<{ project: ProjectDetails; storage: StorageStats }>;
     },

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Building2, Plus, LayoutGrid } from "lucide-react";
 import { useProjectContext } from "@/contexts/ProjectContext";
-import { ProjectCard } from "@/components/obras/ProjectCard";
+import { ProjectCard } from "./_components/ProjectCard";
 
 export default function ObrasPage() {
   const { projects, createProject, isLoading, isCreating } = useProjectContext();

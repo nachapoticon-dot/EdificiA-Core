@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { sendInvitationEmail } from "@/lib/email/resend";
+import { dbLogger, httpLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -57,14 +58,14 @@ export async function POST(req: Request): Promise<Response> {
     .single();
 
   if (insertResult.error) {
-    console.error("[super-admin/members] Insert error:", insertResult.error);
+    dbLogger.error({ err: insertResult.error }, "super-admin/members insert error");
     return Response.json({ error: "Error al crear la invitación" }, { status: 500 });
   }
 
   const { token } = insertResult.data as { id: string; token: string };
 
   sendInvitationEmail({ toEmail: email, orgName, role, token }).catch((err: unknown) => {
-    console.error("[super-admin/members] Email error:", err);
+    httpLogger.error({ err }, "super-admin/members email error");
   });
 
   return Response.json({ ok: true, token }, { status: 201 });

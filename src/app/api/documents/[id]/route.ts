@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getQdrantClient, COLLECTION_NAME, isQdrantConfigured } from "@/lib/qdrant/client";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const { id: fileId } = await params;
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
+  if (auth.role === "viewer") return Response.json({ error: "Los visualizadores no pueden eliminar documentos." }, { status: 403 });
 
   try {
     const client = getInsForgeAdminClient();
@@ -57,7 +59,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     return Response.json({ success: true });
   } catch (err) {
-    console.error("[DELETE /api/documents/[id]]", err);
+    dbLogger.error({ err }, "DELETE /api/documents/[id]");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

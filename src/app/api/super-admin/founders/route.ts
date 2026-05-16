@@ -1,4 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { slugify } from "@/lib/utils";
 import { randomBytes } from "crypto";
 
 export const runtime = "nodejs";
@@ -7,6 +8,7 @@ interface FounderInvitation {
   id: string;
   email: string;
   company_name: string;
+  organization_id: string | null;
   status: string;
   notes: string | null;
   created_at: string;
@@ -27,7 +29,7 @@ export async function GET(req: Request): Promise<Response> {
   const client = getInsForgeAdminClient();
   const { data, error } = await client.database
     .from("org_founder_invitations")
-    .select("id, email, company_name, status, notes, created_at, expires_at, invite_token")
+    .select("id, email, company_name, organization_id, status, notes, created_at, expires_at, invite_token")
     .order("created_at", { ascending: false });
 
   if (error) return Response.json({ error: "DB error" }, { status: 500 });
@@ -42,20 +44,38 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "email y company_name son requeridos" }, { status: 400 });
   }
 
+  const email = body.email.toLowerCase().trim();
+  const companyName = body.company_name.trim();
   const inviteToken = randomBytes(16).toString("hex");
   const client = getInsForgeAdminClient();
+
+  // Crear la organización de inmediato para que aparezca en el panel de empresas
+  const { data: orgData, error: orgErr } = await client.database
+    .from("organizations")
+    .insert({ name: companyName, slug: slugify(companyName, randomBytes(4).toString("hex")) })
+    .select("id")
+    .single();
+
+  if (orgErr || !orgData) {
+    return Response.json({ error: "No se pudo crear la organización." }, { status: 500 });
+  }
+  const orgId = (orgData as { id: string }).id;
+
   const { data, error } = await client.database
     .from("org_founder_invitations")
     .insert({
-      email: body.email.toLowerCase().trim(),
-      company_name: body.company_name.trim(),
+      email,
+      company_name: companyName,
       notes: body.notes?.trim() ?? null,
       invite_token: inviteToken,
+      organization_id: orgId,
     })
-    .select("id, email, company_name, status, created_at, expires_at, invite_token")
+    .select("id, email, company_name, organization_id, status, created_at, expires_at, invite_token")
     .single();
 
   if (error) {
+    // Revertir la org si falla la invitación
+    await client.database.from("organizations").delete().eq("id", orgId);
     if (error.message?.includes("unique") || error.message?.includes("duplicate")) {
       return Response.json({ error: "Este email ya tiene una invitación activa" }, { status: 409 });
     }

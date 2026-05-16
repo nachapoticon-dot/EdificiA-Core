@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { loginSchema, type LoginInput } from "@/lib/validators";
 
+interface LoginApiResponse {
+  ok?: boolean;
+  accessToken?: string;
+  refreshToken?: string | null;
+  error?: string;
+}
+
 type FieldErrors = Partial<Record<keyof LoginInput, string>>;
 
 export default function LoginPage() {
@@ -46,33 +53,49 @@ function LoginForm() {
     }
 
     setLoading(true);
-    const { data, error } = await getInsForgeClient().auth.signInWithPassword({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    });
 
-    setLoading(false);
-
-    if (error || !data) {
-      setServerError("Email o contraseña incorrectos.");
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: parsed.data.email, password: parsed.data.password }),
+      });
+    } catch {
+      setLoading(false);
+      setServerError("Error de conexión. Verificá tu red e intentá de nuevo.");
       return;
     }
 
-    // Persist raw token so it survives hot reloads and page refreshes
-    const rawToken = getInsForgeClient().getHttpClient().getHeaders().Authorization as string | undefined;
-    if (rawToken) {
-      // Strip "Bearer " prefix — setAuthToken expects the raw token
-      persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""), data?.refreshToken ?? undefined);
+    const loginData = await res.json() as LoginApiResponse;
+    setLoading(false);
+
+    if (!res.ok || !loginData.accessToken) {
+      setServerError(loginData.error ?? "Email o contraseña incorrectos.");
+      return;
     }
 
-    // Si el usuario tiene una invitación de fundador pendiente, crear la org automáticamente
-    const token = rawToken;
-    if (token) {
-      await fetch("/api/auth/claim-founder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: token },
-        body: JSON.stringify({ email: parsed.data.email }),
-      });
+    // Persist token in localStorage so the browser SDK stays authenticated
+    persistAuthToken(loginData.accessToken, loginData.refreshToken ?? undefined);
+    // Also set the token on the singleton SDK client so it can be used immediately
+    getInsForgeClient().getHttpClient().setAuthToken(loginData.accessToken);
+
+    // Reclamar org de fundador / invitación de miembro si hay alguna pendiente.
+    // El email se extrae del JWT en el servidor — no hay que mandarlo.
+    // Si alguna falla NO bloqueamos el login, pero sí logueamos para diagnóstico.
+    const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${loginData.accessToken}` };
+    const [founderRes, inviteRes] = await Promise.all([
+      fetch("/api/auth/claim-founder", { method: "POST", headers: authHeaders, body: "{}" }),
+      fetch("/api/auth/claim-invitation", { method: "POST", headers: authHeaders, body: "{}" }),
+    ]);
+
+    if (!founderRes.ok) {
+      const body = await founderRes.json().catch(() => ({}));
+      console.error("[login] claim-founder falló:", founderRes.status, body);
+    }
+    if (!inviteRes.ok) {
+      const body = await inviteRes.json().catch(() => ({}));
+      console.error("[login] claim-invitation falló:", inviteRes.status, body);
     }
 
     const next = (searchParams.get("next") ?? "/dashboard/chat") as never;

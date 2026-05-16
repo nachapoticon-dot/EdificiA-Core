@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
@@ -20,13 +20,32 @@ export default function RegisterPage() {
 
 function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const emailParam = searchParams.get("email") ?? "";
+  const tokenParam = searchParams.get("token") ?? "";
+
   const [step, setStep] = useState<Step>("check");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailParam);
+  const [inviteToken] = useState(tokenParam);
   const [orgName, setOrgName] = useState("");
   const [form, setForm] = useState<Omit<SignUpInput, "email">>({ name: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Auto-verify when email+token come from a magic link
+  useEffect(() => {
+    if (!emailParam || !tokenParam) return;
+    void (async () => {
+      const res = await fetch(`/api/auth/register?email=${encodeURIComponent(emailParam)}`);
+      const data = await res.json() as { authorized?: boolean; organizationName?: string };
+      if (data.authorized) {
+        setOrgName(data.organizationName ?? "tu empresa");
+        setStep("complete");
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleFieldChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
@@ -68,7 +87,7 @@ function RegisterForm() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = signUpSchema.safeParse({ email, ...form });
+    const parsed = signUpSchema.safeParse({ email, ...form, ...(inviteToken ? { inviteToken } : {}) });
     if (!parsed.success) {
       const fieldErrors: FieldErrors = {};
       for (const issue of parsed.error.issues) {
@@ -99,21 +118,23 @@ function RegisterForm() {
         return;
       }
 
-      // Auto sign-in after successful registration
-      const { data: signInData, error: signInErr } = await getInsForgeClient().auth.signInWithPassword({
-        email: parsed.data.email,
-        password: parsed.data.password,
+      // Auto sign-in via server endpoint to set httpOnly cookie
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: parsed.data.email, password: parsed.data.password }),
       });
 
-      if (signInErr) {
+      if (!loginRes.ok) {
         setServerError("Cuenta creada. Por favor iniciá sesión.");
         router.push("/login");
         return;
       }
 
-      const rawToken = getInsForgeClient().getHttpClient().getHeaders().Authorization as string | undefined;
-      if (rawToken) {
-        persistAuthToken(rawToken.replace(/^Bearer\s+/i, ""), signInData?.refreshToken ?? undefined);
+      const loginData = await loginRes.json() as { accessToken?: string; refreshToken?: string | null };
+      if (loginData.accessToken) {
+        persistAuthToken(loginData.accessToken, loginData.refreshToken ?? undefined);
+        getInsForgeClient().getHttpClient().setAuthToken(loginData.accessToken);
       }
 
       router.push("/dashboard/chat");
@@ -203,7 +224,7 @@ function RegisterForm() {
                 autoComplete="new-password"
                 value={form.password}
                 onChange={handleFieldChange}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 10 caracteres, 1 mayúscula, 1 número"
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
                 aria-invalid={!!errors.password}
               />

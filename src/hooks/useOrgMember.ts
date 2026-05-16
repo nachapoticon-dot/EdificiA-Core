@@ -1,24 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthHeaders } from "@/lib/insforge/client";
 
-export interface OrgMember {
-  userId: string;
-  email: string | null;
-  orgId: string;
-  role: string;
-  orgName: string;
-  branding: {
-    primaryColor: string;
-    logoUrl: string | null;
-    agentName: string;
-  };
-  stats: {
-    activeProjects: number;
-    memberCount: number;
-  };
-}
+import type { OrgMember } from "@/types";
+export type { OrgMember } from "@/types";
 
 type State =
   | { status: "loading" }
@@ -31,28 +17,26 @@ export function useOrgMember(): State {
   const [state, setState] = useState<State>({ status: "loading" });
 
   useEffect(() => {
-    const headers = getInsForgeClient().getHttpClient().getHeaders();
-    if (!headers.Authorization) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setState({ status: "error" });
-      return;
-    }
-
-    const reqHeaders: Record<string, string> = {
-      Authorization: headers.Authorization as string,
-    };
-
-    // Pass the active org selection so /api/auth/me returns the right org
-    const activeOrgId = localStorage.getItem(ACTIVE_ORG_KEY);
-    if (activeOrgId) reqHeaders["x-org-id"] = activeOrgId;
-
-    fetch("/api/auth/me", { headers: reqHeaders })
-      .then((r) => {
+    let cancelled = false;
+    async function load() {
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders.Authorization) {
+        if (!cancelled) setState({ status: "error" });
+        return;
+      }
+      const activeOrgId = localStorage.getItem(ACTIVE_ORG_KEY);
+      const reqHeaders = { ...authHeaders, ...(activeOrgId ? { "x-org-id": activeOrgId } : {}) };
+      try {
+        const r = await fetch("/api/auth/me", { headers: reqHeaders });
         if (!r.ok) throw new Error("not ok");
-        return r.json() as Promise<OrgMember>;
-      })
-      .then((data) => setState({ status: "ok", member: data }))
-      .catch(() => setState({ status: "error" }));
+        const data = await r.json() as OrgMember;
+        if (!cancelled) setState({ status: "ok", member: data });
+      } catch {
+        if (!cancelled) setState({ status: "error" });
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
   return state;

@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { getInsForgeClient } from "@/lib/insforge/client";
+import { getAuthToken } from "@/lib/insforge/client";
 
 const PREFIX   = "edificia_msgs_";
 const MAX_MSGS = 100;
@@ -30,18 +30,16 @@ export function deleteMessages(sessionId: string): void {
 
 // ── Remote helpers ────────────────────────────────────────────────────────────
 
-function getApiHeaders(): Record<string, string> {
-  const h = getInsForgeClient().getHttpClient().getHeaders() as Record<string, string>;
-  const headers: Record<string, string> = {};
-  if (h["Authorization"]) headers["Authorization"] = h["Authorization"];
-  return headers;
+async function getApiHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function syncMessagesToDb(sessionId: string, messages: UIMessage[]): Promise<void> {
   try {
     await fetch(`/api/sessions/${sessionId}/messages`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...getApiHeaders() },
+      headers: { "Content-Type": "application/json", ...(await getApiHeaders()) },
       body: JSON.stringify({ messages }),
     });
   } catch { /* non-blocking */ }
@@ -51,7 +49,7 @@ async function syncMessagesToDb(sessionId: string, messages: UIMessage[]): Promi
 export async function fetchRemoteMessages(sessionId: string): Promise<UIMessage[]> {
   try {
     const res = await fetch(`/api/sessions/${sessionId}/messages`, {
-      headers: getApiHeaders(),
+      headers: await getApiHeaders(),
     });
     if (!res.ok) return [];
     const json = (await res.json()) as { messages: UIMessage[] };

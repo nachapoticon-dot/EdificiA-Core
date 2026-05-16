@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { sendInvitationEmail } from "@/lib/email/resend";
+import { httpLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -77,7 +78,7 @@ export async function POST(req: Request): Promise<Response> {
   const { token } = insertResult.data as { id: string; token: string };
 
   sendInvitationEmail({ toEmail: email, orgName, role, token }).catch((err: unknown) => {
-    console.error("[invite] Failed to send invitation email:", err);
+    httpLogger.error({ err }, "invite: failed to send invitation email");
   });
 
   return Response.json({ invitation: insertResult.data, emailSent: true }, { status: 201 });

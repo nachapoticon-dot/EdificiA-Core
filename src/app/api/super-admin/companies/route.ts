@@ -40,12 +40,12 @@ export async function GET(req: Request) {
         const [membersRes, projectsRes, storageRes] = await Promise.all([
           client.database
             .from("organization_members")
-            .select("user_id", { count: "exact", head: true })
+            .select("user_id")
             .eq("organization_id", org.id)
             .is("deleted_at", null),
           client.database
             .from("projects")
-            .select("id", { count: "exact", head: true })
+            .select("id")
             .eq("organization_id", org.id)
             .is("deleted_at", null),
           client.database
@@ -64,8 +64,8 @@ export async function GET(req: Request) {
           createdAt: org.created_at,
           disabled: !!org.deleted_at,
           subscriptionStatus: org.subscription_status ?? "active",
-          members: membersRes.count ?? 0,
-          projects: projectsRes.count ?? 0,
+          members: (membersRes.data ?? []).length,
+          projects: (projectsRes.data ?? []).length,
           storage: {
             usedBytes,
             quotaBytes,

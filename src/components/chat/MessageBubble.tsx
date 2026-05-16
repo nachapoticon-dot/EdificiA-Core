@@ -11,7 +11,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2, Circle } from "lucide-react";
+import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2 } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./ChartBlock";
 import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
 import { FindingCallout, type FindingSpec } from "./FindingCallout";
@@ -27,6 +27,7 @@ import { useState } from "react";
 interface FileMeta {
   fileName: string;
   type: "excel" | "pdf" | "dxf" | "docx" | "image";
+  fileSize?: number;
   itemCount?: number;
   sheetName?: string;
   detectedTotal?: number;
@@ -43,50 +44,67 @@ const FILE_ICONS: Record<FileMeta["type"], React.ElementType> = {
   image: FileType2,
 };
 
-const FILE_COLORS: Record<FileMeta["type"], string> = {
-  excel: "text-[oklch(0.62_0.13_145)]",
-  pdf:   "text-destructive",
-  dxf:   "text-blue-400",
-  docx:  "text-indigo-400",
-  image: "text-orange-400",
+// Each file type gets a distinct accent tint. Both the icon tile background
+// and the icon foreground use the same hue so the card reads as a single
+// "chip" instead of an icon floating on a generic surface.
+const FILE_ACCENTS: Record<FileMeta["type"], { tile: string; icon: string; badge: string }> = {
+  excel: { tile: "bg-[oklch(0.62_0.13_145/0.18)]", icon: "text-[oklch(0.78_0.16_145)]", badge: "XLSX" },
+  pdf:   { tile: "bg-[oklch(0.62_0.18_25/0.18)]",  icon: "text-[oklch(0.78_0.16_25)]",  badge: "PDF"  },
+  dxf:   { tile: "bg-[oklch(0.62_0.14_240/0.18)]", icon: "text-[oklch(0.78_0.14_240)]", badge: "DXF"  },
+  docx:  { tile: "bg-[oklch(0.62_0.18_260/0.18)]", icon: "text-[oklch(0.80_0.14_260)]", badge: "DOCX" },
+  image: { tile: "bg-[oklch(0.62_0.16_310/0.18)]", icon: "text-[oklch(0.80_0.14_310)]", badge: "IMG"  },
 };
 
 function parseFileMeta(text: string): FileMeta | null {
   const MARKER = "__file_meta__:";
-  // Search the entire text — marker may appear after the "---\n" separator
   const markerIdx = text.indexOf(MARKER);
   if (markerIdx === -1) return null;
-  // Extract the JSON from the marker to the end of that line
   const lineEnd = text.indexOf("\n", markerIdx);
   const jsonStr = text.slice(markerIdx + MARKER.length, lineEnd === -1 ? undefined : lineEnd);
   try { return JSON.parse(jsonStr) as FileMeta; } catch { return null; }
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function FileAttachmentCard({ meta }: { meta: FileMeta }) {
   const Icon = FILE_ICONS[meta.type] ?? FileType2;
-  const color = FILE_COLORS[meta.type] ?? "text-muted-foreground";
+  const accent = FILE_ACCENTS[meta.type] ?? FILE_ACCENTS.docx;
 
-  let subtitle = "";
+  // Build metadata chunks separated by bullets
+  const chunks: string[] = [accent.badge];
   if (meta.type === "excel") {
-    subtitle = [
-      meta.itemCount != null && `${meta.itemCount} ítems`,
-      meta.sheetName && `hoja "${meta.sheetName}"`,
-      meta.detectedTotal != null && `$${meta.detectedTotal.toLocaleString("es-AR")}`,
-    ].filter(Boolean).join(" · ");
+    if (meta.itemCount != null) chunks.push(`${meta.itemCount} ítems`);
+    if (meta.detectedTotal != null) chunks.push(`$${meta.detectedTotal.toLocaleString("es-AR")}`);
   } else if (meta.type === "pdf") {
-    subtitle = [meta.pageCount != null && `${meta.pageCount} págs.`, meta.isScanned && "escaneado"].filter(Boolean).join(" · ");
+    if (meta.pageCount != null) chunks.push(`${meta.pageCount} pág${meta.pageCount === 1 ? "" : "s"}`);
+    if (meta.isScanned) chunks.push("escaneado");
   } else if (meta.type === "docx") {
-    subtitle = meta.wordCount != null ? `${meta.wordCount.toLocaleString("es-AR")} palabras` : "";
+    if (meta.wordCount != null) chunks.push(`${meta.wordCount.toLocaleString("es-AR")} palabras`);
   }
+  if (meta.fileSize) chunks.push(formatBytes(meta.fileSize));
 
   return (
-    <div className="flex items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/5 px-3.5 py-2.5">
-      <Icon className={cn("h-4 w-4 shrink-0", color)} strokeWidth={1.5} />
-      <div className="min-w-0">
-        <p className="truncate text-[13px] font-medium leading-tight text-background">{meta.fileName}</p>
-        {subtitle && (
-          <p className="mt-0.5 font-mono text-[10px] text-background/60">{subtitle}</p>
-        )}
+    <div className="group flex items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.06] px-3.5 py-3 backdrop-blur-sm transition-colors hover:bg-white/[0.09] max-w-[340px]">
+      {/* Icon tile */}
+      <div className={cn(
+        "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-white/10",
+        accent.tile,
+      )}>
+        <Icon className={cn("h-5 w-5", accent.icon)} strokeWidth={1.5} />
+      </div>
+
+      {/* Filename + metadata line */}
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="truncate text-[13.5px] font-medium leading-tight text-background">
+          {meta.fileName}
+        </p>
+        <p className="truncate font-mono text-[10.5px] text-background/55 tracking-[0.01em]">
+          {chunks.join(" • ")}
+        </p>
       </div>
     </div>
   );
@@ -95,6 +113,7 @@ function FileAttachmentCard({ meta }: { meta: FileMeta }) {
 interface MessageBubbleProps {
   message: UIMessage;
   onFeedback?: () => void;
+  onAdjustDocument?: (proposal: DocGenerationProposal, instructions: string) => void;
 }
 
 /* ── Tool label map ── */
@@ -135,11 +154,11 @@ const SPECIAL_TOOLS = new Set([
 ]);
 
 /* ── Segment types for the grouped renderer ── */
-type TextSegment     = { kind: "text";       part: UIMessagePart<UIDataTypes, UITools> };
-type SpecialSegment  = { kind: "special";    part: UIMessagePart<UIDataTypes, UITools> };
-type ToolGroupSegment = { kind: "tool-group"; parts: UIMessagePart<UIDataTypes, UITools>[] };
+type TextSegment        = { kind: "text";          part: UIMessagePart<UIDataTypes, UITools> };
+type ToolTimelineSegment = { kind: "tool-timeline"; parts: UIMessagePart<UIDataTypes, UITools>[] };
+type BlockResultSegment = { kind: "block-result"; part: UIMessagePart<UIDataTypes, UITools> };
 
-type Segment = TextSegment | SpecialSegment | ToolGroupSegment;
+type Segment = TextSegment | ToolTimelineSegment | BlockResultSegment;
 
 // AI SDK v6: tool data lives inside part.toolInvocation (nested), not on part directly
 type ToolInvocationData = {
@@ -153,39 +172,46 @@ function getToolInvocation(part: UIMessagePart<UIDataTypes, UITools>): ToolInvoc
   return p.toolInvocation ?? null;
 }
 
+/**
+ * Groups consecutive tool calls into ONE timeline segment, then emits the
+ * visual block-results for any special tools after it. This collapses the
+ * noisy 5-spinner experience into a single status indicator while keeping
+ * the actual response blocks (charts, findings, doc cards) visible.
+ */
 function buildSegments(parts: UIMessagePart<UIDataTypes, UITools>[]): Segment[] {
   const segments: Segment[] = [];
+  let pending: UIMessagePart<UIDataTypes, UITools>[] = [];
+
+  function flush() {
+    if (pending.length === 0) return;
+    segments.push({ kind: "tool-timeline", parts: pending });
+    for (const p of pending) {
+      const name = getToolInvocation(p)?.toolName ?? "";
+      if (SPECIAL_TOOLS.has(name)) {
+        segments.push({ kind: "block-result", part: p });
+      }
+    }
+    pending = [];
+  }
 
   for (const part of parts) {
     if (isTextUIPart(part)) {
+      flush();
       segments.push({ kind: "text", part });
       continue;
     }
-
     if (isToolUIPart(part)) {
-      const name = getToolInvocation(part)?.toolName ?? "";
-
-      if (SPECIAL_TOOLS.has(name)) {
-        segments.push({ kind: "special", part });
-        continue;
-      }
-
-      const last = segments[segments.length - 1];
-      if (last?.kind === "tool-group") {
-        last.parts.push(part);
-      } else {
-        segments.push({ kind: "tool-group", parts: [part] });
-      }
-      continue;
+      pending.push(part);
     }
   }
+  flush();
 
   return segments;
 }
 
 /* ── Main component ── */
 
-export function MessageBubble({ message, onFeedback }: MessageBubbleProps) {
+export function MessageBubble({ message, onFeedback, onAdjustDocument }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const segments = buildSegments(message.parts);
   const timestamp = formatTime((message as { createdAt?: Date | string | number }).createdAt);
@@ -224,19 +250,22 @@ export function MessageBubble({ message, onFeedback }: MessageBubbleProps) {
               </ErrorBoundary>
             );
           }
-          if (seg.kind === "special") {
-            const toolName = getToolInvocation(seg.part)?.toolName ?? "";
+          if (seg.kind === "tool-timeline") {
             return (
-              <ErrorBoundary key={i} label={TOOL_LABELS[toolName] ?? toolName}>
-                <SpecialToolPart part={seg.part} />
+              <ErrorBoundary key={i}>
+                <ToolTimeline parts={seg.parts} />
               </ErrorBoundary>
             );
           }
-          return (
-            <ErrorBoundary key={i} label="herramientas">
-              <ToolGroupCard parts={seg.parts} />
-            </ErrorBoundary>
-          );
+          if (seg.kind === "block-result") {
+            const toolName = getToolInvocation(seg.part)?.toolName ?? "";
+            return (
+              <ErrorBoundary key={i} label={TOOL_LABELS[toolName] ?? toolName}>
+                <BlockResultPart part={seg.part} onAdjustDocument={onAdjustDocument} />
+              </ErrorBoundary>
+            );
+          }
+          return null;
         })}
 
         {/* Feedback button — only on assistant messages */}
@@ -347,7 +376,7 @@ function TextPart({
   );
 }
 
-/* ── Special tool parts (chart / document proposal / etc.) ── */
+/* ── Tool result blocks (chart / findings / doc card / etc.) ── */
 
 const BLOCK_TOOLS: Record<string, BlockKind> = {
   proyectar_metricas:       "metrics",
@@ -356,28 +385,39 @@ const BLOCK_TOOLS: Record<string, BlockKind> = {
   proyectar_cronograma:     "timeline",
 };
 
-function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
+/**
+ * Renders the OUTPUT of a special tool as a visual block (chart, finding, doc card, etc).
+ * Loading/pending state is NOT handled here — that lives in ToolTimeline above.
+ * If the tool is still pending we return null so nothing duplicates.
+ */
+function BlockResultPart({
+  part,
+  onAdjustDocument,
+}: {
+  part: UIMessagePart<UIDataTypes, UITools>;
+  onAdjustDocument?: (proposal: DocGenerationProposal, instructions: string) => void;
+}) {
   if (!isToolUIPart(part)) return null;
   const ti = getToolInvocation(part);
   const toolName = ti?.toolName ?? "";
   const isPending = ti?.state === "call" || ti?.state === "partial-call";
   const output = ti?.result;
 
-  // ── Nuevos bloques de respuesta estructurados ──
+  if (isPending || !output) return null;
+
   const blockKind = BLOCK_TOOLS[toolName];
   if (blockKind) {
-    if (isPending) return <ResponseBlock kind={blockKind} loading />;
     const parsed = BlockSpec.safeParse(output);
     if (!parsed.success) return <FallbackErrorBlock toolName={toolName} />;
     return <ResponseBlock spec={parsed.data} />;
   }
 
-  if (toolName === "generar_grafica" && !isPending && output) {
+  if (toolName === "generar_grafica") {
     const spec = output as ChartSpec;
     if (spec.data?.length > 0) return <ChartBlock {...spec} />;
   }
 
-  if (toolName === "generar_archivo" && !isPending && output) {
+  if (toolName === "generar_archivo") {
     const o = output as Record<string, unknown>;
     if (o.type === "file_proposal") {
       const proposal: FileProposal = {
@@ -397,24 +437,23 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
   }
 
   if (
-    (toolName === "generar_presupuesto_excel" ||
-      toolName === "generar_memoria_descriptiva" ||
-      toolName === "generar_informe_pdf") &&
-    !isPending &&
-    output
+    toolName === "generar_presupuesto_excel" ||
+    toolName === "generar_memoria_descriptiva" ||
+    toolName === "generar_informe_pdf"
   ) {
     const o = output as Record<string, unknown>;
     if (o.type === "doc_generation_proposal") {
-      return <GeneratedDocCard proposal={o as unknown as DocGenerationProposal} />;
+      const proposal = o as unknown as DocGenerationProposal;
+      return <GeneratedDocCard proposal={proposal} onAdjust={onAdjustDocument} />;
     }
   }
 
-  if (toolName === "reportar_hallazgo" && !isPending && output) {
+  if (toolName === "reportar_hallazgo") {
     const spec = output as FindingSpec;
     if (spec.type === "finding_callout") return <FindingCallout spec={spec} />;
   }
 
-  if (toolName === "reportar_hallazgos_batch" && !isPending && output) {
+  if (toolName === "reportar_hallazgos_batch") {
     const batch = output as { type: string; hallazgos: FindingSpec[] };
     if (batch.type === "finding_batch" && Array.isArray(batch.hallazgos)) {
       return (
@@ -427,56 +466,104 @@ function SpecialToolPart({ part }: { part: UIMessagePart<UIDataTypes, UITools> }
     }
   }
 
-  if (toolName === "comparar_presupuestos" && !isPending && output) {
+  if (toolName === "comparar_presupuestos") {
     const spec = output as ComparisonTableSpec;
     if (spec.type === "comparison_table") return <ComparisonTable spec={spec} />;
   }
 
-  // Pending special tool — show as a single-row timeline card while streaming
-  return <ToolGroupCard parts={[part]} />;
+  return null;
 }
 
-/* ── Grouped tool timeline card ── */
+/* ── Unified tool timeline (collapsible) ─────────────────────────────────── */
 
-function ToolGroupCard({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] }) {
-  const relevant = parts.filter(p => isToolUIPart(p));
+/**
+ * Collapses ALL tool calls in a turn into a single timeline card.
+ * While streaming: shows "Procesando paso N de M — <label>".
+ * When done: shows "✓ N pasos completados" — click to expand the per-step list.
+ */
+function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const relevant = parts.filter(isToolUIPart);
   if (relevant.length === 0) return null;
+
+  const totals = relevant.reduce(
+    (acc, p) => {
+      const state = getToolInvocation(p)?.state;
+      if (state === "result") acc.done++;
+      else if (state === "call" || state === "partial-call") acc.running++;
+      return acc;
+    },
+    { done: 0, running: 0 },
+  );
+
+  const allDone = totals.running === 0;
+  // While streaming: show the most recent pending tool's label
+  const currentPending = !allDone
+    ? relevant.find((p) => {
+        const s = getToolInvocation(p)?.state;
+        return s === "call" || s === "partial-call";
+      })
+    : null;
+  const currentLabel = currentPending
+    ? (TOOL_LABELS[getToolInvocation(currentPending)?.toolName ?? ""] ?? "Procesando")
+    : null;
 
   return (
     <div className="w-full overflow-hidden rounded-[10px] border border-border bg-card">
-      {relevant.map((p, i) => {
-        if (!isToolUIPart(p)) return null;
-        const ti = getToolInvocation(p);
-        const name = ti?.toolName ?? "herramienta";
-        const isPending = ti?.state === "call" || ti?.state === "partial-call";
-        const isDone = ti?.state === "result";
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        disabled={!allDone}
+        className={cn(
+          "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-xs transition-colors",
+          allDone ? "cursor-pointer hover:bg-accent/40" : "cursor-default",
+        )}
+      >
+        <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+          {allDone ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-[oklch(0.58_0.15_145)]" />
+          ) : (
+            <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
+          )}
+        </div>
+        <span className={cn("flex-1 text-[11.5px]", allDone ? "text-foreground" : "text-muted-foreground")}>
+          {allDone
+            ? `Auditoría completada · ${relevant.length} paso${relevant.length === 1 ? "" : "s"}`
+            : currentLabel ?? "Procesando…"}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {allDone ? `${relevant.length}/${relevant.length}` : `${totals.done}/${relevant.length}`}
+        </span>
+        {allDone && (
+          <span className="font-mono text-[10px] text-muted-foreground/60">
+            {expanded ? "ocultar" : "ver pasos"}
+          </span>
+        )}
+      </button>
 
-        return (
-          <div
-            key={i}
-            className={cn(
-              "flex items-center gap-3 px-3.5 py-2.5 text-xs",
-              i < relevant.length - 1 ? "border-b border-border" : "",
-            )}
-          >
-            <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-              {isDone ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-[oklch(0.58_0.15_145)]" />
-              ) : isPending ? (
-                <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
-              ) : (
-                <Circle className="h-2.5 w-2.5 text-muted-foreground/30" />
-              )}
-            </div>
-            <Wrench className={cn("h-3 w-3 shrink-0", isDone ? "text-[oklch(0.58_0.15_145)]" : "text-muted-foreground")} />
-            <span className={cn("flex-1 text-[11px]", isDone ? "text-foreground" : "text-muted-foreground")}>
-              {TOOL_LABELS[name] ?? name}
-            </span>
-            {isPending && <span className="eb-pulse font-mono text-[10px] text-primary">en curso…</span>}
-            {isDone    && <span className="font-mono text-[10px] text-[oklch(0.58_0.15_145)]">ok</span>}
-          </div>
-        );
-      })}
+      {expanded && allDone && (
+        <div className="border-t border-border">
+          {relevant.map((p, i) => {
+            const ti = getToolInvocation(p);
+            const name = ti?.toolName ?? "herramienta";
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-center gap-2.5 px-3.5 py-2 text-[11px]",
+                  i < relevant.length - 1 ? "border-b border-border" : "",
+                )}
+              >
+                <Wrench className="h-3 w-3 shrink-0 text-[oklch(0.58_0.15_145)]" />
+                <span className="flex-1 text-foreground/85">
+                  {TOOL_LABELS[name] ?? name}
+                </span>
+                <span className="font-mono text-[10px] text-[oklch(0.58_0.15_145)]">ok</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

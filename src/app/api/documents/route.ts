@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiForbidden } from "@/lib/api/errors";
+import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
 
     return Response.json({ files: files.map((f) => ({ ...f, chunkCount: chunkCounts.get(f.id) ?? 0 })) });
   } catch (err) {
-    console.error("[GET /api/documents]", err);
+    dbLogger.error({ err }, "GET /api/documents");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }
@@ -74,7 +75,7 @@ export async function DELETE(req: Request) {
     if (result.error) return Response.json({ error: "No se pudo eliminar el archivo" }, { status: 500 });
     return Response.json({ ok: true });
   } catch (err) {
-    console.error("[DELETE /api/documents]", err);
+    dbLogger.error({ err }, "DELETE /api/documents");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

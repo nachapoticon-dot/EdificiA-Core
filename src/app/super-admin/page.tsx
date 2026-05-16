@@ -5,7 +5,7 @@ import {
   Loader2, Plus, Trash2, RefreshCw, ShieldCheck, Building2,
   CheckCircle2, Clock, AlertTriangle, Users, FolderOpen,
   HardDrive, ToggleLeft, ToggleRight, CreditCard, BarChart3, Copy, KeyRound,
-  UserPlus, RotateCcw, X, Ban,
+  UserPlus, RotateCcw, X, Ban, Link2,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -415,21 +415,21 @@ function FoundersTab({
               <p className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4" /> Invitación creada para <strong>{lastCreated}</strong>
               </p>
-              {lastCreatedToken && (
-                <div className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
-                  <KeyRound className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <span className="flex-1 font-mono text-xs text-amber-800 dark:text-amber-300 break-all">{lastCreatedToken}</span>
-                  <button
-                    type="button"
-                    onClick={() => { void navigator.clipboard.writeText(lastCreatedToken); }}
-                    className="rounded p-1 text-amber-600 hover:bg-amber-200/50 dark:text-amber-400 dark:hover:bg-amber-800/30 transition-colors"
-                    title="Copiar token"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+              {lastCreatedToken && lastCreated && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}/register?email=${encodeURIComponent(lastCreated)}&token=${lastCreatedToken}`;
+                    void navigator.clipboard.writeText(url);
+                  }}
+                  className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-left hover:bg-amber-100/60 dark:hover:bg-amber-950/40 transition-colors w-full"
+                >
+                  <Link2 className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span className="flex-1 text-xs text-amber-800 dark:text-amber-300">Copiar link de registro para el fundador</span>
+                  <Copy className="h-3.5 w-3.5 text-amber-500" />
+                </button>
               )}
-              <p className="text-xs text-muted-foreground">Compartí este token con el fundador. Es necesario para completar el registro.</p>
+              <p className="text-xs text-muted-foreground">El link incluye el token de acceso. Enviáselo al fundador para que pueda registrarse.</p>
             </div>
           )}
           <button type="submit" disabled={creating}
@@ -892,18 +892,19 @@ function InvitationRow({
         </div>
       </div>
       {inv.status === "pending" && inv.invite_token && (
-        <div className="ml-11 flex items-center gap-1.5 rounded-md border border-amber-300/30 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-1">
-          <KeyRound className="h-3 w-3 shrink-0 text-amber-500" />
-          <span className="flex-1 font-mono text-[10px] text-amber-700 dark:text-amber-400 break-all">{inv.invite_token}</span>
-          <button
-            type="button"
-            onClick={() => { void navigator.clipboard.writeText(inv.invite_token!); }}
-            className="rounded p-0.5 text-amber-500 hover:bg-amber-200/50 dark:hover:bg-amber-800/30 transition-colors"
-            title="Copiar token"
-          >
-            <Copy className="h-3 w-3" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const url = `${window.location.origin}/register?email=${encodeURIComponent(inv.email)}&token=${inv.invite_token!}`;
+            void navigator.clipboard.writeText(url);
+          }}
+          className="ml-11 flex items-center gap-1.5 rounded-md border border-amber-300/30 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-1 text-left hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors w-[calc(100%-2.75rem)]"
+          title="Copiar link de registro"
+        >
+          <Link2 className="h-3 w-3 shrink-0 text-amber-500" />
+          <span className="flex-1 text-[10px] text-amber-700 dark:text-amber-400">Copiar link de registro</span>
+          <Copy className="h-3 w-3 text-amber-500" />
+        </button>
       )}
     </div>
   );

@@ -73,6 +73,9 @@ export async function verifyUserId(token: string): Promise<string | null> {
     }
   }
 
+  // In strict mode (production), reject tokens we can't verify against InsForge.
+  if (process.env.AUTH_STRICT_MODE === "true") return null;
+
   // Fallback: trust local decode (exp already verified above)
   return claims.sub;
 }

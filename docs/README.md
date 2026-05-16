@@ -12,11 +12,7 @@
 | [04_architecture_map.md](./04_architecture_map.md) | Mapa de dependencias, estructura de carpetas, changelog | **Lectura obligatoria** antes de modificar estructura |
 | [05_future_roadmap.md](./05_future_roadmap.md) | Features futuras: DWG, BIM, OCR, cómputo automático | Para planificar a largo plazo |
 
-## Documentos de planificación (para Claude Code)
+## Planificación
 
-| Archivo | Contenido | Prioridad |
-|---------|-----------|-----------|
-| [TAREAS_CLAUDE.md](./planning/TAREAS_CLAUDE.md) | **Bugs activos + tareas pendientes** con archivo y línea exacta | 🔴 Leer siempre al inicio |
-| [PLAN_DE_MEJORA.md](./planning/PLAN_DE_MEJORA.md) | Roadmap general: dockerización, seguridad, UX, responsive | Para planificar sprints |
-| [PLAN_LOGIN_FRONTEND_BACKEND.md](./planning/PLAN_LOGIN_FRONTEND_BACKEND.md) | Plan detallado de migración de auth a server-side | Si vas a tocar auth |
-| [PLAN_FLUJO_EMPRESAS.md](./planning/PLAN_FLUJO_EMPRESAS.md) | Flujo de roles, onboarding, invitaciones | Si vas a tocar roles o registro |
+El roadmap consolidado vive en la raíz del repo: [**ROADMAP.md**](../ROADMAP.md).
+Incluye pendientes técnicos heredados, mejoras estratégicas del agente y orden recomendado.

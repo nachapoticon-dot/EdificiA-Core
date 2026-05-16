@@ -1,5 +1,6 @@
 "use client";
 
+import { notFound } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ResponseBlock } from "@/components/chat/blocks";
 import {
@@ -69,6 +70,8 @@ const CONVERSATION: Message[] = [
 type BlockState = "tools" | "skeleton" | "ready";
 
 export default function BlocksDemoPage() {
+  if (process.env.NODE_ENV !== "development") notFound();
+
   const [visible, setVisible] = useState<string[]>([]);
   const [blockState, setBlockState] = useState<Record<string, BlockState>>({});
   const [tick, setTick] = useState(0);
