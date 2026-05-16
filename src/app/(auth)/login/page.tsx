@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { loginSchema, type LoginInput } from "@/lib/validators";
+import { ArrowRight, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 interface LoginApiResponse {
   ok?: boolean;
@@ -104,31 +105,47 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
-      <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="space-y-1">
-          <label htmlFor="email" className="text-sm font-medium text-foreground">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4 p-5 sm:p-6">
+      <div className="mb-6">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-[6px] border border-primary/20 bg-primary/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
+          <ShieldCheck className="h-3 w-3" />
+          Acceso privado
+        </div>
+        <h2 className="font-display text-[28px] font-normal leading-tight text-foreground">
+          Entrar a EdificIA
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Continuá el trabajo de tus obras con el contexto, los documentos y el historial de tu equipo.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Email
           </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="ingeniero@empresa.com"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
-            aria-invalid={!!errors.email}
-          />
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/55" />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="nombre@constructora.com"
+              className="w-full rounded-[8px] border border-input bg-background/80 px-3 py-2.5 pl-10 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 aria-invalid:border-destructive"
+              aria-invalid={!!errors.email}
+            />
+          </div>
           {errors.email && (
             <p className="text-xs text-destructive">{errors.email}</p>
           )}
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-sm font-medium text-foreground">
+            <label htmlFor="password" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Contraseña
             </label>
             <Link
@@ -138,36 +155,41 @@ function LoginForm() {
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={form.password}
-            onChange={handleChange}
-            placeholder="••••••••"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
-            aria-invalid={!!errors.password}
-          />
+          <div className="relative">
+            <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/55" />
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              className="w-full rounded-[8px] border border-input bg-background/80 px-3 py-2.5 pl-10 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 aria-invalid:border-destructive"
+              aria-invalid={!!errors.password}
+            />
+          </div>
           {errors.password && (
             <p className="text-xs text-destructive">{errors.password}</p>
           )}
         </div>
 
         {serverError && (
-          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p className="rounded-[8px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {serverError}
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Ingresando..." : "Ingresar"}
+        <Button type="submit" className="h-10 w-full gap-2 rounded-[8px]" disabled={loading}>
+          {loading ? "Ingresando..." : "Entrar al panel"}
+          {!loading && <ArrowRight className="h-4 w-4" />}
         </Button>
       </div>
-      <p className="text-center text-sm text-muted-foreground">
+
+      <p className="border-t border-border/70 pt-4 text-center text-sm text-muted-foreground">
         ¿Primera vez?{" "}
         <Link href="/register" className="font-medium text-primary hover:underline">
-          Crear cuenta
+          Activar cuenta
         </Link>
       </p>
     </form>

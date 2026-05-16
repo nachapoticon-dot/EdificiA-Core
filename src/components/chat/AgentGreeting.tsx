@@ -53,10 +53,42 @@ function fileTypeSummary(fileType?: SessionEntry["fileType"]): string {
 
 const ACCEPTED_EXTENSIONS = ".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp";
 
+const GENERIC_EMAIL_NAMES = new Set([
+  "admin", "administracion", "info", "contacto", "obra", "obras", "proyecto", "proyectos",
+  "ventas", "comercial", "soporte", "contabilidad", "facturacion", "rrhh", "usuario", "user",
+]);
+
+function inferFirstName(identity?: string): string | undefined {
+  const value = identity?.trim();
+  if (!value) return undefined;
+
+  if (!value.includes("@")) {
+    const first = value.replace(/\s+/g, " ").split(" ")[0];
+    return formatNameToken(first);
+  }
+
+  const localPart = value.split("@")[0]?.toLowerCase() ?? "";
+  if (!localPart || /\d/.test(localPart)) return undefined;
+
+  const parts = localPart
+    .split(/[._-]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length < 2) return undefined;
+  const first = parts[0];
+  if (!first) return undefined;
+  if (GENERIC_EMAIL_NAMES.has(first)) return undefined;
+  return formatNameToken(first);
+}
+
+function formatNameToken(token?: string): string | undefined {
+  if (!token || token.length < 2 || !/^[a-záéíóúñü]+$/i.test(token)) return undefined;
+  return token.charAt(0).toLocaleUpperCase("es-AR") + token.slice(1).toLocaleLowerCase("es-AR");
+}
+
 export function AgentGreeting({ userName, companyName, agentName, onQuickAction, onSessionSelect, onFileSelect }: AgentGreetingProps) {
-  // Email "ana@constructora.com" → "ana"; "Ana Pérez" → "Ana"
-  const rawName = userName?.split("@")[0]?.split(" ")[0];
-  const firstName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : undefined;
+  const firstName = inferFirstName(userName);
   const { sessions } = useSessionHistory();
   const { projects, activeProject, createProject, activateProject, isLoading, isCreating } = useProjectContext();
   const { data: coverage } = useProjectCoverage(activeProject?.id ?? null);
@@ -90,7 +122,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
   /* ── PROJECT PICKER — no active project ─────────────────────── */
   if (!activeProject) {
     return (
-      <div className="py-4">
+      <div className="py-6">
         <div className="mx-auto max-w-[720px] px-6">
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
@@ -106,10 +138,10 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.45 }}
             className="mb-8 text-center"
           >
-            <h1 className="font-display text-[38px] font-normal leading-[1.05] tracking-[-0.02em] text-foreground">
+            <h1 className="font-display text-[38px] font-normal leading-[1.05] text-foreground">
               {fullGreeting}
             </h1>
-            <h2 className="font-display text-[38px] font-normal leading-[1.05] tracking-[-0.02em] text-primary">
+            <h2 className="font-display text-[38px] font-normal leading-[1.05] text-primary">
               ¿En qué obra trabajamos hoy?
             </h2>
             <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -123,7 +155,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
             {projects.length > 0 && (
               <div className="mb-4">
                 <SectionLabel>Proyectos</SectionLabel>
-                <div className="mt-3 overflow-hidden rounded-[10px] border border-border bg-card">
+                <div className="mt-3 overflow-hidden rounded-[8px] border border-border bg-card/90 shadow-sm">
                   {projects.map((project, i) => (
                     <ProjectRow
                       key={project.id}
@@ -149,14 +181,14 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
                     onChange={(e) => setNewProjectName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
                     placeholder="Nombre de la obra o proyecto…"
-                    className="w-full rounded-[10px] border border-border bg-card py-3 pl-10 pr-4 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    className="w-full rounded-[8px] border border-border bg-card/95 py-3 pl-10 pr-4 text-[13px] text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
                     autoFocus={projects.length === 0}
                   />
                 </div>
                 <button
                   onClick={handleCreateProject}
                   disabled={!newProjectName.trim() || isCreating}
-                  className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-3 text-[13px] font-semibold text-primary-foreground transition-opacity disabled:opacity-40 hover:opacity-90"
+                  className="flex items-center gap-2 rounded-[8px] bg-primary px-4 py-3 text-[13px] font-semibold text-primary-foreground shadow-sm transition-opacity disabled:opacity-40 hover:opacity-90"
                 >
                   {isCreating
                     ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -180,7 +212,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="group w-full rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.03] py-8 text-center transition-all hover:border-primary/60 hover:bg-primary/[0.07]"
+              className="group w-full rounded-[8px] border border-dashed border-primary/40 bg-card/75 py-8 text-center shadow-sm transition-all hover:border-primary/60 hover:bg-primary/[0.06]"
             >
               <input
                 ref={fileInputRef}
@@ -190,7 +222,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
                 onChange={handleFileInputChange}
               />
               <div className="flex flex-col items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-primary/10 text-primary transition-colors group-hover:bg-primary/[0.16]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary transition-colors group-hover:bg-primary/[0.16]">
                   <Upload className="h-5 w-5" strokeWidth={1.5} />
                 </div>
                 <div>
@@ -213,7 +245,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
 
   /* ── NORMAL WELCOME — project selected ───────────────────────── */
   return (
-    <div className="py-4">
+    <div className="py-6">
       <div className="mx-auto max-w-[720px] px-6">
 
         {/* Eyebrow */}
@@ -231,10 +263,10 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.5 }}
           className="mb-3 text-center"
         >
-          <h1 className="font-display text-[40px] font-normal leading-[1.05] tracking-[-0.02em] text-foreground">
+          <h1 className="font-display text-[40px] font-normal leading-[1.05] text-foreground">
             {fullGreeting}
           </h1>
-          <h2 className="font-display text-[40px] font-normal leading-[1.05] tracking-[-0.02em]">
+          <h2 className="font-display text-[40px] font-normal leading-[1.05]">
             <em className="not-italic text-primary">¿Qué hacemos</em>{" "}
             <span className="text-foreground">hoy?</span>
           </h2>
@@ -251,7 +283,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.45 }}
           onClick={() => fileInputRef.current?.click()}
-          className="group mt-6 w-full rounded-[14px] border border-dashed border-primary/40 bg-primary/[0.03] py-10 text-center transition-all hover:border-primary/60 hover:bg-primary/[0.07]"
+          className="group mt-6 w-full rounded-[8px] border border-dashed border-primary/40 bg-card/75 py-10 text-center shadow-sm transition-all hover:border-primary/60 hover:bg-primary/[0.06]"
         >
           <input
             ref={fileInputRef}
@@ -261,7 +293,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
             onChange={handleFileInputChange}
           />
           <div className="flex flex-col items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-primary/10 text-primary transition-colors group-hover:bg-primary/[0.16]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary transition-colors group-hover:bg-primary/[0.16]">
               <Upload className="h-5 w-5" strokeWidth={1.5} />
             </div>
             <div>
@@ -287,7 +319,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
         <div className="flex flex-wrap justify-center gap-2">
           {QUICK_PROMPTS.map((p) => (
             <button key={p} onClick={() => onQuickAction(p)}
-              className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-foreground"
+              className="flex items-center gap-1.5 rounded-[8px] border border-border bg-card/85 px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-foreground"
             >
               <ArrowRight className="h-3 w-3 text-primary" />
               <span>{p}</span>
@@ -315,7 +347,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
                     ? `Falta: ${phase.missingRequired.map(d => d.label).join(", ")}`
                     : "Fase completa"
                   }
-                  className="flex items-center gap-1.5 rounded-[6px] border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
+                  className="flex items-center gap-1.5 rounded-[8px] border border-border bg-card/85 px-2.5 py-1.5 text-[11px] font-medium shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${
                     phase.status === "complete" ? "bg-[var(--ok)]" :
@@ -334,7 +366,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
             )}
             <button
               onClick={() => onQuickAction(`Analizá el estado actual de la obra "${activeProject.name}" y decime qué falta documentar en cada fase.`)}
-              className="mt-3 flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/[0.09]"
+              className="mt-3 flex items-center gap-1.5 rounded-[8px] border border-primary/30 bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/[0.09]"
             >
               <ArrowRight className="h-3 w-3" />
               Analizar estado con el agente
@@ -351,7 +383,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
             className="mt-10"
           >
             <SectionLabel>Trabajos recientes</SectionLabel>
-            <div className="mt-3 overflow-hidden rounded-[10px] border border-border bg-card">
+            <div className="mt-3 overflow-hidden rounded-[8px] border border-border bg-card/90 shadow-sm">
               {projectSessions.slice(0, 5).map((s, i) => {
                 const cfg = FILE_ICONS[s.fileType ?? ""];
                 const Icon = cfg?.Icon ?? MessageSquare;
@@ -409,4 +441,3 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

@@ -5,6 +5,7 @@
 export interface OrgMember {
   userId: string;
   email: string | null;
+  displayName: string | null;
   orgId: string;
   role: string;
   orgName: string;

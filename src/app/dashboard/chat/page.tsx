@@ -12,6 +12,7 @@ import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
 import { Compass, Download, Sheet } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";
 import { FileReadyView } from "@/components/chat/FileReadyView";
+import { TopBarActions } from "@/components/chat/TopBarActions";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
@@ -245,9 +246,9 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
   const exportTitle = pending?.processed.fileName ?? messages[0]?.id ?? "Auditoría EdificIA";
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-background/55">
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-2 border-b bg-card px-6 py-3">
+      <header className="flex shrink-0 items-center gap-2 border-b bg-card/85 px-6 py-3 backdrop-blur">
         <Compass className="h-3.5 w-3.5 text-primary" />
         <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
         {isStreaming && (
@@ -282,19 +283,20 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
               <span className="h-4 w-px bg-border" />
             </>
           )}
+          <TopBarActions />
           <span className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-            DeepSeek V3
+            DeepSeek V4 Flash
           </span>
         </div>
       </header>
 
       {/* Messages + Drop Zone */}
       <DropZone onFileDrop={handleFileSelect} canUpload={canUpload}>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto ed-blueprint-bg">
           {messages.length === 0 && !pending ? (
             <div className="min-h-full flex flex-col justify-center">
               <AgentGreeting
-                userName={currentUser?.email ?? undefined}
+                userName={currentUser?.displayName ?? currentUser?.email ?? undefined}
                 companyName={currentUser?.orgName ?? undefined}
                 agentName={currentUser?.branding.agentName ?? undefined}
                 onQuickAction={(text) => setInput(text)}
@@ -336,7 +338,7 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
       )}
 
       {/* Input area */}
-      <div className="shrink-0 border-t bg-background py-4">
+      <div className="shrink-0 border-t bg-background/85 py-4 backdrop-blur">
         <div className="mx-auto max-w-[720px] px-6">
           {isUploading && <UploadProgressCard />}
 
@@ -507,5 +509,3 @@ function buildImagePrompt(fileName: string): string {
   const safe = safeStr(fileName);
   return `__file_meta__:${JSON.stringify({ fileName, type: "image" })}\nImagen "${safe}" adjunta. Si es una planilla o presupuesto: extraé ítems, cantidades y precios. Si es un plano: describí elementos constructivos y dimensiones visibles. Si es otra cosa: describí qué ves y su relevancia para auditoría de construcción.`;
 }
-
-

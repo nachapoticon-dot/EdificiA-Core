@@ -21,6 +21,13 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 - Al terminar una tarea, dar un resumen breve: qué se hizo, qué archivos se tocaron, y si quedó algo pendiente.
 - No repetir contexto que ya se dio. Si el usuario ya explicó algo, no parafrasearlo de vuelta.
 
+### Coordinación con Codex
+
+- Codex usa `AGENTS.md` como guía operativa equivalente a este archivo.
+- Al terminar una tarea relevante o dejar trabajo incompleto, agregar una entrada breve en `docs/AI_WORKLOG.md`.
+- Si se modifica una regla crítica en `CLAUDE.md` (auth, multi-tenancy, edición, verificación, prioridades), evaluar si también debe reflejarse en `AGENTS.md`.
+- Antes de retomar una tarea iniciada por otro agente, revisar `docs/AI_WORKLOG.md`.
+
 ### Toma de decisiones
 
 - **Priorizar lo simple y lo existente.** Usar las librerías que ya están en `package.json` antes de proponer nuevas.
@@ -63,7 +70,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 ## 4 · Autenticación — Cómo funciona
 
-1. **Middleware** (`src/middleware.ts`): Protege `/dashboard/*`. Lee cookie `edificia_session`, valida JWT localmente, redirige a `/login` si no hay sesión.
+1. **Proxy / Middleware** (`src/proxy.ts`): Protege `/dashboard/*`. Lee cookie `edificia_session`, valida JWT localmente, redirige a `/login` si no hay sesión. También maneja CORS para `/api/*`.
 2. **API routes**: Usan `requireAuth(req)` de `src/lib/auth/require-auth.ts`. Extrae Bearer token, verifica contra InsForge, resuelve org membership.
 3. **Cliente**: `getAuthToken()` en `src/lib/insforge/client.ts` maneja refresh automático del token.
 4. **Roles**: `admin` | `engineer` | `viewer`. Los admins acceden a `/api/admin/*`. Los viewers solo chatean.
@@ -101,6 +108,14 @@ src/
 | `ROADMAP.md` (raíz) | **Siempre al inicio**. Pendientes, mejoras estratégicas y orden recomendado. |
 | `docs/04_architecture_map.md` | Para ver el grafo de dependencias y el stack de paquetes. |
 | `docs/03_domain_knowledge.md` | Antes de tocar lógica de auditoría / dominio de obra. |
+| `docs/06_enterprise_context_layer.md` | Antes de diseñar Base Documental, conectores, RAG empresarial o auditoría transversal. |
+| `docs/07_agentic_document_reading.md` | Antes de modificar prompt, tools de documentos o UX de auditoría. |
+
+## 7.1 · Decisiones de producto vigentes
+
+1. **Base Documental evoluciona a Contexto Empresarial.** EdificIA no debe pensarse como un repositorio de archivos subidos. Debe conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
+2. **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
+3. **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
 
 ## 8 · Reglas de código
 

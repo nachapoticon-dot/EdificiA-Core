@@ -70,14 +70,14 @@ export function ChatInput({
 
   return (
     <div className={cn(
-      "rounded-[14px] border border-border bg-card shadow-sm transition-all duration-150",
-      "focus-within:border-primary/40 focus-within:shadow-[0_4px_24px_0_rgb(0_0_0/0.08)]",
+      "rounded-[8px] border border-border bg-card/95 shadow-sm transition-all duration-150 ed-technical-border",
+      "focus-within:border-primary/40 focus-within:shadow-[0_10px_32px_0_rgb(0_0_0/0.10)]",
       isUploading && "opacity-70",
     )}>
 
       {/* Attached file chip */}
       {attachedChip && Icon && (
-        <div className="flex items-center gap-2.5 border-b border-border/50 bg-muted/40 px-4 py-2">
+        <div className="flex items-center gap-2.5 border-b border-border/50 bg-muted/45 px-4 py-2">
           <Icon className="h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.5} />
           <span className="flex-1 truncate text-xs font-medium text-foreground">
             {attachedChip.name}
@@ -119,7 +119,7 @@ export function ChatInput({
           disabled={isStreaming || isUploading || disabled || !canUpload}
           title={canUpload ? "Adjuntar archivo" : "No tenés permisos para adjuntar archivos"}
           className={cn(
-            "shrink-0 flex h-7 w-7 items-center justify-center rounded-lg",
+            "shrink-0 flex h-8 w-8 items-center justify-center rounded-[7px]",
             "text-muted-foreground/60 transition-colors",
             canUpload
               ? "hover:bg-primary/[0.07] hover:text-primary"
@@ -152,13 +152,13 @@ export function ChatInput({
         {/* Stop / Send */}
         {isStreaming ? (
           <button type="button" onClick={onStop} title="Detener"
-            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground/70 transition-colors hover:bg-accent">
+            className="shrink-0 flex h-8 w-8 items-center justify-center rounded-[7px] bg-muted text-foreground/70 transition-colors hover:bg-accent">
             <Square className="h-3 w-3 fill-current" />
           </button>
         ) : (
           <button type="button" onClick={onSubmit} disabled={!canSend} title="Enviar"
             className={cn(
-              "shrink-0 flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-100",
+              "shrink-0 flex h-8 w-8 items-center justify-center rounded-[7px] transition-all duration-100 shadow-sm",
               "bg-primary text-primary-foreground",
               "hover:opacity-90 active:scale-[0.92]",
               "disabled:cursor-not-allowed disabled:opacity-25 disabled:active:scale-100",

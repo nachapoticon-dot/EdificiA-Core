@@ -1,6 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { apiForbidden } from "@/lib/api/errors";
 
 export const runtime = "nodejs";
 
@@ -13,7 +12,7 @@ interface PatternRow {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const auth = await requireAuth(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
 
   const client = getInsForgeAdminClient();
@@ -43,9 +42,8 @@ export async function GET(req: Request): Promise<Response> {
 
 /** POST — promote a pattern to industry_benchmarks */
 export async function POST(req: Request): Promise<Response> {
-  const auth = await requireAuth(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
-  if (auth.role !== "admin") return apiForbidden();
 
   const body = (await req.json()) as { documentType?: string; patternKey?: string };
   if (!body.documentType || !body.patternKey) {
@@ -86,9 +84,8 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 export async function DELETE(req: Request): Promise<Response> {
-  const auth = await requireAuth(req);
+  const auth = await requireAuth(req, { role: "admin" });
   if (auth instanceof Response) return auth;
-  if (auth.role !== "admin") return apiForbidden();
 
   const body = (await req.json()) as { documentType?: string; patternKey?: string };
   if (!body.documentType || !body.patternKey) {

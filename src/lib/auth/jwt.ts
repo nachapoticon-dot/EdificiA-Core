@@ -4,6 +4,12 @@ interface JwtClaims {
   sub?: string;
   email?: string;
   exp?: number;
+  name?: string;
+  full_name?: string;
+  user_metadata?: {
+    name?: string;
+    full_name?: string;
+  };
 }
 
 // Cache: last 20 chars of token → { userId | null, expiresAt }
@@ -19,8 +25,8 @@ export function decodeUserId(jwt: string): string | null {
   return decodeClaims(jwt)?.sub ?? null;
 }
 
-/** Decodes userId + email from the JWT payload without verifying signature. */
-export function decodeClaims(jwt: string): { sub: string; email: string | null } | null {
+/** Decodes userId + profile hints from the JWT payload without verifying signature. */
+export function decodeClaims(jwt: string): { sub: string; email: string | null; name: string | null } | null {
   try {
     const payload = jwt.split(".")[1];
     if (!payload) return null;
@@ -29,7 +35,8 @@ export function decodeClaims(jwt: string): { sub: string; email: string | null }
     if (claims.exp && claims.exp < Math.floor(Date.now() / 1000)) return null;
     const sub = claims.sub;
     if (!sub || typeof sub !== "string" || sub.length < 10) return null;
-    return { sub, email: claims.email ?? null };
+    const name = claims.name ?? claims.full_name ?? claims.user_metadata?.name ?? claims.user_metadata?.full_name ?? null;
+    return { sub, email: claims.email ?? null, name };
   } catch {
     return null;
   }
