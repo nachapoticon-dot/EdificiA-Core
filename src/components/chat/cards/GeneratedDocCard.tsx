@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FileSpreadsheet, FileType2, FileText, Download, CheckCircle2, AlertCircle, Wand2, X } from "lucide-react";
+import { FileSpreadsheet, FileType2, FileText, FileSignature, ClipboardList, Download, CheckCircle2, AlertCircle, Wand2, X } from "lucide-react";
 import { getAuthHeaders } from "@/lib/insforge/client";
 
 export interface DocGenerationProposal {
   type: "doc_generation_proposal";
-  docType: "presupuesto_excel" | "memoria_descriptiva" | "informe_pdf";
+  docType: "presupuesto_excel" | "memoria_descriptiva" | "informe_pdf" | "orden_compra" | "acta_obra";
   fileName: string;
   description: string;
   payload: Record<string, unknown>;
@@ -40,6 +40,24 @@ const DOC_CONFIG = {
     ext: ".pdf",
     apiRoute: "/api/generate/informe",
     label: "Informe de Auditoría",
+  },
+  orden_compra: {
+    Icon: FileSignature,
+    color: "text-[oklch(0.55_0.18_85)]",
+    bg: "bg-[oklch(0.97_0.04_85)]",
+    border: "border-[oklch(0.88_0.09_85)]",
+    ext: ".docx",
+    apiRoute: "/api/generate/orden-compra",
+    label: "Orden de Compra",
+  },
+  acta_obra: {
+    Icon: ClipboardList,
+    color: "text-[oklch(0.50_0.13_175)]",
+    bg: "bg-[oklch(0.96_0.04_175)]",
+    border: "border-[oklch(0.86_0.08_175)]",
+    ext: ".docx",
+    apiRoute: "/api/generate/acta-obra",
+    label: "Parte Diario de Obra",
   },
 } as const;
 

@@ -8,7 +8,7 @@ import {
   calcularTotalLinea,
   detectarExclusionesLogicas,
   validarCierreDeTotal,
-} from "../src/lib/math-engine/index.ts";
+} from "../../src/lib/math-engine/index.ts";
 
 function item(overrides = {}) {
   return {

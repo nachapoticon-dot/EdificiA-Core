@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as XLSX from "xlsx";
 
-import { parseArgFloat, parseExcelBudget } from "../src/lib/excel/parser.ts";
+import { parseArgFloat, parseExcelBudget } from "../../src/lib/excel/parser.ts";
 
 describe("excel parser", () => {
   it("parsea formatos numericos argentinos", () => {

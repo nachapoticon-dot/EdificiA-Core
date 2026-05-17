@@ -313,6 +313,8 @@ export default function ChatPage() {
       proposal.docType === "presupuesto_excel" ? "presupuesto Excel"
       : proposal.docType === "memoria_descriptiva" ? "memoria descriptiva"
       : proposal.docType === "informe_pdf" ? "informe PDF"
+      : proposal.docType === "orden_compra" ? "orden de compra"
+      : proposal.docType === "acta_obra" ? "parte diario de obra"
       : "documento";
     const payloadJson = JSON.stringify(proposal.payload).slice(0, 12_000);
     const text = `Ajustá el ${docLabel} "${proposal.fileName}" que generaste recién según estas indicaciones:

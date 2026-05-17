@@ -14,6 +14,7 @@ export const KpiSchema = z.object({
   delta: z.number().optional(),             // % con signo
   alert: z.boolean().optional(),            // resalta en --warn
   sub: z.string().optional(),               // "vs presupuesto base"
+  confidence: z.number().min(0).max(100).optional(),
 });
 
 export const BarSchema = z.object({
@@ -21,6 +22,7 @@ export const BarSchema = z.object({
   value: z.number(),                        // en $ AR
   pct: z.number().optional(),
   alert: z.boolean().optional(),
+  confidence: z.number().min(0).max(100).optional(),
 });
 
 export const MetricsSpec = z.object({

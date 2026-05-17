@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseScheduleCsv, tokenizeCsv } from "../src/lib/schedule/csv-importer.ts";
+import { parseScheduleCsv, tokenizeCsv } from "../../src/lib/schedule/csv-importer.ts";
 
 test("schedule csv-importer", async (t) => {
   await t.test("tokeniza comillas dobles, comas embebidas y newlines", () => {

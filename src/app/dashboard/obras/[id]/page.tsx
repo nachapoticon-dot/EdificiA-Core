@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -8,7 +9,7 @@ import {
   ArrowLeft, MessageSquare, Building2,
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
   CheckCircle2, Circle, ChevronDown, ChevronRight,
-  Pencil, Check, X, Hash, MapPin, Banknote,
+  Pencil, Check, X, Hash, MapPin, Banknote, CalendarDays,
 } from "lucide-react";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { useProjectCoverage } from "@/hooks/useProjectCoverage";
@@ -242,6 +243,13 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
                   </span>
                 </div>
               )}
+              <button
+                onClick={() => router.push(`/dashboard/obras/${id}/today` as Route)}
+                className="flex items-center gap-2 rounded-[10px] border border-border bg-background px-4 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-accent"
+              >
+                <CalendarDays className="h-4 w-4" />
+                Día en la obra
+              </button>
               <button
                 onClick={handleConverse}
                 className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"

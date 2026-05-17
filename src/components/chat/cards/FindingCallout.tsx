@@ -11,6 +11,7 @@ export interface FindingSpec {
   detail: string;
   impact?: string;
   item?: string;
+  confidence?: number;
 }
 
 const SEVERITY_STYLES = {
@@ -40,6 +41,7 @@ const SEVERITY_STYLES = {
 export function FindingCallout({ spec }: { spec: FindingSpec }) {
   const s = SEVERITY_STYLES[spec.severity];
   const Icon = s.icon;
+  const confidence = normalizeConfidence(spec.confidence);
 
   return (
     <div className={cn(
@@ -55,8 +57,22 @@ export function FindingCallout({ spec }: { spec: FindingSpec }) {
               {spec.code}
             </span>
             <span className="text-[13px] font-semibold text-foreground">{spec.title}</span>
+            {confidence != null && (
+              <span className="rounded px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground ring-1 ring-border">
+                {confidence}% conf.
+              </span>
+            )}
           </div>
           <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{spec.detail}</p>
+
+          {confidence != null && (
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+              <div
+                className={cn("h-full rounded-full bg-current transition-[width] duration-500", s.iconColor)}
+                style={{ width: `${confidence}%` }}
+              />
+            </div>
+          )}
 
           {/* Optional metadata row */}
           {(spec.item ?? spec.impact) && (
@@ -78,4 +94,10 @@ export function FindingCallout({ spec }: { spec: FindingSpec }) {
       </div>
     </div>
   );
+}
+
+function normalizeConfidence(value: number | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const pct = value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(pct)));
 }

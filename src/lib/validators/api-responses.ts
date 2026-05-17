@@ -200,6 +200,77 @@ export const scheduleImportResponseSchema = z.object({
 
 export type ScheduleImportResponse = z.infer<typeof scheduleImportResponseSchema>;
 
+export const dailyBriefResponseSchema = z.object({
+  found: z.boolean(),
+  projectId: z.string(),
+  projectName: z.string(),
+  generatedAt: z.string(),
+  schedule: z.object({
+    overdue: z.number().int().nonnegative(),
+    dueToday: z.number().int().nonnegative(),
+    dueNext7Days: z.number().int().nonnegative(),
+    blocked: z.number().int().nonnegative(),
+    items: z.array(z.object({
+      id: z.string(),
+      code: z.string().nullable(),
+      name: z.string(),
+      dueDate: z.string().nullable(),
+      status: z.string(),
+      progressPct: z.number(),
+      bucket: z.enum(["overdue", "due_today", "due_soon", "blocked"]),
+    })),
+  }),
+  hse: z.object({
+    expiringSoon: z.number().int().nonnegative(),
+    expired: z.number().int().nonnegative(),
+    items: z.array(z.object({
+      id: z.string(),
+      subject: z.string(),
+      recordType: z.string(),
+      expiresAt: z.string().nullable(),
+      status: z.string(),
+      daysToExpire: z.number().int().nullable(),
+    })),
+  }),
+  supplies: z.object({
+    delayed: z.number().int().nonnegative(),
+    upcoming: z.number().int().nonnegative(),
+    items: z.array(z.object({
+      id: z.string(),
+      itemName: z.string(),
+      requiredBy: z.string().nullable(),
+      status: z.string(),
+      receivedPct: z.number().int().nullable(),
+    })),
+  }),
+  financial: z.object({
+    latestSnapshotDate: z.string().nullable(),
+    plannedAmount: z.number().nullable(),
+    actualAmount: z.number().nullable(),
+    committedAmount: z.number().nullable(),
+    deviationPct: z.number().nullable(),
+    currency: z.string(),
+  }),
+  alerts: z.object({
+    critical: z.number().int().nonnegative(),
+    warning: z.number().int().nonnegative(),
+    info: z.number().int().nonnegative(),
+    topTitles: z.array(z.string()),
+  }),
+  weather: z.object({
+    location: z.string(),
+    date: z.string(),
+    riskLevel: z.string(),
+    precipitationMm: z.number().nullable(),
+    windKph: z.number().nullable(),
+    tempMinC: z.number().nullable(),
+    tempMaxC: z.number().nullable(),
+  }).nullable(),
+  summary: z.string(),
+});
+
+export type DailyBriefResponse = z.infer<typeof dailyBriefResponseSchema>;
+
 export const orgMemberResponseSchema = z.object({
   userId: z.string(),
   email: z.string().email().nullable(),

@@ -230,6 +230,24 @@ Formato:
 - Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK; smoke directo contra Open-Meteo para `Cordoba, Argentina` OK (7 días de forecast).
 - Pendiente: si se necesita precisión contractual, parametrizar umbrales por tipo de tarea y pliego.
 
+## 2026-05-17 - Claude - 5 tools writer + step budget tier-aware + expansión roadmap (roadmap §1.3, §2.1, §2.2, §2.4)
+
+- Objetivo: cerrar asimetría reader/writer del agente (las tools recientes solo leían tablas que nadie llenaba) y agregar capacidades agénticas observables. Expandir el roadmap con la próxima ola de mejoras agénticas.
+- Cambios:
+  - **Tool writer `registrar_snapshot_financiero`**: escribe a `project_financial_snapshots`. Upsert por `(organization_id, project_id, snapshot_date)`. Acepta planned/actual/committed/invoiced/paid + currency. Source siempre `agent`. Audit log `financial.snapshot_registered` / `financial.snapshot_updated`. Cierra el gap de `auditar_curva_inversion` (que leía nada).
+  - **Tool writer `registrar_hse_record`**: escribe a `project_hse_records`. Cálculo automático de status desde `expiresAt`: `valid` >14d, `expiring` ≤14d, `expired` si vencido. Acepta subjectName / subcontractorName / workerIdentifier (al menos uno requerido). Audit log `hse.record_registered`.
+  - **Tool writer `registrar_acopio`**: modo `create` (insert si no existe item con mismo nombre, ilike) o `update` (patch del row existente). Status inferido por `computeSupplyStatus()` extraído a `supply-status.ts` (módulo puro testeable). Audit log `supply.item_registered` / `supply.item_updated`.
+  - **Tool writer `resolver_relacion_documental`**: cierra el knowledge graph. Action `confirm` eleva confidence a 1 y `detected_by=user`. Action `dismiss` soft-deletea con metadata.resolution. Action `supersede` crea nueva relación `supersedes` en sentido inverso y descarta la original. Audit log `obra_relation.{confirmed,dismissed,superseded}`.
+  - **Tool reader `resumen_diario_obra`**: agregador atómico. Consolida tareas (overdue / due_today / due_soon / blocked), HSE (expired / expiring ≤7d / incident), acopios (delayed / upcoming ≤14d), último snapshot financiero con desvío, alertas top de proactivity y clima del día opcional (via Open-Meteo si se pasa `includeWeather`). Devuelve summary string compacto + colecciones para render. PM-friendly briefing en un solo llamado.
+  - **Step budget tier-aware**: `/api/chat` ahora calcula `stepBudget = route.tier === "deep" ? 35 : 20` y lo pasa a `stopWhen: stepCountIs(stepBudget)`. El budget se loguea con el routing y se persiste en `audit_log_events.payload.stepBudget`. Auditorías complejas dejan de cortarse antes de cerrar el resumen.
+  - **Prompt**: nueva sección "Capturar datos operativos cuando el usuario los informa" explica cuándo usar las 4 tools de write (snapshot financiero, HSE, acopio, reprogramación) — regla central: si el usuario da cifra concreta con sujeto y fecha, registrala; si es ambiguo, NO inventes. Nueva sección "Brief diario de obra" instruye `resumen_diario_obra` ante preguntas operativas amplias. Sección de knowledge graph ampliada con `resolver_relacion_documental`.
+  - **Labels UI** en `MessageBubble.tsx` para las 5 tools nuevas.
+  - **Tests**: `tests/project-writers.test.mjs` cubre `computeSupplyStatus` (5 casos: received, partial, ordered, planned, default). Total 27 tests.
+  - **ROADMAP expandido**: §1.3 marcadas las 5 tools writer completadas + bullets nuevas para `generar_orden_compra`, `generar_acta_obra`, `enviar_email_stakeholder`, `registrar_subcontrato`, `auditar_subcontratos`. §2.1 sumadas mejoras agénticas pendientes: hypothesis branching, retry strategy, tool telemetry, memoria activa escribible. §2.2 knowledge graph desdoblado en lectura ✅ / resolución ✅ / extensión semántica 🟡 / UI exploratoria 🟢. §2.4 UX explainability: confidence visible 🟡, "por qué" expandible 🟡, replay de auditoría 🟡, "Día en la obra" dashboard 🟢.
+- Archivos: `src/lib/project-operations/writers.ts` (nuevo, 5 helpers), `src/lib/project-operations/supply-status.ts` (nuevo, helper puro), `src/lib/project-operations/daily-brief.ts` (nuevo), `src/lib/ai/agent-tools.ts`, `src/lib/ai/agent-tools-bound.ts`, `src/lib/ai/agent-prompt.ts`, `src/app/api/chat/route.ts`, `src/components/chat/MessageBubble.tsx`, `tests/project-writers.test.mjs` (nuevo), `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (27/27, +6 desde la corrida anterior).
+- Pendiente: las 5 tools no tienen tests de integración contra DB real (solo `computeSupplyStatus` puro). Cuando se haya datos en una org de staging, validar que `audit_log_events` registra los eventos correctos y que el agente respeta las reglas del prompt (no inventar). El bullet "Día en la obra" del roadmap §2.4 (UI espejo del `resumen_diario_obra`) queda pendiente.
+
 ## 2026-05-16 - Claude - Knowledge graph obra_relations (roadmap §2.2)
 
 - Objetivo: cerrar el item 🔥 L "Knowledge graph de obra" del ROADMAP §2.2. Modela relaciones entre documentos para responder "¿qué docs se contradicen?" y trazabilidad de versiones.
@@ -307,3 +325,124 @@ Formato:
 - Archivos: `src/lib/project-operations/personnel.ts` (nuevo), `src/lib/project-operations/schedule.ts` (nuevo), `src/lib/project-operations/financial-curve.ts` (nuevo), `src/lib/ai/agent-tools.ts`, `src/lib/ai/agent-tools-bound.ts`, `src/lib/ai/agent-prompt.ts`, `src/components/chat/MessageBubble.tsx`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
 - Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (8 tests, suites previas siguen verdes).
 - Pendiente: tests integrales contra DB real para las 3 tools (hoy solo cubre que compilan y el prompt está alineado). `notifyTo` queda registrado en el audit_log pero no dispara emails — cuando se conecte Resend a alertas operativas, leerlo desde `audit_log_events` filtrando `event_type='schedule.rescheduled'`.
+
+## 2026-05-17 - Codex - Dashboard Día en la obra
+
+- Objetivo: completar el espejo UI del `resumen_diario_obra` pendiente en roadmap §2.4.
+- Cambios: agregado endpoint autenticado `GET /api/projects/[id]/daily-brief`, hook `useDailyProjectBrief()` y página `/dashboard/obras/[id]/today` con cronograma, HSE, acopios, curva S, alertas de proactividad, clima y CTA "Auditar lo nuevo". `buildDailyBrief()` ahora usa la ubicación de la obra como fallback para clima. El detalle de obra enlaza a la nueva vista.
+- Archivos: `src/app/api/projects/[id]/daily-brief/route.ts`, `src/hooks/useDailyProjectBrief.ts`, `src/app/dashboard/obras/[id]/today/page.tsx`, `src/app/dashboard/obras/[id]/page.tsx`, `src/lib/project-operations/daily-brief.ts`, `src/lib/validators/api-responses.ts`, `docs/04_architecture_map.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (27/27); `curl -I /dashboard/obras/test/today` redirige a login por proxy; `curl -I /api/projects/test/daily-brief` devuelve 401 sin auth.
+- Pendiente: QA visual autenticado con una obra que tenga datos operativos reales; el schedule InsForge público de proactividad sigue pendiente de deploy/URL pública.
+
+## 2026-05-17 - Codex - Super Admin visual + tools de subcontratos
+
+- Objetivo: mejorar visualmente `/super-admin` completo y cerrar el pendiente local de tools de subcontratos del roadmap §1.3.
+- Cambios: rediseñada la pantalla de acceso Super Admin con layout editorial técnico, fondo blueprint, señales operativas y card de acceso más consistente. El panel autenticado ahora usa header, tabs, métricas, cards y filas más densas/responsivas. Agregado `subcontracts.ts` con `registerSubcontract()` y `auditSubcontracts()`, tools `registrar_subcontrato` / `auditar_subcontratos`, labels UI y prompt operativo.
+- Archivos: `src/app/super-admin/page.tsx`, `src/lib/project-operations/subcontracts.ts`, `src/lib/ai/agent-tools.ts`, `src/lib/ai/agent-tools-bound.ts`, `src/lib/ai/agent-prompt.ts`, `src/components/chat/MessageBubble.tsx`, `docs/04_architecture_map.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (27/27); `curl -I /super-admin` responde 200.
+- Pendiente: QA visual autenticado real en `/super-admin` con `SUPER_ADMIN_KEY`; tests integrales de subcontratos contra DB de staging.
+
+## 2026-05-17 - Codex - Super Admin sobrio + confidence visible
+
+- Objetivo: corregir el login/estadísticas de Super Admin y cerrar el pendiente de confidence visible del roadmap §2.4.
+- Cambios: login `/super-admin` reemplazado por consola compacta de uso privado, sin hero vacío. Estadísticas rehechas como dashboard operativo con KPIs sobrios, capacidad agregada, ranking de storage, distribución comercial y tabla de salud por tenant. `FindingCallout` ahora muestra badge/barra de confidence 0-100; `proyectar_metricas` acepta confidence en KPIs/barras y lo renderiza.
+- Archivos: `src/app/super-admin/page.tsx`, `src/components/chat/cards/FindingCallout.tsx`, `src/components/chat/blocks/MetricsBlock.tsx`, `src/lib/validators/blocks.ts`, `src/lib/ai/agent-tools.ts`, `src/lib/ai/agent-prompt.ts`, `ROADMAP.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (27/27); `curl -I /super-admin` responde 200.
+- Pendiente: QA visual autenticado real en `/super-admin` con datos de producción/staging.
+
+## 2026-05-17 - Claude - Tools de generación + email stakeholders (roadmap §1.3)
+
+- Objetivo: cerrar el último ítem 🟡 M abierto de §1.3 con las 3 tools de generación faltantes para completar la capa operativa del PM Digital.
+- Cambios:
+  - **`generar_orden_compra`** (tool + `/api/generate/orden-compra` + `generateOrdenCompraBuffer`): arma OC en .docx con header de obra, datos de proveedor (nombre, contacto, email, teléfono), tabla de items con totales por línea, totales (subtotal, IVA %, total), bloque de condiciones (lugar de entrega, fecha, forma de pago, notas) y firma. Acepta `supplyItemId` opcional para trazabilidad al acopio. Devuelve `doc_generation_proposal` con `docType: "orden_compra"` para que `GeneratedDocCard` lo renderice.
+  - **`generar_acta_obra`** (tool + `/api/generate/acta-obra` + `generateActaObraBuffer`): genera parte diario en .docx con secciones para clima, cuadrilla (rol/nombre/subcontratista/conteo), tareas ejecutadas (descripción + avance + observaciones), materiales recibidos, incidentes HSE (con severidad leve/moderado/critico color-coded), visitas en obra y notas. Header con fecha formateada a es-AR. Firma del capataz.
+  - **`enviar_email_stakeholder`** (tool + `src/lib/project-operations/notifications.ts`): envía emails vía Resend con whitelist estricta por proyecto. Whitelist = emails de contactos de subcontratos no eliminados (`project_subcontracts.contact_email`). Validaciones: máx 5 destinatarios totales (to+cc), asunto 3-160 chars, body 10-5000 chars. Casos de rechazo cubiertos: `missing_recipients`, `too_many_recipients`, `invalid_subject`, `invalid_body`, `empty_whitelist`, `whitelist_blocked`, `no_api_key`, `send_failed`, `send_exception`. Cada caso registra evento en audit log (`email.stakeholder_sent` / `_dry_run` / `_failed`). Template HTML sobrio con header EdificIA y cuerpo con párrafos formateados.
+  - **`createBoundTools(orgId, actorUserId?)`**: extendido para inyectar `actorUserId` server-verified en el tool de email (para audit log). El chat route pasa `auth.userId`.
+  - **UI**: `GeneratedDocCard.DOC_CONFIG` ahora soporta `orden_compra` (icon `FileSignature`, ocre) y `acta_obra` (icon `ClipboardList`, teal). `DocGenerationProposal.docType` extendido con los dos nuevos valores. `MessageBubble` labels: "Armando orden de compra", "Generando parte diario de obra", "Enviando email a stakeholders".
+  - **Prompt**: "Generación de documentos" lista las 2 tools nuevas con reglas (no inventar precios/cantidades, pedir datos faltantes). Nueva sección "Comunicación con stakeholders" explica: 1) pedir confirmación explícita antes de enviar, 2) qué hacer ante cada `reason` de rechazo, 3) máx 5 destinatarios, 4) no incluir PII salvo pedido explícito.
+  - **Tests**: `tests/docx-generators.test.mjs` con 6 casos: OC con datos mínimos / OC completa con IVA / cálculo automático de totales; acta mínima / acta completa con todos los campos / formateo de fecha. Verifica que cada buffer empiece con el magic header ZIP (0x50 0x4B) y supere los 5KB cuando lleva contenido. Total: 35 tests (+8 desde la corrida anterior).
+- Archivos:
+  - `src/lib/export/generate-docx.ts` (+`generateOrdenCompraBuffer`, +`generateActaObraBuffer`, +tipos `OrdenCompraData`, `ActaObraData` y sub-tipos)
+  - `src/app/api/generate/orden-compra/route.ts` (nuevo)
+  - `src/app/api/generate/acta-obra/route.ts` (nuevo)
+  - `src/lib/project-operations/notifications.ts` (nuevo)
+  - `src/lib/ai/agent-tools.ts` (+3 tools)
+  - `src/lib/ai/agent-tools-bound.ts` (+3 bound tools, signature extendida con actorUserId)
+  - `src/lib/ai/agent-prompt.ts` (+sección stakeholders, +reglas de generación)
+  - `src/components/chat/cards/GeneratedDocCard.tsx` (+2 docTypes en DOC_CONFIG)
+  - `src/components/chat/MessageBubble.tsx` (+3 labels, +2 SPECIAL_TOOLS)
+  - `src/app/api/chat/route.ts` (pasa userId a createBoundTools)
+  - `tests/docx-generators.test.mjs` (nuevo)
+  - `ROADMAP.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (35/35, +8 desde corrida previa).
+- Pendiente: validar contra una org con subcontratos reales que la whitelist filtra correctamente (hoy solo cubierto a nivel de unit test indirecto). El envío real de emails requiere `RESEND_API_KEY` y un `RESEND_FROM_EMAIL` con dominio verificado en Resend; sin estos vars el tool devuelve `reason: "no_api_key"` y queda el dry-run en audit log. Para tests E2E con descarga, abrir el chat con una obra activa, pedir "armá la OC a X por Y kg de hierro a $Z" y validar que el `GeneratedDocCard` descarga el .docx correctamente.
+
+## 2026-05-17 - Claude - Hypothesis branching + retry strategy + tool telemetry (roadmap §2.1)
+
+- Objetivo: cerrar el bloque de tres ítems 🟡 M de §2.1 sobre inteligencia agéntica observable y estructurada.
+- Cambios:
+  - **Hypothesis branching** (`src/lib/ai/hypothesis-parser.ts` + `src/components/chat/cards/HypothesisBlock.tsx`): parser puro `extractHypothesis(text)` extrae `<hypothesis>{branches:[...],chosen?,rationale?}</hypothesis>` con manejo de streaming (oculta JSON parcial mientras la etiqueta no cerró). Validación estricta: cada rama requiere `name`, `confidence` numérico, `evidence`. UI render con ramas ordenadas por confianza desc, badge "elegida" en la rama seleccionada, barra de progreso por confianza, rationale al pie. Integrado en `MessageBubble.TextPart` antes del bloque de plan (la hipótesis precede al plan cuando se emiten ambos).
+  - **Retry strategy estructurada** (`agent-prompt.ts`): nueva sección "Retry estructurado cuando una tool falla" con patrón en 5 pasos: leer error → ajustar inputs → reintentar UNA vez → declarar límite → no loop con mismos inputs. Lista explícita de casos donde NO reintentar (whitelist_blocked, empty_whitelist, sin_registro, ambiguous_task, no_api_key) y manda surfacear al usuario en su lugar.
+  - **Tool telemetry** (`src/lib/ai/tool-telemetry.ts`): `summarizeToolUsage(steps)` agrega por tool `{ calls, errors, retries }` desde el array de steps de AI SDK. Detección de errores conservadora: `ok:false`, `error:true`, `error:"..."` non-empty. Retries derivados de "tool llamada ≥2 veces con ≥1 error previo" (capped a `errors`). `toTelemetryRows()` devuelve filas ordenadas por calls desc para queries fáciles. `/api/chat` ahora persiste `toolTelemetry`, `toolCallsTotal`, `toolErrorsTotal`, `toolRetriesTotal` en `audit_log_events.payload`. Severity del evento `chat.completed` escala a `warning` si hubo ≥1 error en el turno — esto hace queryable las sesiones con tools rotas.
+  - **Prompt — sección hypothesis**: define cuándo usarlo (ambigüedad documental real, no plan B mecánico), formato JSON minificado, 2-4 ramas, confidence decimal 0-1, evidencia obligatoria, `chosen` opcional. Prohíbe usar hipótesis para encubrir falta de información.
+  - **Tests**: `tests/tool-telemetry.test.mjs` (6 casos: empty steps, count calls, detect errors, retries con error previo, no retries sin errors, sort por calls). `tests/hypothesis-block.test.mjs` (7 casos: bloque completo, streaming pending, sin bloque, JSON malformado, branches vacías, branches sin campos requeridos, omitir chosen/rationale).
+- Archivos:
+  - `src/lib/ai/tool-telemetry.ts` (nuevo)
+  - `src/lib/ai/hypothesis-parser.ts` (nuevo, separado de la UI para que el loader de tests sin .tsx pueda importarlo)
+  - `src/components/chat/cards/HypothesisBlock.tsx` (nuevo, re-exporta el parser)
+  - `src/components/chat/MessageBubble.tsx` (integra `HypothesisBlock` antes del `PlanBlock`)
+  - `src/lib/ai/agent-prompt.ts` (+sección "Hipótesis con ramas", +sección "Retry estructurado cuando una tool falla")
+  - `src/app/api/chat/route.ts` (wire de `summarizeToolUsage` + `toTelemetryRows` en `onFinish`, severity escalada por errores)
+  - `tests/tool-telemetry.test.mjs` (nuevo)
+  - `tests/hypothesis-block.test.mjs` (nuevo)
+  - `ROADMAP.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (50/50, +15 desde corrida previa: 6 telemetry + 7 hypothesis +2 docx no contados antes de re-run completo). Notar que las suites `excel-parser` y `docx-generators` quedaron skipped por shape del runner pero sus tests individuales suman.
+- Pendiente: validar empíricamente que DeepSeek respete el contrato de `<hypothesis>` en obras reales (igual que pasó con `<plan>` en su momento). Si el modelo lo ignora, considerar pasarlo a structured-output secundario. Para retry strategy, observar si el agente realmente se limita a 1 reintento — el prompt es deterministic pero el modelo decide. Tool telemetry queda escrito en `audit_log_events.payload`; falta UI de exploración (queryable por tool, periodo, error rate) — eso vive en el ítem "Replay de auditoría" §2.4 pendiente.
+
+## 2026-05-17 - Codex - Agent Core plan + primer hardening
+
+- Objetivo: dejar documentado el rediseño pragmático del agente y empezar por un bloque incremental sin romper comportamiento.
+- Cambios: agregado `docs/08_agent_core_redesign.md` con modelo Empresa -> Obra -> Expediente Operativo -> Eventos/Evidencias/Acciones/Artefactos, separación de responsabilidades, entidades recomendadas, agrupación futura de capacidades y plan de migración por fases. `/api/upload` y `/api/sessions` ahora validan que el `projectId` recibido desde cliente exista en la `organization_id` autenticada antes de persistir. `MessageBubble` ahora renderiza `generar_orden_compra` y `generar_acta_obra` con `GeneratedDocCard`; el ajuste de documentos reconoce esos docTypes. Agregado skeleton no invasivo de `src/lib/agent-core/` con tipos de scope/caso/capacidad, registry conceptual, builder puro de scope y composición inicial de prompt modules.
+- Archivos: `docs/08_agent_core_redesign.md`, `docs/README.md`, `docs/04_architecture_map.md`, `src/app/api/upload/route.ts`, `src/app/api/sessions/route.ts`, `src/components/chat/MessageBubble.tsx`, `src/app/dashboard/chat/page.tsx`, `src/lib/agent-core/*`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm test` OK (50/50).
+- Pendiente: siguiente bloque recomendado: empezar a usar `agent-core` en `/api/chat` solo para construir scope/contexto, sin cambiar tools ni prompt efectivo; después diseñar migración de `chat_sessions` hacia expedientes operativos.
+
+## 2026-05-17 - Codex - Agent Core wiring no invasivo
+
+- Objetivo: empezar a usar `src/lib/agent-core/` sin modificar comportamiento del agente.
+- Cambios: `/api/chat` ahora construye `agentCoreScope` con `buildAgentCoreScope()` luego de validar la obra activa y deriva `capabilityIds` con `getCapabilitiesForScope()`. Esa metadata se registra en logs y en `audit_log_events.payload.agentCore`, pero el prompt efectivo y el set de tools no cambian. Agregados tests puros de scope, capacidades y prompt modules.
+- Archivos: `src/app/api/chat/route.ts`, `tests/agent-core.test.mjs`, `docs/08_agent_core_redesign.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58).
+- Pendiente: diseñar y aplicar migración inicial `work_cases` / `work_case_events` / `work_case_evidence`; luego asociar nuevas sesiones a expediente.
+
+## 2026-05-17 - Codex - Roadmap alineado a Agent Core
+
+- Objetivo: revisar si los pendientes del roadmap ayudan al rediseño actual del agente y ajustar el orden de trabajo.
+- Cambios: `ROADMAP.md` ahora declara como foco vigente Agent Core + Expedientes Operativos. Agregada sección §2.6 con estado completado del plan, hardening de `projectId`, skeleton `agent-core`, wiring audit-only y próximos pendientes (`work_cases`, `work_case_events`, `work_case_evidence`, `operational_findings`, UI de expedientes, migración legacy y modularización prompt/tools). La recomendación semanal se reemplazó por el orden del rediseño. Proactividad se mantiene, pero reordenada: antes de activar schedule público conviene separar `operational_findings` de `audit_log_events`.
+- Archivos: `ROADMAP.md`, `docs/AI_WORKLOG.md`
+- Verificacion: no ejecutada; cambio documental.
+- Pendiente: implementar la migración inicial de expedientes operativos y actualizar `docs/04_architecture_map.md` cuando existan las tablas/rutas reales.
+
+## 2026-05-17 - Codex - Organización por dominios sin cambio de comportamiento
+
+- Objetivo: reducir archivos sueltos y aclarar ownership alrededor del agente, operaciones de obra y tests, sin tocar rutas de Next ni lógica de negocio.
+- Cambios: movidos helpers nuevos del agente a `src/lib/ai/output/` y `src/lib/ai/observability/`; movidos helpers recientes de operaciones a `src/lib/project-operations/brief/`, `communications/`, `contracts/`, `supplies/` y `agent-writers/`; agrupados tests en `tests/agent/`, `tests/chat/`, `tests/documents/`, `tests/math/` y `tests/project-operations/`. Imports actualizados. `docs/04_architecture_map.md` refleja la estructura real.
+- Archivos: `src/lib/ai/output/hypothesis-parser.ts`, `src/lib/ai/observability/tool-telemetry.ts`, `src/lib/project-operations/brief/daily-brief.ts`, `src/lib/project-operations/communications/stakeholder-email.ts`, `src/lib/project-operations/contracts/subcontracts.ts`, `src/lib/project-operations/supplies/supply-status.ts`, `src/lib/project-operations/agent-writers/operational-writers.ts`, `tests/*/*.test.mjs`, `docs/04_architecture_map.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58).
+- Pendiente: no mover todavía `agent-tools.ts`, `agent-tools-bound.ts`, `agent-prompt.ts`, `MessageBubble.tsx`, `components/chat/blocks` ni rutas `src/app/*`; esos renames tienen más riesgo y conviene hacerlos cuando Agent Core tenga expedientes y tests de integración.
+
+## 2026-05-17 - Codex - Limpieza visual de raíz en VS Code
+
+- Objetivo: ordenar la vista del proyecto sin mover archivos que Next/npm/Docker/TypeScript esperan en la raíz.
+- Cambios: agregado `.vscode/settings.json` con file nesting para agrupar configs bajo `package.json`, `next.config.ts`, `README.md`, `docker-compose.yml` y `.env.local`; ocultados del Explorer artefactos locales/generados como `node_modules`, `.next`, `.claude-flow`, `.insforge`, `tsconfig.tsbuildinfo` y `next-env.d.ts`.
+- Archivos: `.vscode/settings.json`, `docs/AI_WORKLOG.md`
+- Verificacion: JSON parse OK.
+- Pendiente: si se quiere una limpieza física real, evaluar en una rama separada mover Docker a `infra/docker/` y scripts a subcarpetas, actualizando comandos/documentación. No hacerlo mezclado con el refactor del agente.
+
+## 2026-05-17 - Codex - Handoff a Claude para migración Agent Core
+
+- Objetivo: dejar preparado el traspaso para continuar con la migración incremental hacia Expedientes Operativos.
+- Estado: `docs/08_agent_core_redesign.md` documenta el modelo objetivo; `ROADMAP.md` §2.6 y §3 priorizan la migración inicial; `/api/chat` ya persiste `audit_log_events.payload.agentCore` con scope/capabilities sin cambiar comportamiento; `src/lib/agent-core/` existe como skeleton; la estructura reciente quedó organizada por dominios.
+- Verificacion reciente: `npm run type-check` OK; `npm test` OK (58/58). Después solo se agregó `.vscode/settings.json` y esta entrada de handoff.
+- Siguiente bloque recomendado: crear migración InsForge en `migrations/` para `work_cases`, `work_case_events` y `work_case_evidence`, con RLS estricto por `organization_id`, sin tocar todavía UI ni prompt. Luego actualizar `docs/04_architecture_map.md`, `ROADMAP.md` y este worklog.
+- Riesgos/guardrails: no confiar en IDs cliente; toda API privada futura debe usar `requireAuth(req)`; no usar `audit_log_events` como read model de estado vivo; no mover `agent-tools.ts`, `agent-tools-bound.ts` ni `agent-prompt.ts` en el mismo bloque.

@@ -7,6 +7,7 @@ import {
   HardDrive, ToggleLeft, ToggleRight, CreditCard, BarChart3, Copy, KeyRound,
   UserPlus, RotateCcw, X, Ban, Link2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   apiErrorResponseSchema,
   superAdminCompaniesResponseSchema,
@@ -49,6 +50,17 @@ const SUB_STATUS_STYLES: Record<string, string> = {
 const SUB_STATUS_LABELS: Record<string, string> = {
   active: "Activa", trial: "Trial", suspended: "Suspendida", cancelled: "Cancelada",
 };
+
+const TAB_CONFIG = {
+  founders: { label: "Fundadores", icon: KeyRound },
+  companies: { label: "Empresas", icon: Building2 },
+  stats: { label: "Estadísticas", icon: BarChart3 },
+} as const;
+
+const PANEL = "rounded-[8px] border border-border bg-card shadow-[var(--shadow-sm)]";
+const TECH_LABEL = "font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground";
+const FIELD_CLASS = "w-full rounded-[8px] border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/60 outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15";
+const ICON_BUTTON = "flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50";
 
 function fmtBytes(b: number): string {
   if (b < 1_048_576) return `${(b / 1024).toFixed(0)} KB`;
@@ -242,34 +254,92 @@ export default function SuperAdminPage() {
   // ── Auth gate ──────────────────────────────────────────────────────────────
   if (!authed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <div className="w-full max-w-sm space-y-4">
-          <div className="flex items-center gap-2 text-xl font-semibold">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            Super Admin · EdificIA
-          </div>
-          <form onSubmit={handleAuth} className="space-y-3 rounded-xl border bg-card p-5">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Clave de acceso</label>
-              <input
-                type="password"
-                value={key}
-                onChange={(e) => { setKey(e.target.value); setAuthError(false); }}
-                placeholder="SUPER_ADMIN_KEY"
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                autoFocus
-              />
-              {authError && <p className="text-xs text-destructive">Clave incorrecta.</p>}
-            </div>
-            <button
-              type="submit"
-              disabled={loading || !key}
-              className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Ingresar"}
-            </button>
-          </form>
+      <div className="relative min-h-screen overflow-hidden bg-background">
+        <div className="pointer-events-none absolute inset-0 text-[var(--ed-grid)]">
+          <div className="eb-grid-texture absolute inset-0 opacity-55" />
         </div>
+        <main className="relative flex min-h-screen items-center justify-center px-5 py-8">
+          <div className="w-full max-w-5xl">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary text-primary-foreground shadow-[var(--shadow-sm)]">
+                  <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-[15px] font-semibold text-foreground">EdificIA Super Admin</p>
+                  <p className={TECH_LABEL}>Root console</p>
+                </div>
+              </div>
+              <span className="hidden rounded-[6px] border border-border bg-card px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:inline-flex">
+                Acceso privado
+              </span>
+            </div>
+
+            <div className={cn(PANEL, "overflow-hidden")}>
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px]">
+                <section className="border-b border-border bg-card/70 p-5 sm:p-6 lg:border-b-0 lg:border-r">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className={TECH_LABEL}>Operación central</p>
+                      <h1 className="mt-2 text-[22px] font-semibold tracking-normal text-foreground">
+                        Control de tenants, accesos y estado comercial.
+                      </h1>
+                    </div>
+                    <KeyRound className="h-5 w-5 text-primary" strokeWidth={1.75} />
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <LoginSignal icon={Building2} label="TENANTS" value="RLS" />
+                    <LoginSignal icon={Users} label="ROLES" value="Admin" />
+                    <LoginSignal icon={HardDrive} label="CUOTAS" value="Storage" />
+                  </div>
+
+                  <div className="mt-6 rounded-[8px] border border-border bg-background p-3">
+                    <p className={TECH_LABEL}>Superficie crítica</p>
+                    <div className="mt-3 space-y-2 text-[12px] text-muted-foreground">
+                      <ConsoleLine label="founders" value="altas de empresas y tokens de fundador" />
+                      <ConsoleLine label="companies" value="habilitación, suscripción y miembros" />
+                      <ConsoleLine label="reset" value="operación destructiva con confirmación explícita" tone="danger" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="p-5 sm:p-6">
+                  <form onSubmit={handleAuth}>
+                    <div>
+                      <p className={TECH_LABEL}>Autenticación</p>
+                      <h2 className="mt-2 text-[18px] font-semibold text-foreground">Ingresar clave raíz</h2>
+                      <p className="mt-1 text-[12.5px] leading-6 text-muted-foreground">
+                        No hay onboarding ni branding público en esta pantalla. Es una consola operativa cerrada.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 space-y-1.5">
+                      <label className={TECH_LABEL}>SUPER_ADMIN_KEY</label>
+                      <input
+                        type="password"
+                        value={key}
+                        onChange={(e) => { setKey(e.target.value); setAuthError(false); }}
+                        placeholder="Clave local o de producción"
+                        className={FIELD_CLASS}
+                        autoFocus
+                      />
+                      {authError && <p className="text-[12px] text-destructive">Clave incorrecta.</p>}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !key}
+                      className="mt-5 flex h-10 w-full items-center justify-center rounded-[8px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Abrir consola"}
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -280,39 +350,55 @@ export default function SuperAdminPage() {
 
   // ── Main panel ─────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="min-h-screen bg-background">
+      <div className="pointer-events-none fixed inset-0 text-[var(--ed-grid)]">
+        <div className="eb-grid-texture absolute inset-0 opacity-60" />
+      </div>
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 py-5 sm:px-8 sm:py-7">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            Super Admin · EdificIA
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Panel de gestión de la plataforma.</p>
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary text-primary-foreground shadow-[var(--shadow-sm)]">
+              <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <p className={TECH_LABEL}>EdificIA · Root Console</p>
+              <h1 className="font-display text-[26px] font-medium leading-tight tracking-normal text-foreground">
+                Super Admin
+              </h1>
+            </div>
         </div>
         <button
           onClick={() => { void fetchInvitations(key); if (tab === "companies") void fetchCompanies(); }}
           disabled={loading}
-          className="rounded-lg border p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className={ICON_BUTTON}
+            title="Actualizar"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </button>
-      </div>
+        </header>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border bg-muted/30 p-1">
+        <nav className="grid grid-cols-3 gap-1 rounded-[8px] border border-border bg-card p-1 shadow-[var(--shadow-xs)]">
         {(["founders", "companies", "stats"] as const).map((t) => (
+            (() => {
+              const Icon = TAB_CONFIG[t].icon;
+              return (
           <button
             key={t}
             onClick={() => { void handleTabChange(t); }}
-            className={`flex-1 rounded-lg px-4 py-2 text-xs font-medium transition-colors capitalize ${
-              tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
+                  className={cn(
+                    "flex min-h-10 items-center justify-center gap-2 rounded-[6px] px-3 text-[12px] font-semibold transition-colors",
+                    tab === t ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
           >
-            {t === "founders" ? "Fundadores" : t === "companies" ? "Empresas" : "Estadísticas"}
+                  <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {TAB_CONFIG[t].label}
           </button>
+              );
+            })()
         ))}
-      </div>
+        </nav>
 
       {/* ── FOUNDERS TAB ── */}
       {tab === "founders" && (
@@ -366,6 +452,7 @@ export default function SuperAdminPage() {
           totalMembers={totalMembers}
         />
       )}
+      </div>
     </div>
   );
 }
@@ -399,19 +486,24 @@ function FoundersTab({
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard value={invitations.length} label="Total invitaciones" />
         <StatCard value={pending.length} label="Pendientes" color="amber" />
         <StatCard value={invitations.filter(i => i.status === "accepted").length} label="Activadas" color="green" />
       </div>
 
       {/* Create form */}
-      <section className="rounded-xl border bg-card p-5 space-y-4">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Plus className="h-4 w-4" /> Activar nueva empresa
-        </h2>
+      <section className={cn(PANEL, "p-4 sm:p-5")}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className={TECH_LABEL}>Founder onboarding</p>
+            <h2 className="mt-1 flex items-center gap-2 text-[16px] font-semibold text-foreground">
+              <Plus className="h-4 w-4 text-primary" /> Activar nueva empresa
+            </h2>
+          </div>
+        </div>
         <form onSubmit={onCreate} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <FormField label="Email del admin" type="email" value={email} onChange={setEmail} placeholder="ceo@constructora.com" required />
             <FormField label="Nombre de la empresa" value={companyName} onChange={setCompanyName} placeholder="Constructora Pérez S.A." required />
           </div>
@@ -429,7 +521,7 @@ function FoundersTab({
                     const url = `${window.location.origin}/register?email=${encodeURIComponent(lastCreated)}&token=${lastCreatedToken}`;
                     void navigator.clipboard.writeText(url);
                   }}
-                  className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-left hover:bg-amber-100/60 dark:hover:bg-amber-950/40 transition-colors w-full"
+                  className="flex w-full items-center gap-2 rounded-[8px] border border-[oklch(0.82_0.14_70)] bg-[oklch(0.98_0.04_75)] px-3 py-2 text-left transition-colors hover:bg-[oklch(0.96_0.06_75)] dark:bg-amber-950/30 dark:hover:bg-amber-950/40"
                 >
                   <Link2 className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <span className="flex-1 text-xs text-amber-800 dark:text-amber-300">Copiar link de registro para el fundador</span>
@@ -440,7 +532,7 @@ function FoundersTab({
             </div>
           )}
           <button type="submit" disabled={creating}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            className="flex h-10 items-center gap-2 rounded-[8px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Activar empresa
@@ -454,7 +546,7 @@ function FoundersTab({
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             <Clock className="h-4 w-4" /> Pendientes ({pending.length})
           </h2>
-          <div className="divide-y rounded-xl border bg-card overflow-hidden">
+          <div className={cn(PANEL, "divide-y divide-border overflow-hidden")}>
             {pending.map((inv) => <InvitationRow key={inv.id} inv={inv} onRevoke={onRevoke} onReactivate={onReactivate} revoking={revoking} reactivating={reactivating} />)}
           </div>
         </section>
@@ -464,7 +556,7 @@ function FoundersTab({
       {rest.length > 0 && (
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Historial</h2>
-          <div className="divide-y rounded-xl border bg-card overflow-hidden">
+          <div className={cn(PANEL, "divide-y divide-border overflow-hidden")}>
             {rest.map((inv) => (
               <InvitationRow
                 key={inv.id}
@@ -480,7 +572,7 @@ function FoundersTab({
       )}
 
       {invitations.length === 0 && (
-        <div className="rounded-xl border bg-card p-10 text-center">
+        <div className={cn(PANEL, "p-10 text-center")}>
           <Building2 className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
           <p className="text-sm font-medium">Sin invitaciones todavía</p>
           <p className="text-xs text-muted-foreground mt-1">Activá la primera empresa usando el formulario de arriba.</p>
@@ -488,7 +580,7 @@ function FoundersTab({
       )}
 
       {/* Danger zone */}
-      <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+      <section className="rounded-[8px] border border-destructive/30 bg-destructive/5 p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
@@ -498,14 +590,14 @@ function FoundersTab({
             </div>
           </div>
           <button onClick={() => { void onReset(); }} disabled={resetting}
-            className="flex items-center gap-2 rounded-lg border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 shrink-0"
+            className="flex shrink-0 items-center gap-2 rounded-[8px] border border-destructive/50 px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
           >
             {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             {resetting ? "Borrando…" : "Resetear todo"}
           </button>
         </div>
         {resetLog && (
-          <pre className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-background p-3 text-xs text-muted-foreground">
+          <pre className="mt-3 max-h-40 overflow-y-auto rounded-[8px] bg-background p-3 text-xs text-muted-foreground">
             {resetLog.join("\n")}
           </pre>
         )}
@@ -544,7 +636,7 @@ function CompaniesTab({
 }) {
   if (loading && companies.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
+      <div className={cn(PANEL, "flex items-center justify-center py-20 text-muted-foreground")}>
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
@@ -552,7 +644,7 @@ function CompaniesTab({
 
   if (companies.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-10 text-center">
+      <div className={cn(PANEL, "p-10 text-center")}>
         <Building2 className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
         <p className="text-sm font-medium">Sin empresas registradas</p>
         <button onClick={() => { void onRefresh(); }} className="mt-3 text-xs text-primary hover:underline">
@@ -563,9 +655,9 @@ function CompaniesTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {companies.map((company) => (
-        <div key={company.id} className="rounded-xl border bg-card overflow-hidden">
+        <div key={company.id} className={cn(PANEL, "overflow-hidden")}>
           {/* Disabled banner */}
           {company.disabled && (
             <div className="flex items-center gap-2 bg-destructive/10 border-b border-destructive/20 px-4 py-1.5">
@@ -574,11 +666,11 @@ function CompaniesTab({
             </div>
           )}
 
-          <div className="p-4">
+          <div className="p-4 sm:p-5">
             {/* Header row */}
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${company.disabled ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] ${company.disabled ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
                   <Building2 className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
@@ -588,12 +680,12 @@ function CompaniesTab({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 {/* Subscription status selector */}
                 <select
                   value={company.subscriptionStatus}
                   onChange={(e) => { void onSubStatus(company.id, e.target.value); }}
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium border cursor-pointer bg-transparent focus:outline-none ${SUB_STATUS_STYLES[company.subscriptionStatus] ?? ""}`}
+                  className={`cursor-pointer rounded-[6px] border px-2.5 py-1 text-xs font-medium bg-transparent focus:outline-none ${SUB_STATUS_STYLES[company.subscriptionStatus] ?? ""}`}
                 >
                   {Object.entries(SUB_STATUS_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -604,7 +696,7 @@ function CompaniesTab({
                 <button
                   onClick={() => addingAdminFor === company.id ? onCloseAddAdmin() : onOpenAddAdmin(company.id)}
                   title="Agregar miembro"
-                  className="rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1"
+                  className="flex items-center gap-1 rounded-[6px] border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   Agregar
@@ -632,10 +724,10 @@ function CompaniesTab({
             </div>
 
             {/* Stats row */}
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-3">
               <MiniStat icon={Users} label="Miembros" value={company.members} />
               <MiniStat icon={FolderOpen} label="Obras" value={company.projects} />
-              <div className="flex flex-col gap-0.5">
+              <div className="rounded-[6px] bg-background px-3 py-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <HardDrive className="h-3 w-3 text-muted-foreground/50" />
@@ -657,7 +749,7 @@ function CompaniesTab({
 
             {/* Add admin inline form */}
             {addingAdminFor === company.id && (
-              <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+              <div className="mt-4 space-y-3 rounded-[8px] border border-primary/20 bg-primary/[0.04] p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
                     <UserPlus className="h-3.5 w-3.5" /> Invitar miembro a {company.name}
@@ -666,19 +758,19 @@ function CompaniesTab({
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_132px_auto]">
                   <input
                     type="email"
                     value={adminEmail}
                     onChange={(e) => onAdminEmailChange(e.target.value)}
                     placeholder="email@empresa.com"
-                    className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className={FIELD_CLASS}
                     onKeyDown={(e) => { if (e.key === "Enter") void onAddAdmin(company.id); }}
                   />
                   <select
                     value={adminRole}
                     onChange={(e) => onAdminRoleChange(e.target.value as "admin" | "engineer" | "viewer")}
-                    className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className={FIELD_CLASS}
                   >
                     <option value="admin">Admin</option>
                     <option value="engineer">Ingeniero</option>
@@ -687,7 +779,7 @@ function CompaniesTab({
                   <button
                     onClick={() => { void onAddAdmin(company.id); }}
                     disabled={adminSubmitting || !adminEmail.trim()}
-                    className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                    className="flex h-10 items-center justify-center gap-1.5 rounded-[8px] bg-primary px-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     {adminSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                     Invitar
@@ -722,20 +814,32 @@ function StatsTab({
   totalMembers: number;
 }) {
   const totalStorage = companies.reduce((s, c) => s + c.storage.usedBytes, 0);
+  const totalQuota = companies.reduce((s, c) => s + c.storage.quotaBytes, 0);
   const totalProjects = companies.reduce((s, c) => s + c.projects, 0);
   const suspendedCount = companies.filter(c => c.subscriptionStatus === "suspended").length;
+  const disabledCount = companies.filter(c => c.disabled).length;
+  const pendingInvitations = invitations.filter(i => i.status === "pending").length;
+  const acceptedInvitations = invitations.filter(i => i.status === "accepted").length;
+  const storagePct = totalQuota > 0 ? Math.round((totalStorage / totalQuota) * 100) : 0;
+  const topStorage = [...companies]
+    .sort((a, b) => b.storage.usedBytes - a.storage.usedBytes)
+    .slice(0, 6);
+  const statusRows = Object.entries(SUB_STATUS_LABELS).map(([key, label]) => {
+    const count = companies.filter(c => c.subscriptionStatus === key).length;
+    return { key, label, count, pct: totalCompanies > 0 ? Math.round((count / totalCompanies) * 100) : 0 };
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard value={totalCompanies} label="Empresas totales" />
-        <StatCard value={activeCompanies} label="Empresas activas" color="green" />
-        <StatCard value={totalMembers} label="Usuarios totales" color="blue" />
-        <StatCard value={totalProjects} label="Obras registradas" color="purple" />
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <ExecutiveMetric label="Empresas" value={totalCompanies} sub={`${activeCompanies} activas · ${disabledCount} deshabilitadas`} />
+        <ExecutiveMetric label="Usuarios" value={totalMembers} sub={`${totalCompanies > 0 ? (totalMembers / totalCompanies).toFixed(1) : "0"} por empresa`} />
+        <ExecutiveMetric label="Obras" value={totalProjects} sub={`${totalCompanies > 0 ? (totalProjects / totalCompanies).toFixed(1) : "0"} por empresa`} />
+        <ExecutiveMetric label="Invitaciones" value={pendingInvitations} sub={`${acceptedInvitations} activadas`} tone={pendingInvitations > 0 ? "warning" : "neutral"} />
       </div>
 
       {suspendedCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="flex items-center gap-3 rounded-[8px] border border-amber-500/30 bg-amber-500/5 p-4">
           <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
           <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
             {suspendedCount} empresa{suspendedCount > 1 ? "s" : ""} con acceso suspendido.
@@ -743,47 +847,116 @@ function StatsTab({
         </div>
       )}
 
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="flex items-center gap-2 mb-3 text-sm font-semibold">
-          <HardDrive className="h-4 w-4" /> Almacenamiento total de la plataforma
-        </h3>
-        <p className="text-2xl font-bold tabular-nums">{fmtBytes(totalStorage)}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">distribuidos en {totalCompanies} empresas</p>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className={cn(PANEL, "p-5")}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className={TECH_LABEL}>Capacidad</p>
+              <h3 className="mt-1 flex items-center gap-2 text-[15px] font-semibold">
+                <HardDrive className="h-4 w-4 text-primary" /> Almacenamiento por tenants
+              </h3>
+            </div>
+            <span className="font-mono text-[11px] text-muted-foreground">{storagePct}% usado</span>
+          </div>
+
+          <div className="mt-5">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[30px] font-semibold leading-none tabular-nums text-foreground">{fmtBytes(totalStorage)}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">de {fmtBytes(totalQuota)} asignados</p>
+              </div>
+              <p className="text-right text-[12px] text-muted-foreground">{totalCompanies} empresas</p>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-border">
+              <div
+                className={cn("h-full rounded-full", storagePct >= 90 ? "bg-destructive" : storagePct >= 70 ? "bg-[var(--warn)]" : "bg-primary")}
+                style={{ width: `${Math.min(100, storagePct)}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            {topStorage.length === 0 ? (
+              <p className="rounded-[6px] border border-dashed border-border px-3 py-6 text-center text-[12px] text-muted-foreground">
+                Sin datos de empresas para rankear almacenamiento.
+              </p>
+            ) : topStorage.map((company) => (
+              <TenantUsageRow key={company.id} company={company} />
+            ))}
+          </div>
+        </section>
+
+        <section className={cn(PANEL, "p-5")}>
+          <p className={TECH_LABEL}>Estado comercial</p>
+          <h3 className="mt-1 flex items-center gap-2 text-[15px] font-semibold">
+            <BarChart3 className="h-4 w-4 text-primary" /> Suscripciones
+          </h3>
+          <div className="mt-5 divide-y divide-border rounded-[8px] border border-border">
+            {statusRows.map((row) => (
+              <DistributionRow key={row.key} label={row.label} count={row.count} pct={row.pct} />
+            ))}
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <CompactStat label="Pendientes" value={pendingInvitations} />
+            <CompactStat label="Aceptadas" value={acceptedInvitations} />
+            <CompactStat label="Revocadas" value={invitations.filter(i => i.status === "revoked").length} />
+          </div>
+        </section>
       </div>
 
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="flex items-center gap-2 mb-3 text-sm font-semibold">
-          <BarChart3 className="h-4 w-4" /> Distribución de suscripciones
-        </h3>
-        <div className="grid grid-cols-4 gap-2">
-          {Object.entries(SUB_STATUS_LABELS).map(([k, v]) => {
-            const count = companies.filter(c => c.subscriptionStatus === k).length;
-            return (
-              <div key={k} className={`rounded-lg border p-3 text-center ${SUB_STATUS_STYLES[k] ?? ""}`}>
-                <p className="text-xl font-bold">{count}</p>
-                <p className="text-[10px] font-medium mt-0.5">{v}</p>
-              </div>
-            );
-          })}
+      <section className={cn(PANEL, "overflow-hidden")}>
+        <div className="border-b border-border px-5 py-4">
+          <p className={TECH_LABEL}>Salud de tenants</p>
+          <h3 className="mt-1 text-[15px] font-semibold text-foreground">Resumen operativo por empresa</h3>
         </div>
-      </div>
-
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="flex items-center gap-2 mb-3 text-sm font-semibold">
-          <CreditCard className="h-4 w-4" /> Invitaciones
-        </h3>
-        <div className="grid grid-cols-3 gap-2">
-          {Object.entries(INVITE_STATUS_LABELS).map(([k, v]) => {
-            const count = invitations.filter(i => i.status === k).length;
-            return (
-              <div key={k} className={`rounded-lg border p-3 text-center ${INVITE_STATUS_STYLES[k] ?? ""}`}>
-                <p className="text-xl font-bold">{count}</p>
-                <p className="text-[10px] font-medium mt-0.5">{v}</p>
-              </div>
-            );
-          })}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-[12px]">
+            <thead className="bg-muted/40 text-muted-foreground">
+              <tr className="border-b border-border">
+                <th className="px-5 py-3 font-mono text-[10px] uppercase tracking-[0.12em]">Empresa</th>
+                <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em]">Estado</th>
+                <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-[0.12em]">Miembros</th>
+                <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-[0.12em]">Obras</th>
+                <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em]">Storage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {companies.slice(0, 10).map((company) => (
+                <tr key={company.id} className="bg-card">
+                  <td className="px-5 py-3">
+                    <p className="font-medium text-foreground">{company.name}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground">{new Date(company.createdAt).toLocaleDateString("es-AR")}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={cn("rounded-[6px] px-2 py-1 text-[11px] font-medium", company.disabled ? "bg-destructive/10 text-destructive" : SUB_STATUS_STYLES[company.subscriptionStatus])}>
+                      {company.disabled ? "Deshabilitada" : SUB_STATUS_LABELS[company.subscriptionStatus] ?? company.subscriptionStatus}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums">{company.members}</td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums">{company.projects}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-28 overflow-hidden rounded-full bg-border">
+                        <div
+                          className={cn("h-full rounded-full", company.storage.pct >= 90 ? "bg-destructive" : "bg-primary")}
+                          style={{ width: `${company.storage.pct}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[11px] text-muted-foreground">{company.storage.pct}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {companies.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">Sin empresas cargadas.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -791,6 +964,107 @@ function StatsTab({
 // ─────────────────────────────────────────────────────────────────────────────
 // Reusable sub-components
 // ─────────────────────────────────────────────────────────────────────────────
+
+function LoginSignal({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[8px] border border-border bg-background/70 p-3">
+      <Icon className="h-4 w-4 text-primary" strokeWidth={1.75} />
+      <p className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-[13px] font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function ConsoleLine({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "danger" }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", tone === "danger" ? "bg-destructive" : "bg-primary")} />
+      <p className="min-w-0">
+        <span className="font-mono text-[11px] text-foreground">{label}</span>
+        <span className="text-muted-foreground"> · {value}</span>
+      </p>
+    </div>
+  );
+}
+
+function ExecutiveMetric({
+  label,
+  value,
+  sub,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  tone?: "neutral" | "warning";
+}) {
+  return (
+    <div className={cn(PANEL, "p-4")}>
+      <div className="flex items-center justify-between gap-3">
+        <p className={TECH_LABEL}>{label}</p>
+        <span className={cn("h-2 w-2 rounded-full", tone === "warning" ? "bg-[var(--warn)]" : "bg-primary")} />
+      </div>
+      <p className="mt-3 text-[30px] font-semibold leading-none tabular-nums text-foreground">{value}</p>
+      <p className="mt-2 text-[12px] text-muted-foreground">{sub}</p>
+    </div>
+  );
+}
+
+function TenantUsageRow({ company }: { company: CompanyStats }) {
+  return (
+    <div className="rounded-[6px] border border-border bg-background px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[12px] font-medium text-foreground">{company.name}</p>
+          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+            {fmtBytes(company.storage.usedBytes)} / {fmtBytes(company.storage.quotaBytes)}
+          </p>
+        </div>
+        <span className="font-mono text-[11px] text-muted-foreground">{company.storage.pct}%</span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+        <div
+          className={cn("h-full rounded-full", company.storage.pct >= 90 ? "bg-destructive" : company.storage.pct >= 70 ? "bg-[var(--warn)]" : "bg-primary")}
+          style={{ width: `${company.storage.pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DistributionRow({ label, count, pct }: { label: string; count: number; pct: number }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto] gap-4 px-3 py-2.5">
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[12px] font-medium text-foreground">{label}</p>
+          <p className="font-mono text-[11px] text-muted-foreground">{pct}%</p>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <span className="self-center font-mono text-[13px] font-semibold tabular-nums text-foreground">{count}</span>
+    </div>
+  );
+}
+
+function CompactStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[6px] border border-border bg-background px-3 py-2">
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-[18px] font-semibold leading-none tabular-nums text-foreground">{value}</p>
+    </div>
+  );
+}
 
 function StatCard({ value, label, color = "default" }: { value: number; label: string; color?: "default" | "amber" | "green" | "blue" | "purple" }) {
   const colorMap = {
@@ -801,21 +1075,21 @@ function StatCard({ value, label, color = "default" }: { value: number; label: s
     purple:  "text-purple-600 dark:text-purple-400",
   };
   return (
-    <div className="rounded-xl border bg-card p-4 text-center">
-      <p className={`text-2xl font-bold ${colorMap[color]}`}>{value}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+    <div className={cn(PANEL, "p-4")}>
+      <p className={cn("text-3xl font-semibold leading-none tabular-nums", colorMap[color])}>{value}</p>
+      <p className="mt-2 text-[12px] text-muted-foreground">{label}</p>
     </div>
   );
 }
 
 function MiniStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="rounded-[6px] bg-background px-3 py-2">
       <div className="flex items-center gap-1">
         <Icon className="h-3 w-3 text-muted-foreground/50" />
         <span className="font-mono text-[10px] text-muted-foreground">{label}</span>
       </div>
-      <span className="font-mono text-sm font-semibold">{value}</span>
+      <span className="mt-1 block font-mono text-sm font-semibold">{value}</span>
     </div>
   );
 }
@@ -826,14 +1100,14 @@ function FormField({ label, value, onChange, placeholder, type = "text", require
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</label>
+      <label className={TECH_LABEL}>{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
-        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        className={FIELD_CLASS}
       />
     </div>
   );
@@ -850,9 +1124,9 @@ function InvitationRow({
 }) {
   const busy = revoking === inv.id || reactivating === inv.id;
   return (
-    <div className="px-4 py-3 space-y-1.5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <div className="space-y-2 px-4 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
           <Building2 className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
@@ -861,8 +1135,8 @@ function InvitationRow({
             {inv.company_name}{inv.notes ? ` · ${inv.notes}` : ""}
           </p>
         </div>
-        <div className="text-right shrink-0">
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${INVITE_STATUS_STYLES[inv.status] ?? ""}`}>
+        <div className="shrink-0 sm:text-right">
+          <span className={`rounded-[6px] px-2.5 py-1 text-xs font-medium ${INVITE_STATUS_STYLES[inv.status] ?? ""}`}>
             {INVITE_STATUS_LABELS[inv.status] ?? inv.status}
           </span>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -875,7 +1149,7 @@ function InvitationRow({
             <button
               onClick={() => { void onRevoke(inv.id); }}
               disabled={busy}
-              className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+              className="rounded-[6px] p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
               title="Revocar invitación"
             >
               {revoking === inv.id
@@ -888,7 +1162,7 @@ function InvitationRow({
             <button
               onClick={() => { void onReactivate(inv.id); }}
               disabled={busy}
-              className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+              className="rounded-[6px] p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
               title={inv.status === "revoked" ? "Re-activar invitación" : "Volver a invitar (nueva sesión)"}
             >
               {reactivating === inv.id
@@ -905,7 +1179,7 @@ function InvitationRow({
             const url = `${window.location.origin}/register?email=${encodeURIComponent(inv.email)}&token=${inv.invite_token!}`;
             void navigator.clipboard.writeText(url);
           }}
-          className="ml-11 flex items-center gap-1.5 rounded-md border border-amber-300/30 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-1 text-left hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors w-[calc(100%-2.75rem)]"
+          className="flex w-full items-center gap-1.5 rounded-[6px] border border-amber-300/30 bg-amber-50/50 px-2 py-1 text-left transition-colors hover:bg-amber-100/60 dark:bg-amber-950/20 dark:hover:bg-amber-950/30 sm:ml-12 sm:w-[calc(100%-3rem)]"
           title="Copiar link de registro"
         >
           <Link2 className="h-3 w-3 shrink-0 text-amber-500" />

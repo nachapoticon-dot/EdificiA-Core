@@ -9,6 +9,8 @@ import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
 import { aiLogger, getRequestLogger, REQUEST_ID_HEADER } from "@/lib/logger";
 import { writeAuditLogEvent } from "@/lib/audit/audit-log";
+import { summarizeToolUsage, toTelemetryRows, type StepLike } from "@/lib/ai/observability/tool-telemetry";
+import { buildAgentCoreScope, getCapabilitiesForScope, type AgentCapabilityId, type AgentCoreScope } from "@/lib/agent-core";
 
 export const runtime = "nodejs";
 
@@ -47,15 +49,19 @@ export async function POST(req: Request) {
   const projectName = req.headers.get("x-project-name") ?? undefined;
   const projectId   = req.headers.get("x-project-id")   ?? undefined;
 
-  const { systemPrompt, tools, auditProjectId } = await resolveContext(auth, projectName, projectId);
+  const { systemPrompt, tools, auditProjectId, agentScope, capabilityIds } = await resolveContext(auth, projectName, projectId);
 
   const route = routeModel(messages);
+  const stepBudget = route.tier === "deep" ? 35 : 20;
   log.info({
     orgId: auth.orgId,
+    agentScopeLevel: agentScope.scopeLevel,
+    capabilityIds,
     tier: route.tier,
     model: route.model,
     reason: route.reason,
     signals: route.signals,
+    stepBudget,
   }, "model routed");
 
   const t0 = Date.now();
@@ -65,13 +71,21 @@ export async function POST(req: Request) {
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       tools,
-      stopWhen: stepCountIs(20),
+      stopWhen: stepCountIs(stepBudget),
       onFinish: async ({ steps, usage }) => {
+        const telemetry = summarizeToolUsage(steps as unknown as StepLike[]);
+        const telemetryRows = toTelemetryRows(telemetry);
+        const totalErrors = telemetryRows.reduce((sum, t) => sum + t.errors, 0);
+        const totalRetries = telemetryRows.reduce((sum, t) => sum + t.retries, 0);
         log.info({
           orgId: auth.orgId,
+          agentScopeLevel: agentScope.scopeLevel,
           model: route.model,
           tier: route.tier,
           steps: steps.length,
+          toolCalls: telemetryRows.reduce((sum, t) => sum + t.calls, 0),
+          toolErrors: totalErrors,
+          toolRetries: totalRetries,
           tokens: usage,
           latencyMs: Date.now() - t0,
         }, "chat finished");
@@ -81,15 +95,30 @@ export async function POST(req: Request) {
           actorUserId: auth.userId,
           eventType: "chat.completed",
           entityType: "chat_turn",
-          severity: "info",
+          severity: totalErrors > 0 ? "warning" : "info",
           requestId: req.headers.get(REQUEST_ID_HEADER),
           payload: {
             model: route.model,
             tier: route.tier,
             routeReason: route.reason,
+            agentCore: {
+              scope: {
+                level: agentScope.scopeLevel,
+                organizationId: agentScope.organizationId,
+                projectId: agentScope.projectId ?? null,
+                workCaseId: agentScope.workCaseId ?? null,
+                workCaseKind: agentScope.workCaseKind ?? null,
+              },
+              capabilityIds,
+            },
+            stepBudget,
             steps: steps.length,
             usage,
             latencyMs: Date.now() - t0,
+            toolTelemetry: telemetryRows,
+            toolCallsTotal: telemetryRows.reduce((sum, t) => sum + t.calls, 0),
+            toolErrorsTotal: totalErrors,
+            toolRetriesTotal: totalRetries,
           },
         });
         void learnFromSession(steps as unknown as Parameters<typeof learnFromSession>[0], auth.orgId);
@@ -121,12 +150,26 @@ async function resolveContext(
   auth: AuthResult,
   projectName?: string,
   projectId?: string,
-): Promise<{ systemPrompt: string; tools: ReturnType<typeof createBoundTools>; auditProjectId?: string }> {
+): Promise<{
+  systemPrompt: string;
+  tools: ReturnType<typeof createBoundTools>;
+  auditProjectId?: string;
+  agentScope: AgentCoreScope;
+  capabilityIds: AgentCapabilityId[];
+}> {
   const { userId, orgId } = auth;
+  const fallbackScope = buildAgentCoreScope({
+    organizationId: orgId,
+    actorUserId: userId,
+    projectId,
+    projectName,
+  });
   const fallback = {
     systemPrompt: buildSystemPrompt({ organizationId: orgId, projectName, projectId }),
-    tools: createBoundTools(orgId),
+    tools: createBoundTools(orgId, userId),
     auditProjectId: undefined,
+    agentScope: fallbackScope,
+    capabilityIds: getCapabilitiesForScope(Boolean(fallbackScope.projectId)).map((capability) => capability.id),
   };
 
   try {
@@ -185,6 +228,14 @@ async function resolveContext(
 
     const validatedProjectId = projectId && projectCheckResult.data ? projectId : undefined;
     const recentSessions = (recentSessionsResult.data ?? []) as RecentSession[];
+    const agentScope = buildAgentCoreScope({
+      organizationId: orgId,
+      organizationName: org?.name,
+      actorUserId: userId,
+      projectId: validatedProjectId,
+      projectName,
+    });
+    const capabilityIds = getCapabilitiesForScope(Boolean(validatedProjectId)).map((capability) => capability.id);
 
     const systemPrompt = buildSystemPrompt({
       companyName: org?.name,
@@ -196,7 +247,7 @@ async function resolveContext(
       recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
     });
 
-    return { systemPrompt, tools: createBoundTools(orgId), auditProjectId: validatedProjectId };
+    return { systemPrompt, tools: createBoundTools(orgId, userId), auditProjectId: validatedProjectId, agentScope, capabilityIds };
   } catch {
     return fallback;
   }
