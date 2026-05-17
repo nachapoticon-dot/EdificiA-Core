@@ -13,6 +13,7 @@
 | [05_future_roadmap.md](./05_future_roadmap.md) | Features futuras: DWG, BIM, OCR, cómputo automático | Para planificar a largo plazo |
 | [06_enterprise_context_layer.md](./06_enterprise_context_layer.md) | Evolución de Base Documental hacia contexto empresarial conectado | Antes de diseñar conectores, documentos, RAG o auditoría transversal |
 | [07_agentic_document_reading.md](./07_agentic_document_reading.md) | Evolución del agente desde checks fijos hacia lectura, hipótesis y contraste documental | Antes de modificar prompt, tools de documentos o UX de auditoría |
+| [08_agent_core_redesign.md](./08_agent_core_redesign.md) | Arquitectura objetivo para EdificIA Agent Core: obra, expedientes, evidencias, acciones y migración incremental | Antes de rediseñar chat, sesiones, tools, prompt o UX operativa |
 | [AI_WORKLOG.md](./AI_WORKLOG.md) | Registro corto de handoffs entre agentes IA | Al alternar entre Codex, Claude Code u otro agente |
 
 ## Planificación

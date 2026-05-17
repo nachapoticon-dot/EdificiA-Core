@@ -81,7 +81,15 @@ export async function POST(req: Request) {
     return apiBadRequest(`Tipo de contenido inválido para "${ext}".`);
   }
 
-  const projectId = req.headers.get("x-project-id") ?? null;
+  const requestedProjectId = req.headers.get("x-project-id") ?? null;
+  const client = getInsForgeAdminClient();
+  const projectId = requestedProjectId
+    ? await validateProjectId(client, orgId, requestedProjectId)
+    : null;
+
+  if (requestedProjectId && !projectId) {
+    return apiBadRequest("Obra inválida.");
+  }
 
   const buffer = await file.arrayBuffer();
   const processed = await processFile(buffer, file.name, file.type || undefined);
@@ -92,7 +100,6 @@ export async function POST(req: Request) {
 
   let fileId: string | null = null;
   try {
-    const client = getInsForgeAdminClient();
     const blob = new Blob([buffer], { type: file.type || "application/octet-stream" });
 
     const storageResult = await client.storage
@@ -207,6 +214,23 @@ export async function POST(req: Request) {
   });
 
   return Response.json(response.data);
+}
+
+async function validateProjectId(
+  client: ReturnType<typeof getInsForgeAdminClient>,
+  orgId: string,
+  projectId: string,
+): Promise<string | null> {
+  const result = await client.database
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  return result.data ? projectId : null;
 }
 
 /** Extrae el texto auditable de un archivo procesado para escanear PII. */

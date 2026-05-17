@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { routeModel } from "../src/lib/ai/model-router.ts";
+import { routeModel } from "../../src/lib/ai/model-router.ts";
 
 function msg(text) {
   return { id: "u1", role: "user", parts: [{ type: "text", text }] };

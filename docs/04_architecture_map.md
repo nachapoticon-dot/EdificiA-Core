@@ -1,6 +1,6 @@
 # Mapa de Arquitectura y Dependencias (Repo Map)
 
-> **Última actualización**: 2026-05-16 (arquitectura operativa de obra + audit log inmutable)
+> **Última actualización**: 2026-05-17 (Agent Core + organización por dominios)
 
 Este documento contiene el mapa estructural del proyecto. 
 **Regla para la IA**: Cada vez que crees un módulo nuevo (Frontend, Backend, Database), DEBES actualizar este grafo. Antes de modificar código existente, lee este grafo para entender qué otras partes del sistema vas a afectar y evitar romper el código.
@@ -130,6 +130,7 @@ src/
 │   │   ├── layout.tsx              → Dashboard layout (sidebar + providers)
 │   │   ├── chat/page.tsx           → Chat principal con el agente
 │   │   ├── obras/[id]/page.tsx     → Detalle de obra
+│   │   ├── obras/[id]/today/page.tsx → Día en la obra
 │   │   ├── documents/              → Base documental (pendiente)
 │   │   └── admin/settings/         → Config admin empresa
 │   ├── super-admin/
@@ -149,7 +150,8 @@ src/
 │   │   │   ├── route.ts            → GET/POST proyectos
 │   │   │   └── [id]/
 │   │   │       ├── route.ts        → PATCH/DELETE proyecto
-│   │   │       └── files/route.ts  → GET archivos del proyecto
+│   │   │       ├── files/route.ts  → GET archivos del proyecto
+│   │   │       └── daily-brief/route.ts → GET brief diario operativo de obra
 │   │   ├── documents/
 │   │   │   ├── route.ts            → GET/DELETE documentos
 │   │   │   ├── save/route.ts       → POST guardar documento
@@ -179,17 +181,14 @@ src/
 │   └── globals.css                 → Variables CSS + Tailwind v4
 ├── components/
 │   ├── chat/
-│   │   ├── ActiveProjectSection.tsx → Card de obra activa en sidebar
-│   │   ├── AdminNavLink.tsx        → Link admin condicional (solo role=admin)
 │   │   ├── AgentGreeting.tsx       → Saludo del agente
-│   │   ├── ChatInput.tsx           → Input del chat + botón adjuntar
-│   │   ├── DashboardSidebar.tsx    → Sidebar con historial de sesiones
-│   │   ├── DropZone.tsx            → Drag & drop de archivos
 │   │   ├── DxfViewerModal.tsx      → Visor WebGL de planos DXF
-│   │   ├── FileCard.tsx            → Card de archivo subido con metadatos
 │   │   ├── MessageBubble.tsx       → Burbuja de mensaje en el chat
-│   │   ├── OrganizationCard.tsx    → Card de organización en sidebar
-│   │   └── UserMenu.tsx            → Menú de usuario (logout)
+│   │   ├── ProactivityAlertsBanner.tsx → Banner de hallazgos proactivos
+│   │   ├── input/                  → ChatInput + DropZone
+│   │   ├── sidebar/                → Navegación, org, usuario, sesiones y obra activa
+│   │   ├── cards/                  → Cards de archivos, planes, hipótesis, documentos y hallazgos
+│   │   └── blocks/                 → Bloques visuales estructurados del agente
 │   ├── obras/
 │   │   └── ProjectCard.tsx         → Card de proyecto en listado
 │   ├── providers.tsx               → QueryClientProvider + ThemeProvider
@@ -203,6 +202,7 @@ src/
 │   ├── useOrgMember.ts             → Membership + branding
 │   ├── useProjects.ts              → CRUD de proyectos
 │   ├── useProjectDetails.ts        → Detalle de obra activa
+│   ├── useDailyProjectBrief.ts     → Brief diario de cronograma, HSE, acopios, finanzas, alertas y clima
 │   ├── useProjectCoverage.ts       → Cobertura documental de obra
 │   ├── useProjectFiles.ts          → Archivos de un proyecto
 │   ├── usePriceIndices.ts          → Índices de precios
@@ -215,6 +215,11 @@ src/
 │   │   └── reset-token.ts          → HMAC-SHA256 tokens para password reset
 │   ├── audit/
 │   │   └── audit-log.ts            → Writer server-side de eventos append-only
+│   ├── agent-core/
+│   │   ├── types.ts                → Tipos base para scope, expediente operativo y capacidades
+│   │   ├── context-builder.ts      → Builder puro del scope Empresa/Obra/Expediente
+│   │   ├── capability-registry.ts  → Registro conceptual de capacidades del Agent Core
+│   │   └── prompt-modules.ts       → Composición modular futura del prompt
 │   ├── api/
 │   │   ├── errors.ts               → Helpers de error estandarizados
 │   │   └── rate-limit.ts           → Rate limiter in-memory
@@ -225,6 +230,9 @@ src/
 │   │   ├── agent.ts                → Config del agente + system prompt
 │   │   ├── agent-tools.ts          → Tools sin org-binding
 │   │   ├── agent-tools-bound.ts    → Tools con org-id servidor-verificado
+│   │   ├── model-router.ts         → Selección fast/deep por señales del turno
+│   │   ├── output/                 → Parsers de salida del agente (ej. hipótesis)
+│   │   ├── observability/          → Telemetría de tools y runtime
 │   │   └── session-learner.ts      → Aprendizaje de patrones post-sesión
 │   ├── rag/
 │   │   ├── ingest.ts               → Ingesta de documentos a Qdrant
@@ -241,6 +249,15 @@ src/
 │   │   └── context-scan.ts         → Detección heurística de contradicciones al subir
 │   ├── proactivity/
 │   │   └── daily-scan.ts           → Scanner diario de riesgos sobre obras activas
+│   ├── project-operations/
+│   │   ├── agent-writers/          → Writers invocados por tools del agente
+│   │   ├── brief/                  → Agregadores operativos diarios
+│   │   ├── communications/         → Emails y comunicaciones a stakeholders
+│   │   ├── contracts/              → Registro y auditoría de subcontratos
+│   │   ├── supplies/               → Helpers de acopios y suministros
+│   │   ├── financial-curve.ts      → Auditoría de curva S
+│   │   ├── personnel.ts            → Verificación HSE de cuadrillas/personas
+│   │   └── schedule.ts             → Reprogramación auditada de tareas
 │   ├── excel/
 │   │   └── parser.ts               → Parser de Excel (separado del file-processor)
 │   ├── pattern-extractor/          → Extractor de patrones de archivos
@@ -252,6 +269,15 @@ src/
 │   │   ├── api-responses.ts        → Contratos Zod de responses API consumidas por frontend
 │   │   └── blocks.ts               → Schemas Zod de los bloques de UI Generativa
 │   └── utils.ts                    → Utilidades (cn, etc.)
+
+tests/
+    ├── agent/                      → Agent Core, router y observabilidad del agente
+    ├── chat/                       → Parsers/render helpers del chat
+    ├── documents/                  → Excel y generación documental
+    ├── math/                       → Motor matemático
+    ├── project-operations/         → Cronograma y writers operativos
+    ├── register-ts-loader.mjs      → Loader TS para node:test
+    └── ts-resolve-loader.mjs       → Resolución de aliases en tests
 
 migrations/ (canónico, InsForge CLI)
     ├── 20260507195853_catchup-missing-columns.sql
@@ -306,4 +332,7 @@ RLS: miembros de la organización leen; `admin` y `engineer` insertan/actualizan
 | 2026-05-16 | Dominio de obra | Agregadas tablas operativas `project_schedule_tasks`, `project_financial_snapshots`, `project_subcontracts`, `project_hse_records` y `project_supply_items` con RLS por organización. |
 | 2026-05-16 | Proactividad | Agregado `runDailyProjectScan()` y `/api/cron/project-proactivity` para detectar riesgos diarios y escribir resumen en `audit_log_events`; schedule externo pendiente de URL pública. |
 | 2026-05-16 | Clima | Agregada tool `evaluar_impacto_clima` con Open-Meteo para forecast diario y riesgo operativo por lluvia, viento y temperatura. |
+| 2026-05-17 | Día en la obra | Agregado `buildDailyBrief()`, `GET /api/projects/[id]/daily-brief`, `useDailyProjectBrief()` y `/dashboard/obras/[id]/today` para consolidar cronograma, HSE, acopios, finanzas, alertas y clima. |
+| 2026-05-17 | Subcontratos | Agregado `src/lib/project-operations/contracts/subcontracts.ts` y tools `registrar_subcontrato` / `auditar_subcontratos` para gestión contractual y retenciones. |
+| 2026-05-17 | Organización por dominios | Helpers nuevos del agente y operaciones de obra movidos a subcarpetas por responsabilidad (`ai/output`, `ai/observability`, `project-operations/{brief,communications,contracts,supplies,agent-writers}`); tests agrupados por dominio. |
 | 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |

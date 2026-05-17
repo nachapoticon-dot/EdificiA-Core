@@ -8,8 +8,11 @@ import { agentTools } from "./agent-tools";
  *
  * This prevents prompt injection via document content from overriding the
  * organization context (security fix A-04).
+ *
+ * Optionally accepts `actorUserId` for tools that record actor identity in
+ * the audit log (e.g. enviar_email_stakeholder).
  */
-export function createBoundTools(orgId: string) {
+export function createBoundTools(orgId: string, actorUserId?: string | null) {
   return {
     // ── Pure computation — no org context, pass through unchanged ──────────
     calcular_totales:               agentTools.calcular_totales,
@@ -343,6 +346,133 @@ export function createBoundTools(orgId: string) {
       },
     }),
 
+    registrar_subcontrato: tool({
+      description: agentTools.registrar_subcontrato.description,
+      inputSchema: z.object({
+        projectId:      z.string().describe("UUID de la obra activa"),
+        vendorName:     z.string().min(2),
+        trade:          z.string().optional(),
+        contractAmount: z.number().nonnegative().optional(),
+        currency:       z.string().min(3).max(8).optional(),
+        status:         z.enum(["draft", "active", "paused", "completed", "terminated"]).optional(),
+        startDate:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        endDate:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        retentionPct:   z.number().min(0).max(100).optional(),
+        contactName:    z.string().optional(),
+        contactEmail:   z.string().email().optional(),
+        contactPhone:   z.string().optional(),
+        note:           z.string().max(280).optional(),
+      }),
+      execute: async (input) => {
+        const { registerSubcontract } = await import("@/lib/project-operations/contracts/subcontracts");
+        return registerSubcontract({ ...input, organizationId: orgId });
+      },
+    }),
+
+    auditar_subcontratos: tool({
+      description: agentTools.auditar_subcontratos.description,
+      inputSchema: z.object({
+        projectId:        z.string().describe("UUID de la obra activa"),
+        includeCompleted: z.boolean().optional(),
+        horizonDays:      z.number().int().min(1).max(180).optional(),
+      }),
+      execute: async (input) => {
+        const { auditSubcontracts } = await import("@/lib/project-operations/contracts/subcontracts");
+        return auditSubcontracts({ ...input, organizationId: orgId });
+      },
+    }),
+
+    registrar_snapshot_financiero: tool({
+      description: agentTools.registrar_snapshot_financiero.description,
+      inputSchema: z.object({
+        projectId:       z.string().describe("UUID de la obra activa"),
+        snapshotDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Fecha YYYY-MM-DD"),
+        plannedAmount:   z.number().nullable().optional(),
+        actualAmount:    z.number().nullable().optional(),
+        committedAmount: z.number().nullable().optional(),
+        invoicedAmount:  z.number().nullable().optional(),
+        paidAmount:      z.number().nullable().optional(),
+        currency:        z.string().min(3).max(8).optional(),
+        note:            z.string().max(280).optional(),
+      }),
+      execute: async (input) => {
+        const { registerFinancialSnapshot } = await import("@/lib/project-operations/agent-writers/operational-writers");
+        return registerFinancialSnapshot({ ...input, organizationId: orgId, source: "agent" });
+      },
+    }),
+
+    registrar_hse_record: tool({
+      description: agentTools.registrar_hse_record.description,
+      inputSchema: z.object({
+        projectId:         z.string().describe("UUID de la obra activa"),
+        recordType:        z.enum(["art", "epp", "training", "medical", "incident", "access"]),
+        subjectName:       z.string().optional(),
+        subcontractorName: z.string().optional(),
+        workerIdentifier:  z.string().optional(),
+        issuedAt:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        expiresAt:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        status:            z.enum(["valid", "expiring", "expired", "missing", "incident"]).optional(),
+        note:              z.string().max(280).optional(),
+      }),
+      execute: async (input) => {
+        const { registerHseRecord } = await import("@/lib/project-operations/agent-writers/operational-writers");
+        return registerHseRecord({ ...input, organizationId: orgId });
+      },
+    }),
+
+    registrar_acopio: tool({
+      description: agentTools.registrar_acopio.description,
+      inputSchema: z.object({
+        projectId:        z.string().describe("UUID de la obra activa"),
+        mode:             z.enum(["create", "update"]),
+        itemName:         z.string().min(2),
+        category:         z.string().optional(),
+        unit:             z.string().optional(),
+        requiredQuantity: z.number().nonnegative().optional(),
+        orderedQuantity:  z.number().nonnegative().optional(),
+        receivedQuantity: z.number().nonnegative().optional(),
+        unitCost:         z.number().nonnegative().optional(),
+        currency:         z.string().min(3).max(8).optional(),
+        supplierName:     z.string().optional(),
+        requiredBy:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        status:           z.enum(["planned", "quoted", "ordered", "partial", "received", "delayed", "cancelled"]).optional(),
+        note:             z.string().max(280).optional(),
+      }),
+      execute: async (input) => {
+        const { registerSupplyItem } = await import("@/lib/project-operations/agent-writers/operational-writers");
+        return registerSupplyItem({ ...input, organizationId: orgId });
+      },
+    }),
+
+    resolver_relacion_documental: tool({
+      description: agentTools.resolver_relacion_documental.description,
+      inputSchema: z.object({
+        relationId: z.string().uuid().describe("UUID de la relación"),
+        action:     z.enum(["confirm", "dismiss", "supersede"]),
+        rationale:  z.string().max(280).optional(),
+      }),
+      execute: async (input) => {
+        const { resolveObraRelation } = await import("@/lib/project-operations/agent-writers/operational-writers");
+        return resolveObraRelation({ ...input, organizationId: orgId });
+      },
+    }),
+
+    resumen_diario_obra: tool({
+      description: agentTools.resumen_diario_obra.description,
+      inputSchema: z.object({
+        projectId:      z.string().describe("UUID de la obra activa"),
+        includeWeather: z.object({
+          location:  z.string().optional(),
+          latitude:  z.number().min(-90).max(90).optional(),
+          longitude: z.number().min(-180).max(180).optional(),
+        }).optional(),
+      }),
+      execute: async (input) => {
+        const { buildDailyBrief } = await import("@/lib/project-operations/brief/daily-brief");
+        return buildDailyBrief({ ...input, organizationId: orgId });
+      },
+    }),
+
     buscar_relaciones_documento: tool({
       description: agentTools.buscar_relaciones_documento.description,
       inputSchema: z.object({
@@ -403,6 +533,149 @@ export function createBoundTools(orgId: string) {
             };
           }),
         };
+      },
+    }),
+
+    generar_orden_compra: tool({
+      description: agentTools.generar_orden_compra.description,
+      inputSchema: z.object({
+        obraName:       z.string(),
+        projectId:      z.string().optional(),
+        supplyItemId:   z.string().uuid().optional(),
+        ordenNumber:    z.string().optional(),
+        vendor: z.object({
+          name:         z.string().min(2),
+          contactName:  z.string().optional(),
+          contactEmail: z.string().email().optional(),
+          contactPhone: z.string().optional(),
+        }),
+        items: z.array(z.object({
+          description: z.string(),
+          quantity:    z.number().nonnegative(),
+          unit:        z.string(),
+          unitPrice:   z.number().nonnegative(),
+        })).min(1).max(50),
+        currency:        z.string().min(3).max(8).optional(),
+        taxPct:          z.number().min(0).max(100).optional(),
+        deliveryAddress: z.string().optional(),
+        deliveryDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        paymentTerms:    z.string().optional(),
+        notes:           z.string().max(500).optional(),
+        signedBy:        z.string().optional(),
+      }),
+      execute: async (input) => {
+        const safeDate = new Date().toISOString().slice(0, 10);
+        const safeVendor = input.vendor.name.replace(/\s+/g, "_").slice(0, 30);
+        const safeObra = input.obraName.replace(/\s+/g, "_").slice(0, 30);
+        const itemsCount = input.items.length;
+        const total = input.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
+        const currency = input.currency ?? "ARS";
+        const totalLabel = new Intl.NumberFormat("es-AR", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(total);
+        return {
+          type:        "doc_generation_proposal" as const,
+          docType:     "orden_compra" as const,
+          fileName:    `OC_${safeVendor}_${safeObra}_${safeDate}`,
+          description: `OC a ${input.vendor.name} · ${itemsCount} item(s) · ${currency} ${totalLabel}`,
+          payload: {
+            obraName:        input.obraName,
+            ordenNumber:     input.ordenNumber,
+            vendor:          input.vendor,
+            items:           input.items,
+            currency:        input.currency,
+            taxPct:          input.taxPct,
+            deliveryAddress: input.deliveryAddress,
+            deliveryDate:    input.deliveryDate,
+            paymentTerms:    input.paymentTerms,
+            notes:           input.notes,
+            buyer:           input.signedBy ? { signedBy: input.signedBy } : undefined,
+            supplyItemId:    input.supplyItemId,
+            projectId:       input.projectId,
+          },
+          organizationId: orgId,
+        };
+      },
+    }),
+
+    generar_acta_obra: tool({
+      description: agentTools.generar_acta_obra.description,
+      inputSchema: z.object({
+        obraName:        z.string(),
+        date:            z.string(),
+        weatherSummary:  z.string().optional(),
+        crew: z.array(z.object({
+          name:          z.string().optional(),
+          role:          z.string().optional(),
+          subcontractor: z.string().optional(),
+          count:         z.number().int().min(1).max(200).optional(),
+        })).optional(),
+        tasksExecuted: z.array(z.object({
+          description:  z.string(),
+          progress:     z.string().optional(),
+          observations: z.string().optional(),
+        })).min(1).max(20),
+        incidents: z.array(z.object({
+          severity:    z.enum(["leve", "moderado", "critico"]),
+          description: z.string(),
+        })).optional(),
+        materialsReceived: z.array(z.object({
+          item:     z.string(),
+          quantity: z.string().optional(),
+          supplier: z.string().optional(),
+        })).optional(),
+        visitsOnSite: z.array(z.object({
+          name: z.string(),
+          role: z.string().optional(),
+        })).optional(),
+        notes:    z.string().max(1000).optional(),
+        signedBy: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const safeObra = input.obraName.replace(/\s+/g, "_").slice(0, 30);
+        const safeDate = input.date.slice(0, 10);
+        const taskCount = input.tasksExecuted.length;
+        const incidentCount = input.incidents?.length ?? 0;
+        const descParts = [`${taskCount} tarea(s)`];
+        if (incidentCount > 0) descParts.push(`${incidentCount} incidente(s)`);
+        if (input.materialsReceived?.length) descParts.push(`${input.materialsReceived.length} material(es) recibido(s)`);
+        return {
+          type:        "doc_generation_proposal" as const,
+          docType:     "acta_obra" as const,
+          fileName:    `Acta_${safeObra}_${safeDate}`,
+          description: `Parte diario ${input.obraName} · ${input.date} · ${descParts.join(" · ")}`,
+          payload: {
+            obraName:          input.obraName,
+            date:              input.date,
+            weatherSummary:    input.weatherSummary,
+            crew:              input.crew,
+            tasksExecuted:     input.tasksExecuted,
+            incidents:         input.incidents,
+            materialsReceived: input.materialsReceived,
+            visitsOnSite:      input.visitsOnSite,
+            notes:             input.notes,
+            signedBy:          input.signedBy,
+          },
+          organizationId: orgId,
+        };
+      },
+    }),
+
+    enviar_email_stakeholder: tool({
+      description: agentTools.enviar_email_stakeholder.description,
+      inputSchema: z.object({
+        projectId:      z.string().describe("UUID de la obra activa — define la whitelist"),
+        to:             z.array(z.string().email()).min(1).max(5),
+        cc:             z.array(z.string().email()).max(5).optional(),
+        subject:        z.string().min(3).max(160),
+        body:           z.string().min(10).max(5000),
+        scheduleTaskId: z.string().uuid().optional(),
+        subcontractId:  z.string().uuid().optional(),
+      }),
+      execute: async (input) => {
+        const { sendStakeholderEmail } = await import("@/lib/project-operations/communications/stakeholder-email");
+        return sendStakeholderEmail({ ...input, organizationId: orgId, actorUserId });
       },
     }),
 

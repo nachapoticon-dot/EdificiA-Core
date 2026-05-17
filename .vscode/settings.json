@@ -1,0 +1,19 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "package.json": "package-lock.json, eslint.config.mjs, postcss.config.mjs, components.json",
+    "next.config.ts": "next-env.d.ts, tsconfig.json, tsconfig.tsbuildinfo",
+    "README.md": "AGENTS.md, CLAUDE.md, CONTRIBUTING.md, LICENSE, ROADMAP.md",
+    "docker-compose.yml": "Dockerfile, .env.docker.example",
+    ".env.local": ".env.local.example"
+  },
+  "files.exclude": {
+    "**/.next": true,
+    "**/node_modules": true,
+    "**/.claude-flow": true,
+    "**/.insforge": true,
+    "**/tsconfig.tsbuildinfo": true,
+    "**/next-env.d.ts": true
+  }
+}

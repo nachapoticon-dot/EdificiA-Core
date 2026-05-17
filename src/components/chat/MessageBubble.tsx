@@ -18,6 +18,7 @@ import { FindingCallout, type FindingSpec } from "./cards/FindingCallout";
 import { ComparisonTable, type ComparisonTableSpec } from "./cards/ComparisonTable";
 import { GeneratedDocCard, type DocGenerationProposal } from "./cards/GeneratedDocCard";
 import { PlanBlock, PlanPendingPlaceholder, extractPlan } from "./cards/PlanBlock";
+import { HypothesisBlock, HypothesisPendingPlaceholder, extractHypothesis } from "./cards/HypothesisBlock";
 import { ResponseBlock } from "./blocks";
 import { BlockSpec, type BlockKind } from "@/lib/validators/blocks";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -141,7 +142,17 @@ const TOOL_LABELS: Record<string, string> = {
   verificar_ingreso_personal:      "Verificando legajo HSE de la cuadrilla",
   reprogramar_e_informar:          "Reprogramando tarea y registrando evento",
   auditar_curva_inversion:         "Auditando curva S vs plan",
+  registrar_subcontrato:           "Registrando subcontrato de obra",
+  auditar_subcontratos:            "Auditando subcontratos y retenciones",
   buscar_relaciones_documento:     "Consultando knowledge graph de obra",
+  registrar_snapshot_financiero:   "Registrando snapshot financiero",
+  registrar_hse_record:            "Registrando legajo HSE",
+  registrar_acopio:                "Registrando acopio de obra",
+  resolver_relacion_documental:    "Resolviendo relación del knowledge graph",
+  resumen_diario_obra:             "Armando brief diario de obra",
+  generar_orden_compra:            "Armando orden de compra",
+  generar_acta_obra:               "Generando parte diario de obra",
+  enviar_email_stakeholder:        "Enviando email a stakeholders",
 };
 
 const SPECIAL_TOOLS = new Set([
@@ -150,6 +161,8 @@ const SPECIAL_TOOLS = new Set([
   "generar_presupuesto_excel",
   "generar_memoria_descriptiva",
   "generar_informe_pdf",
+  "generar_orden_compra",
+  "generar_acta_obra",
   "reportar_hallazgo",
   "reportar_hallazgos_batch",
   "comparar_presupuestos",
@@ -347,14 +360,18 @@ function TextPart({
     );
   }
 
-  // Assistant message: extract the optional <plan>{...}</plan> block so it
-  // renders as a dedicated card instead of raw text inside the bubble.
-  const { plan, cleanText, pending } = extractPlan(part.text);
+  // Assistant message: extract optional <plan>{...}</plan> and
+  // <hypothesis>{...}</hypothesis> blocks so they render as dedicated cards
+  // instead of raw text inside the bubble.
+  const { plan, cleanText: textAfterPlan, pending: planPending } = extractPlan(part.text);
+  const { hypothesis, cleanText, pending: hypPending } = extractHypothesis(textAfterPlan);
 
   return (
     <div className="flex w-full flex-col gap-2">
+      {hypothesis && <HypothesisBlock spec={hypothesis} />}
+      {hypPending && <HypothesisPendingPlaceholder />}
       {plan && <PlanBlock spec={plan} />}
-      {pending && <PlanPendingPlaceholder />}
+      {planPending && <PlanPendingPlaceholder />}
       {cleanText && (
         <div className="px-4 py-2.5 text-sm leading-relaxed bg-card border border-border text-foreground rounded-[2px_12px_12px_12px] prose prose-sm prose-neutral dark:prose-invert max-w-none">
           <ReactMarkdown
@@ -455,7 +472,9 @@ function BlockResultPart({
   if (
     toolName === "generar_presupuesto_excel" ||
     toolName === "generar_memoria_descriptiva" ||
-    toolName === "generar_informe_pdf"
+    toolName === "generar_informe_pdf" ||
+    toolName === "generar_orden_compra" ||
+    toolName === "generar_acta_obra"
   ) {
     const o = output as Record<string, unknown>;
     if (o.type === "doc_generation_proposal") {

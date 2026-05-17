@@ -1,7 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { apiRateLimited } from "@/lib/api/errors";
+import { apiBadRequest, apiRateLimited } from "@/lib/api/errors";
 import { okResponseSchema, sessionsResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
@@ -57,6 +57,14 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   const client = getInsForgeAdminClient();
+  const projectId = body.projectId
+    ? await validateProjectId(client, auth.orgId, body.projectId)
+    : null;
+
+  if (body.projectId && !projectId) {
+    return apiBadRequest("Obra inválida.");
+  }
+
   await client.database.from("chat_sessions").upsert(
     {
       id: body.id,
@@ -65,7 +73,7 @@ export async function POST(req: Request): Promise<Response> {
       title: body.title,
       file_type: body.fileType ?? null,
       started_at: body.startedAt,
-      project_id: body.projectId ?? null,
+      project_id: projectId,
     },
     { onConflict: "id" },
   );
@@ -108,4 +116,21 @@ function normalizeSessionFileType(value: string | null): "excel" | "pdf" | "dxf"
     return value;
   }
   return undefined;
+}
+
+async function validateProjectId(
+  client: ReturnType<typeof getInsForgeAdminClient>,
+  orgId: string,
+  projectId: string,
+): Promise<string | null> {
+  const result = await client.database
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  return result.data ? projectId : null;
 }

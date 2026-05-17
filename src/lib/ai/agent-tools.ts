@@ -329,6 +329,7 @@ export const agentTools = {
       detail:   z.string().describe("Descripción clara del problema o situación detectada"),
       impact:   z.string().optional().describe("Impacto económico estimado (ej: '$45.000 de diferencia en cómputo')"),
       item:     z.string().optional().describe("Ítem o referencia exacta del documento afectado"),
+      confidence: z.number().min(0).max(100).optional().describe("Confianza 0-100 del hallazgo según evidencia disponible"),
     }),
     execute: async (input) => ({
       type: "finding_callout" as const,
@@ -347,6 +348,7 @@ export const agentTools = {
         detail:   z.string().describe("Descripción del problema"),
         impact:   z.string().optional().describe("Impacto económico"),
         item:     z.string().optional().describe("Ítem o referencia afectada"),
+        confidence: z.number().min(0).max(100).optional().describe("Confianza 0-100 del hallazgo"),
       })).describe("Lista de todos los hallazgos de la auditoría"),
     }),
     execute: async (input) => ({
@@ -478,6 +480,155 @@ export const agentTools = {
           ? `${overCount > 0 ? `${overCount} categoría(s) con precios por encima del índice de referencia` : ""}${overCount > 0 && underCount > 0 ? " y " : ""}${underCount > 0 ? `${underCount} categoría(s) por debajo` : ""}. Revisá las categorías marcadas.`
           : "Todos los precios están dentro del rango de referencia (±15%).",
       };
+    },
+  }),
+
+  generar_orden_compra: tool({
+    description:
+      "Genera una orden de compra (.docx) lista para firmar y descargar a partir de datos explícitos del acopio. Úsala cuando el usuario decide formalizar la compra de un material/servicio y pide 'armá la OC', 'generá la orden de compra' o 'pasame el documento para firmar'. Si supplyItemId está presente, agrega trazabilidad al item de project_supply_items. Los items, cantidades y precios deben venir del usuario o de una tool previa (registrar_acopio, comparar_presupuestos), NO los inventes.",
+    inputSchema: z.object({
+      obraName:       z.string().describe("Nombre de la obra"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      projectId:      z.string().optional().describe("UUID de la obra (opcional, mejora trazabilidad)"),
+      supplyItemId:   z.string().uuid().optional().describe("UUID del item de project_supply_items si la OC corresponde a un acopio ya registrado"),
+      ordenNumber:    z.string().optional().describe("Número interno de la OC (si no se pasa, se genera uno)"),
+      vendor: z.object({
+        name:         z.string().min(2).describe("Razón social del proveedor"),
+        contactName:  z.string().optional(),
+        contactEmail: z.string().email().optional(),
+        contactPhone: z.string().optional(),
+      }).describe("Datos del proveedor"),
+      items: z.array(z.object({
+        description: z.string().describe("Descripción del item / servicio"),
+        quantity:    z.number().nonnegative().describe("Cantidad"),
+        unit:        z.string().describe("Unidad (m³, kg, ml, un...)"),
+        unitPrice:   z.number().nonnegative().describe("Precio unitario"),
+      })).min(1).max(50).describe("Items de la OC"),
+      currency:        z.string().min(3).max(8).optional().describe("Moneda (default ARS)"),
+      taxPct:          z.number().min(0).max(100).optional().describe("IVA en %"),
+      deliveryAddress: z.string().optional().describe("Lugar de entrega"),
+      deliveryDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha de entrega YYYY-MM-DD"),
+      paymentTerms:    z.string().optional().describe("Forma / plazo de pago (ej: '30 días fecha factura')"),
+      notes:           z.string().max(500).optional().describe("Observaciones adicionales"),
+      signedBy:        z.string().optional().describe("Nombre del responsable de compras que firma"),
+    }),
+    execute: async (input) => {
+      const safeDate = new Date().toISOString().slice(0, 10);
+      const safeVendor = input.vendor.name.replace(/\s+/g, "_").slice(0, 30);
+      const safeObra = input.obraName.replace(/\s+/g, "_").slice(0, 30);
+      const itemsCount = input.items.length;
+      const total = input.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
+      const currency = input.currency ?? "ARS";
+      const totalLabel = new Intl.NumberFormat("es-AR", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(total);
+      return {
+        type:        "doc_generation_proposal" as const,
+        docType:     "orden_compra" as const,
+        fileName:    `OC_${safeVendor}_${safeObra}_${safeDate}`,
+        description: `OC a ${input.vendor.name} · ${itemsCount} item(s) · ${currency} ${totalLabel}`,
+        payload: {
+          obraName:        input.obraName,
+          ordenNumber:     input.ordenNumber,
+          vendor:          input.vendor,
+          items:           input.items,
+          currency:        input.currency,
+          taxPct:          input.taxPct,
+          deliveryAddress: input.deliveryAddress,
+          deliveryDate:    input.deliveryDate,
+          paymentTerms:    input.paymentTerms,
+          notes:           input.notes,
+          buyer:           input.signedBy ? { signedBy: input.signedBy } : undefined,
+          supplyItemId:    input.supplyItemId,
+          projectId:       input.projectId,
+        },
+        organizationId: input.organizationId,
+      };
+    },
+  }),
+
+  generar_acta_obra: tool({
+    description:
+      "Genera un acta / parte diario de obra (.docx) listo para firmar. Documenta lo ejecutado en un día: clima, cuadrilla, tareas con avance, materiales recibidos, incidentes HSE, visitas y notas. Úsala cuando el usuario pide 'armá el parte diario', 'generá el acta del DD/MM' o cierra la jornada con un resumen. Los datos deben venir del usuario o de tools previas (resumen_diario_obra, registrar_hse_record, etc.), NO los inventes.",
+    inputSchema: z.object({
+      obraName:        z.string().describe("Nombre de la obra"),
+      organizationId:  z.string().describe("ID de la organización activa"),
+      date:            z.string().describe("Fecha del parte en YYYY-MM-DD o texto libre"),
+      weatherSummary:  z.string().optional().describe("Resumen del clima del día (ej: 'Soleado, 18-26°C, sin lluvia')"),
+      crew: z.array(z.object({
+        name:          z.string().optional(),
+        role:          z.string().optional().describe("Rol (capataz, oficial albañil, plomero, etc.)"),
+        subcontractor: z.string().optional().describe("Empresa subcontratista"),
+        count:         z.number().int().min(1).max(200).optional().describe("Cantidad de personas si es grupo"),
+      })).optional().describe("Cuadrilla presente en obra"),
+      tasksExecuted: z.array(z.object({
+        description:  z.string().describe("Qué se ejecutó (ej: 'Hormigonado losa N+2.80')"),
+        progress:     z.string().optional().describe("Avance (ej: '80% completado', '120 m² ejecutados')"),
+        observations: z.string().optional().describe("Observaciones técnicas"),
+      })).min(1).max(20).describe("Tareas ejecutadas en el día"),
+      incidents: z.array(z.object({
+        severity:    z.enum(["leve", "moderado", "critico"]),
+        description: z.string().describe("Descripción del incidente o observación HSE"),
+      })).optional().describe("Incidentes y observaciones HSE del día"),
+      materialsReceived: z.array(z.object({
+        item:     z.string().describe("Material recibido"),
+        quantity: z.string().optional().describe("Cantidad con unidad (ej: '12 m³', '500 kg')"),
+        supplier: z.string().optional().describe("Proveedor que entregó"),
+      })).optional().describe("Materiales recibidos en obra"),
+      visitsOnSite: z.array(z.object({
+        name: z.string(),
+        role: z.string().optional(),
+      })).optional().describe("Visitas externas en obra (DT, inspección, propietario)"),
+      notes:    z.string().max(1000).optional().describe("Notas libres"),
+      signedBy: z.string().optional().describe("Capataz / Conductor de obra que firma"),
+    }),
+    execute: async (input) => {
+      const safeObra = input.obraName.replace(/\s+/g, "_").slice(0, 30);
+      const safeDate = input.date.slice(0, 10);
+      const taskCount = input.tasksExecuted.length;
+      const incidentCount = input.incidents?.length ?? 0;
+      const descParts = [`${taskCount} tarea(s)`];
+      if (incidentCount > 0) descParts.push(`${incidentCount} incidente(s)`);
+      if (input.materialsReceived?.length) descParts.push(`${input.materialsReceived.length} material(es) recibido(s)`);
+      return {
+        type:        "doc_generation_proposal" as const,
+        docType:     "acta_obra" as const,
+        fileName:    `Acta_${safeObra}_${safeDate}`,
+        description: `Parte diario ${input.obraName} · ${input.date} · ${descParts.join(" · ")}`,
+        payload: {
+          obraName:          input.obraName,
+          date:              input.date,
+          weatherSummary:    input.weatherSummary,
+          crew:              input.crew,
+          tasksExecuted:     input.tasksExecuted,
+          incidents:         input.incidents,
+          materialsReceived: input.materialsReceived,
+          visitsOnSite:      input.visitsOnSite,
+          notes:             input.notes,
+          signedBy:          input.signedBy,
+        },
+        organizationId: input.organizationId,
+      };
+    },
+  }),
+
+  enviar_email_stakeholder: tool({
+    description:
+      "Envía un email a stakeholders de la obra (subcontratistas con contacto registrado en project_subcontracts). SOLO acepta destinatarios que estén en la whitelist de la obra: emails de contactos de subcontratos no eliminados. Si un email no está, lo bloquea y devuelve la lista de bloqueados. Úsala cuando el usuario explícitamente pide 'avisale a X', 'mandale un mail al gremio Y', 'notificá al instalador'. NO la uses para emails internos ni para destinatarios genéricos. Máximo 5 destinatarios entre to+cc.",
+    inputSchema: z.object({
+      organizationId: z.string().describe("ID de la organización activa"),
+      projectId:      z.string().describe("UUID de la obra activa — define la whitelist"),
+      to:             z.array(z.string().email()).min(1).max(5).describe("Lista de destinatarios principales"),
+      cc:             z.array(z.string().email()).max(5).optional().describe("Lista de destinatarios en copia"),
+      subject:        z.string().min(3).max(160).describe("Asunto del email"),
+      body:           z.string().min(10).max(5000).describe("Cuerpo del mensaje en texto plano (los saltos de línea se preservan)"),
+      scheduleTaskId: z.string().uuid().optional().describe("UUID de la tarea de cronograma asociada (opcional, queda en audit log)"),
+      subcontractId:  z.string().uuid().optional().describe("UUID del subcontrato asociado (opcional, queda en audit log)"),
+    }),
+    execute: async (input) => {
+      const { sendStakeholderEmail } = await import("@/lib/project-operations/communications/stakeholder-email");
+      return sendStakeholderEmail(input);
     },
   }),
 
@@ -624,6 +775,147 @@ export const agentTools = {
     },
   }),
 
+  registrar_subcontrato: tool({
+    description:
+      "Registra un subcontrato de obra en project_subcontracts: proveedor, rubro, monto, estado, fechas, retención y contacto. Úsala cuando el usuario informa una contratación concreta o pide cargar un subcontrato. NO inventes montos ni fechas.",
+    inputSchema: z.object({
+      projectId:       z.string().describe("UUID de la obra activa"),
+      organizationId:  z.string().describe("ID de la organización activa"),
+      vendorName:      z.string().min(2).describe("Nombre del subcontratista / proveedor"),
+      trade:           z.string().optional().describe("Rubro o especialidad: estructura, instalaciones, albañilería, HSE, etc."),
+      contractAmount:  z.number().nonnegative().optional().describe("Monto contractual"),
+      currency:        z.string().min(3).max(8).optional().describe("Default ARS"),
+      status:          z.enum(["draft", "active", "paused", "completed", "terminated"]).optional(),
+      startDate:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      endDate:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      retentionPct:    z.number().min(0).max(100).optional().describe("Porcentaje de fondo de reparo / retención"),
+      contactName:     z.string().optional(),
+      contactEmail:    z.string().email().optional(),
+      contactPhone:    z.string().optional(),
+      note:            z.string().max(280).optional(),
+    }),
+    execute: async (input) => {
+      const { registerSubcontract } = await import("@/lib/project-operations/contracts/subcontracts");
+      return registerSubcontract(input);
+    },
+  }),
+
+  auditar_subcontratos: tool({
+    description:
+      "Audita subcontratos de una obra: incidencia por rubro, montos activos, vencimientos contractuales próximos/vencidos y retenciones acumuladas estimadas. Úsala ante preguntas sobre subcontratistas, contratos, vencimientos, rubros tercerizados o fondo de reparo.",
+    inputSchema: z.object({
+      projectId:        z.string().describe("UUID de la obra activa"),
+      organizationId:   z.string().describe("ID de la organización activa"),
+      includeCompleted: z.boolean().optional().describe("Incluir completed/terminated en el cálculo (default false)"),
+      horizonDays:      z.number().int().min(1).max(180).optional().describe("Ventana de vencimientos próximos (default 30 días)"),
+    }),
+    execute: async (input) => {
+      const { auditSubcontracts } = await import("@/lib/project-operations/contracts/subcontracts");
+      return auditSubcontracts(input);
+    },
+  }),
+
+  registrar_snapshot_financiero: tool({
+    description:
+      "Registra un snapshot de inversión de la obra (planificado / real / comprometido / facturado / pagado) en una fecha dada. Si ya existe un snapshot para esa fecha, lo actualiza. Úsala cuando el usuario informa cifras concretas como 'al 31/08 llevamos invertidos $X'. NO inventes montos — solo registralos cuando el usuario los provee. Requiere obra activa.",
+    inputSchema: z.object({
+      projectId:        z.string().describe("UUID de la obra activa"),
+      organizationId:   z.string().describe("ID de la organización activa"),
+      snapshotDate:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Fecha del snapshot YYYY-MM-DD"),
+      plannedAmount:    z.number().nullable().optional().describe("Monto planificado a esa fecha"),
+      actualAmount:     z.number().nullable().optional().describe("Monto realmente invertido"),
+      committedAmount:  z.number().nullable().optional().describe("Monto comprometido (OC + contratos firmados)"),
+      invoicedAmount:   z.number().nullable().optional().describe("Monto facturado por contratistas"),
+      paidAmount:       z.number().nullable().optional().describe("Monto efectivamente pagado"),
+      currency:         z.string().min(3).max(8).optional().describe("Moneda ISO (default ARS)"),
+      note:             z.string().max(280).optional().describe("Nota breve de contexto"),
+    }),
+    execute: async (input) => {
+      const { registerFinancialSnapshot } = await import("@/lib/project-operations/agent-writers/operational-writers");
+      return registerFinancialSnapshot({ ...input, source: "agent" });
+    },
+  }),
+
+  registrar_hse_record: tool({
+    description:
+      "Registra un legajo HSE (ART / EPP / capacitación / médico / incidente / acceso) para un trabajador o subcontratista de la obra. El status se calcula automáticamente desde expiresAt: valid > 14d, expiring ≤14d, expired si vencido. Úsala cuando el usuario informa documentación nueva ('Juan presentó ART vigente hasta 30/09'). NO la uses para inventar credenciales.",
+    inputSchema: z.object({
+      projectId:          z.string().describe("UUID de la obra activa"),
+      organizationId:     z.string().describe("ID de la organización activa"),
+      recordType:         z.enum(["art", "epp", "training", "medical", "incident", "access"]),
+      subjectName:        z.string().optional().describe("Nombre del trabajador o responsable"),
+      subcontractorName:  z.string().optional().describe("Nombre del subcontratista o empresa"),
+      workerIdentifier:   z.string().optional().describe("DNI / legajo interno"),
+      issuedAt:           z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha de emisión YYYY-MM-DD"),
+      expiresAt:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha de vencimiento YYYY-MM-DD"),
+      status:             z.enum(["valid", "expiring", "expired", "missing", "incident"]).optional().describe("Forzar status (override del auto-cálculo). Para incidentes informados, indicar 'incident'"),
+      note:               z.string().max(280).optional().describe("Nota breve"),
+    }),
+    execute: async (input) => {
+      const { registerHseRecord } = await import("@/lib/project-operations/agent-writers/operational-writers");
+      return registerHseRecord(input);
+    },
+  }),
+
+  registrar_acopio: tool({
+    description:
+      "Crea o actualiza un acopio/suministro de la obra (mode='create' inserta nuevo, mode='update' modifica el existente con el mismo itemName). Status se infiere automáticamente: received si receivedQuantity ≥ requiredQuantity, partial si <, ordered si hay orderedQuantity, planned si solo hay requiredQuantity. Úsala cuando el usuario informa 'planificamos comprar X', 'pedimos Y', 'recibimos Z'.",
+    inputSchema: z.object({
+      projectId:        z.string().describe("UUID de la obra activa"),
+      organizationId:   z.string().describe("ID de la organización activa"),
+      mode:             z.enum(["create", "update"]),
+      itemName:         z.string().min(2).describe("Nombre del item de acopio (ej: 'Hormigón H21', 'Hierro 8mm')"),
+      category:         z.string().optional().describe("Categoría general (estructura, terminaciones, instalaciones…)"),
+      unit:             z.string().optional().describe("Unidad de medida (m³, kg, ml, un…)"),
+      requiredQuantity: z.number().nonnegative().optional(),
+      orderedQuantity:  z.number().nonnegative().optional(),
+      receivedQuantity: z.number().nonnegative().optional(),
+      unitCost:         z.number().nonnegative().optional().describe("Costo unitario en la moneda informada"),
+      currency:         z.string().min(3).max(8).optional().describe("Default ARS"),
+      supplierName:     z.string().optional().describe("Proveedor"),
+      requiredBy:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha en que se necesita en obra"),
+      status:           z.enum(["planned", "quoted", "ordered", "partial", "received", "delayed", "cancelled"]).optional().describe("Override del status auto-calculado"),
+      note:             z.string().max(280).optional(),
+    }),
+    execute: async (input) => {
+      const { registerSupplyItem } = await import("@/lib/project-operations/agent-writers/operational-writers");
+      return registerSupplyItem(input);
+    },
+  }),
+
+  resolver_relacion_documental: tool({
+    description:
+      "Cierra una relación del knowledge graph entre dos documentos. action='confirm' marca la relación como confirmada por usuario (confidence=1, detected_by=user). action='dismiss' soft-deletea la relación con resolución 'dismissed'. action='supersede' indica que el target reemplaza al source: crea una relación 'supersedes' nueva en sentido inverso y descarta la original. Úsala cuando el usuario clarifica que una contradicción detectada automáticamente no es válida ('ese cambio fue autorizado') o cuando confirma trazabilidad.",
+    inputSchema: z.object({
+      relationId:     z.string().uuid().describe("UUID de la relación a resolver"),
+      action:         z.enum(["confirm", "dismiss", "supersede"]),
+      rationale:      z.string().max(280).optional().describe("Motivo breve de la resolución (queda en el audit log)"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const { resolveObraRelation } = await import("@/lib/project-operations/agent-writers/operational-writers");
+      return resolveObraRelation(input);
+    },
+  }),
+
+  resumen_diario_obra: tool({
+    description:
+      "Brief diario consolidado de la obra: tareas vencidas/del día/próximas, HSE expirando, acopios demorados o requeridos pronto, último snapshot financiero con desvío, alertas top y opcionalmente clima del día. Úsala cuando el usuario pide 'cómo va la obra', 'qué tengo hoy', 'estado general' o al inicio del día.",
+    inputSchema: z.object({
+      projectId:      z.string().describe("UUID de la obra activa"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      includeWeather: z.object({
+        location:  z.string().optional(),
+        latitude:  z.number().min(-90).max(90).optional(),
+        longitude: z.number().min(-180).max(180).optional(),
+      }).optional().describe("Si se pasa, agrega clima del día — requiere location o coordenadas."),
+    }),
+    execute: async (input) => {
+      const { buildDailyBrief } = await import("@/lib/project-operations/brief/daily-brief");
+      return buildDailyBrief(input);
+    },
+  }),
+
   buscar_relaciones_documento: tool({
     description:
       "Consulta el knowledge graph de obra: lista qué documentos están relacionados con un archivo dado (contradicts / derives_from / supersedes / references / duplicates). Usala cuando el usuario pregunte '¿qué documentos se contradicen?', '¿qué archivos derivan de X?' o cuando necesites trazabilidad entre presupuestos, planos y memorias. Resolve por fileId o por nombre parcial.",
@@ -702,12 +994,14 @@ export const agentTools = {
         delta: z.number().optional().describe("Variación porcentual con signo (ej: 6.8 = +6.8%)"),
         alert: z.boolean().optional().describe("true si el delta es un desvío que requiere atención"),
         sub: z.string().optional().describe("Subtítulo aclaratorio (ej: 'vs presupuesto base')"),
+        confidence: z.number().min(0).max(100).optional().describe("Confianza 0-100 del KPI"),
       })).min(2).max(4).describe("Entre 2 y 4 KPIs — llenar SIEMPRE los 4 cuando hay datos"),
       bars: z.array(z.object({
         label: z.string().describe("Nombre del rubro"),
         value: z.number().describe("Monto en $ ARS"),
         pct: z.number().optional().describe("Incidencia % sobre el total"),
         alert: z.boolean().optional().describe("true si el rubro tiene desvío respecto al índice CAC"),
+        confidence: z.number().min(0).max(100).optional().describe("Confianza 0-100 de esta barra/rubro"),
       })).min(1).max(12).describe("Rubros ordenados de mayor a menor incidencia"),
       totalLabel: z.string().optional().describe("Etiqueta del total (default 'Σ')"),
       footer: z.string().optional().describe("Fuente de los datos (ej: 'Presupuesto R3 · CAC abril/2026')"),

@@ -41,9 +41,12 @@ export function MetricsBlock({
               <div className="text-[19px] font-semibold leading-none tracking-tight tabular-nums">
                 {k.value}
               </div>
-              {k.delta != null && (
-                <DeltaBadge delta={k.delta} alert={k.alert} />
-              )}
+              <div className="flex items-center gap-1">
+                {k.confidence != null && <ConfidenceBadge confidence={k.confidence} />}
+                {k.delta != null && (
+                  <DeltaBadge delta={k.delta} alert={k.alert} />
+                )}
+              </div>
             </div>
             {k.sub && (
               <MonoLabel className="text-[9.5px] tracking-[0.04em] normal-case">
@@ -68,7 +71,7 @@ export function MetricsBlock({
               <div
                 key={i}
                 className="grid items-center gap-2.5"
-                style={{ gridTemplateColumns: "130px 1fr 64px" }}
+                style={{ gridTemplateColumns: "130px 1fr 76px" }}
               >
                 <span className="truncate text-right text-[11.5px] text-muted-foreground" title={b.label}>
                   {b.label}
@@ -92,6 +95,11 @@ export function MetricsBlock({
                   style={{ color }}
                 >
                   {b.pct != null ? fmtPct(b.pct) : fmt$(b.value)}
+                  {b.confidence != null && (
+                    <span className="block text-[9px] font-normal text-muted-foreground">
+                      {Math.round(b.confidence)}% conf.
+                    </span>
+                  )}
                 </span>
               </div>
             );
@@ -103,6 +111,14 @@ export function MetricsBlock({
         </div>
       </div>
     </BlockShell>
+  );
+}
+
+function ConfidenceBadge({ confidence }: { confidence: number }) {
+  return (
+    <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground ring-1 ring-border">
+      {Math.round(confidence)}%
+    </span>
   );
 }
 
