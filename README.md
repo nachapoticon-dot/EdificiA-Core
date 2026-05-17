@@ -91,8 +91,8 @@ src/
 
 ```bash
 # 1. Clonar e instalar dependencias
-git clone https://github.com/nachapoticon-dot/EdificIA.git
-cd EdificIA
+git clone https://github.com/nachapoticon-dot/EdificiA-Core.git
+cd EdificiA-Core
 npm install
 
 # 2. Configurar variables de entorno
