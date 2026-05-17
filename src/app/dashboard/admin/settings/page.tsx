@@ -6,15 +6,9 @@ import { Settings, Loader2, Check, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { orgSettingsResponseSchema, type OrgSettingsResponse } from "@/lib/validators/api-responses";
 
-interface OrgSettings {
-  id: string;
-  name: string;
-  slug: string;
-  primary_color: string | null;
-  logo_url: string | null;
-  agent_name: string | null;
-}
+type OrgSettings = OrgSettingsResponse;
 
 export default function AdminSettingsPage() {
   const orgMember = useOrgMember();
@@ -36,10 +30,11 @@ export default function AdminSettingsPage() {
     async function load() {
       const headers = await getAuthHeaders();
       if (!headers.Authorization) return;
-      const data = await fetch("/api/admin/settings", { headers })
-        .then((r) => r.json() as Promise<OrgSettings>)
-        .catch(() => null);
-      if (!data) return;
+      const res = await fetch("/api/admin/settings", { headers }).catch(() => null);
+      if (!res?.ok) return;
+      const parsed = orgSettingsResponseSchema.safeParse(await res.json());
+      if (!parsed.success) return;
+      const data = parsed.data;
       setSettings(data);
       setForm({
         name: data.name,

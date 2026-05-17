@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useSyncExternalStore } from "react";
 import { getAuthToken } from "@/lib/insforge/client";
+import { sessionsResponseSchema } from "@/lib/validators/api-responses";
 
 export interface SessionEntry {
   id: string;
@@ -87,8 +88,9 @@ async function fetchRemoteSessions(): Promise<SessionEntry[]> {
   try {
     const res = await fetch("/api/sessions", { headers: await getApiHeaders() });
     if (!res.ok) return [];
-    const json = (await res.json()) as { sessions: SessionEntry[] };
-    return json.sessions ?? [];
+    const parsed = sessionsResponseSchema.safeParse(await res.json());
+    if (!parsed.success) return [];
+    return parsed.data.sessions;
   } catch {
     return [];
   }

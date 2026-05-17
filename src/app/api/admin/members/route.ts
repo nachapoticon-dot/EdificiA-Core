@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { sendInvitationEmail } from "@/lib/email/resend";
 import { httpLogger } from "@/lib/logger";
+import { adminInvitationCreatedResponseSchema, adminMembersResponseSchema, okResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -26,10 +27,10 @@ export async function GET(req: Request): Promise<Response> {
       .order("created_at", { ascending: false }),
   ]);
 
-  return Response.json({
+  return Response.json(adminMembersResponseSchema.parse({
     members: membersResult.data ?? [],
     invitations: invitesResult.data ?? [],
-  });
+  }));
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -81,7 +82,7 @@ export async function POST(req: Request): Promise<Response> {
     httpLogger.error({ err }, "invite: failed to send invitation email");
   });
 
-  return Response.json({ invitation: insertResult.data, emailSent: true }, { status: 201 });
+  return Response.json(adminInvitationCreatedResponseSchema.parse({ invitation: insertResult.data, emailSent: true }), { status: 201 });
 }
 
 export async function PATCH(req: Request): Promise<Response> {
@@ -104,7 +105,7 @@ export async function PATCH(req: Request): Promise<Response> {
     .is("deleted_at", null);
 
   if (result.error) return Response.json({ error: "Update failed" }, { status: 500 });
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }
 
 export async function DELETE(req: Request): Promise<Response> {
@@ -123,7 +124,7 @@ export async function DELETE(req: Request): Promise<Response> {
       .eq("id", memberId)
       .eq("organization_id", auth.orgId)
       .neq("user_id", auth.userId); // can't revoke self
-    return Response.json({ ok: true });
+    return Response.json(okResponseSchema.parse({ ok: true }));
   }
 
   if (invitationId) {
@@ -132,7 +133,7 @@ export async function DELETE(req: Request): Promise<Response> {
       .update({ status: "revoked", updated_at: new Date().toISOString() })
       .eq("id", invitationId)
       .eq("organization_id", auth.orgId);
-    return Response.json({ ok: true });
+    return Response.json(okResponseSchema.parse({ ok: true }));
   }
 
   return Response.json({ error: "memberId or invitationId required" }, { status: 400 });

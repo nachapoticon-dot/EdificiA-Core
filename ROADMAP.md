@@ -13,7 +13,7 @@
 ### 1.1 · Infra / observabilidad
 
 - 🟡 **M** — Sistema de alertas (Sentry o equivalente). Hoy no hay alerting en errores de prod.
-- 🟢 **S** — WAL verification en PostgreSQL para self-hosted.
+- ✅ 2026-05-16 — WAL verification en PostgreSQL para self-hosted.
 - 🟢 **M** — Estrategia de rollback automatizada (snapshot pre-deploy).
 - 🟢 **L** — Performance profiling bajo carga real (cuando haya tráfico).
 
@@ -25,13 +25,10 @@
 
 Lo que falta del **plan original "Project Manager Digital"**:
 
-- 🔥 **L** — **Arquitectura de datos extendida**: tablas para cronograma, finanzas (curva S), directorio de subcontratos, HSE (ART/EPP), acopios y suministros. Hoy solo existen `projects` y `uploaded_files`.
-- 🔥 **L** — **Motor de proactividad**: CRON jobs / workers que corran análisis diario sobre las obras activas. Hoy todo es reactivo (responde cuando preguntás).
-- 🔥 **M** — **Integración meteorológica real**: verificar si `evaluar_impacto_clima` pega contra Open-Meteo (o similar) o es mock. Conectar si no.
-- 🔥 **M** — **Tools nuevas para el agente**:
-  - `verificar_ingreso_personal(cuadrilla)` — valida ART/EPP vigentes.
-  - `reprogramar_e_informar(tarea, fecha)` — emite reprogramación + notifica stakeholders.
-  - `auditar_curva_inversion()` — compara avance financiero real vs curva S planificada.
+- ✅ 2026-05-16 — **Arquitectura de datos extendida**. Agregadas tablas InsForge/PostgreSQL con RLS para cronograma (`project_schedule_tasks`), finanzas/curva S (`project_financial_snapshots`), subcontratos (`project_subcontracts`), HSE (`project_hse_records`) y acopios/suministros (`project_supply_items`). También se corrigió `projects.status` para usar los estados reales de la UI.
+- 🔥 **L** — **Motor de proactividad**: CRON jobs / workers que corran análisis diario sobre las obras activas. Base 2026-05-16: `runDailyProjectScan()` + `/api/cron/project-proactivity` detectan riesgos de cronograma, HSE, suministros, curva S y documentación stale, y registran resumen en `audit_log_events`. UI 2026-05-16: `GET /api/proactivity/findings` + `useProactivityFindings()` + `ProactivityAlertsBanner` surfacean los hallazgos en el chat (filtrado opcional por obra activa). Pendiente: activar schedule InsForge contra una URL pública para que el scan corra diariamente sin trigger manual.
+- ✅ 2026-05-16 — **Integración meteorológica real**. Nueva tool `evaluar_impacto_clima` consulta Open-Meteo (geocoding + forecast diario) y traduce lluvia/viento/temperatura a riesgo operativo para obra.
+- ✅ 2026-05-16 — **Tools nuevas para el agente**: `verificar_ingreso_personal` lee `project_hse_records` y devuelve veredicto (apto / observado / no_apto / sin_registro). `reprogramar_e_informar` actualiza `project_schedule_tasks` y registra `schedule.rescheduled` en el audit log. `auditar_curva_inversion` arma la curva S desde `project_financial_snapshots` y reporta desvío.
 
 ---
 
@@ -39,53 +36,53 @@ Lo que falta del **plan original "Project Manager Digital"**:
 
 ### 2.1 · Inteligencia del agente (lo que más cambia el producto)
 
-- 🔥 **M** — **Lectura agéntica de documentos**. Reemplazar la lógica mental de "correr tools fijas" por ciclo de clasificación, hipótesis, extracción, contraste, verificación y síntesis. Ver `docs/07_agentic_document_reading.md`.
-- 🔥 **M** — **Plan-then-execute**. Antes de invocar tools, el agente emite un plan JSON (`{steps:[{tool,why,expected}]}`) y se compromete a él. Reduce las "5 tools sueltas" porque hay un plan auditable previo.
-- 🔥 **M** — **Self-critique pre-respuesta**. Antes de cerrar el resumen, el agente revisa sus números contra una checklist y se corrige. DeepSeek aún se equivoca aritméticamente en casos de borde — esto los caza.
-- 🟡 **M** — **Router de modelos**. DeepSeek V3 para chitchat/tareas simples, Claude Sonnet 4.6+ para razonamiento complejo (cruzar 3 docs, detectar contradicciones). Cost-aware.
-- 🟡 **S** — **Memoria de usuario activa**. `recentSessions` se inyecta al prompt pero no se *usa*. Surfacear proactivamente: "veo que ayer auditaste Casa Lomas, ¿comparamos con este?".
-- 🟢 **M** — **Confidence + provenance**. Cada número del resumen muestra de qué tool salió y con qué confianza. Construye trust del PM.
+- ✅ 2026-05-16 — **Lectura agéntica de documentos**. Prompt y UX migrados a ciclo de clasificación, hipótesis, extracción, contraste, verificación y síntesis.
+- ✅ 2026-05-16 — **Plan-then-execute**. El agente emite bloque `<plan>` antes de usar múltiples tools y la UI lo renderiza como plan de auditoría.
+- ✅ 2026-05-16 — **Self-critique pre-respuesta**. Checklist de auto-verificación incorporada al prompt antes del cierre.
+- ✅ 2026-05-16 — **Router de modelos**. `routeModel(messages)` clasifica por señales (archivo adjunto, A vs B, contradicciones, cross-doc, turno largo, hints explícitos) y devuelve tier `fast` o `deep`. Modelos via `AI_MODEL_FAST` / `AI_MODEL_DEEP` env vars (caen al `AI_MODEL` actual si no se setean — listo para apuntar a Claude Sonnet u otro proveedor "deep" cuando se agregue la API key). El audit log registra `tier`, `model` y `routeReason` por turno.
+- ✅ 2026-05-16 — **Memoria de usuario activa**. `recentSessions` ahora se usa proactivamente cuando coincide obra/tipo de archivo reciente.
+- ✅ 2026-05-16 — **Confidence + provenance**. Cada cifra crítica del resumen debe llevar fuente documental y tool de cómputo.
 
 ### 2.2 · Profundidad de dominio
 
 - 🔥 **L** — **Capa de Contexto Empresarial**. Evolucionar la Base Documental hacia conectores seguros de solo lectura, inventario empresarial, extracción de obras activas, clasificación documental y auditoría transversal de la constructora completa. Ver `docs/06_enterprise_context_layer.md`.
-- 🔥 **L** — **Knowledge graph de obra**. Tabla `obra_relations` (doc A *contradice* doc B, doc C *deriva de* doc D). Habilita queries del estilo "¿qué docs se contradicen?".
-- 🔥 **M** — **Auto-detección de contradicciones al subir**. Al ingresar un PDF, compararlo contra docs existentes del proyecto y flaguear inconsistencias automáticamente (memoria dice X, presupuesto dice Y).
-- 🟡 **M** — **Cronograma real (no demo)**. `proyectar_cronograma` pinta cosas — falta la fuente de datos: import MS Project / CSV / builder manual.
+- ✅ 2026-05-16 — **Knowledge graph de obra**. Migración `obra_relations` con tipos `contradicts/derives_from/supersedes/references/duplicates`, confianza 0-1, `detected_by` (system/agent/user), evidencia JSONB y RLS por org. Auto-populate desde `context-scan` cuando detecta contradicciones (system, dedupe por unique index parcial). Nueva tool agente `buscar_relaciones_documento` resolve por `fileId` o `fileName`, filtra por tipo/proyecto y devuelve relaciones con dirección outgoing/incoming.
+- ✅ 2026-05-16 — **Auto-detección de contradicciones al subir**. `upload` compara señales numéricas fuertes contra documentos previos de la misma obra/org (totales, montos explícitos, áreas DXF), advierte en UI y pasa `contextFindings` al agente.
+- ✅ 2026-05-16 — **Cronograma real**. Parser CSV en `src/lib/schedule/csv-importer.ts` (sin deps nuevas, RFC4180-ish, headers en español/inglés). Endpoint `POST /api/projects/[id]/schedule/import` con modos `append`/`replace`, validación de fechas (YYYY-MM-DD y DD/MM/YYYY), resolución de predecesores por código, audit log `schedule.csv_import`. UI: `ScheduleImportSection` en `/dashboard/obras/[id]` con radio append/replace, ejemplo plegable y reporte de filas/warnings.
 
 ### 2.3 · Calidad de código
 
-- 🔥 **M** — **Tests unitarios**. Cero tests hoy. En auditoría financiera es serio. Empezar por `src/lib/math-engine/` + `src/lib/excel/parser`.
-- 🔥 **S** — **Consolidar migrations**. Coexisten `db/migrations/` (raw SQL, vía `scripts/migrate.js` para Docker local) y `migrations/` (InsForge CLI, prefijo timestamp). Hay duplicados (`db/migrations/015_founder_invitation_org.sql` ≈ `migrations/20260515032815_add-founder-columns.sql`). Decidir cuál es canónica y sincronizar / eliminar la otra. **Bug-magnet activo.**
-- 🟡 **M** — **Zod schemas para responses de API**. Hoy las routes devuelven `Record<string, unknown>`. Tipar para evitar drift cliente-servidor.
-- 🟡 **S** — **Correlation IDs en logger**. Middleware que inyecta un `requestId` en el contexto Pino para trackear un request end-to-end.
-- 🟢 **S** — **Sub-organizar `src/components/chat/`**. 21+ archivos en una sola carpeta. Sub-dividir en `chat/blocks/`, `chat/sidebar/`, `chat/input/`, `chat/cards/`.
+- ✅ 2026-05-16 — **Tests unitarios base**. Agregado `npm test` con `node:test`; cobertura inicial para `src/lib/math-engine/` y `src/lib/excel/parser`.
+- ✅ 2026-05-16 — **Consolidar migrations**. `migrations/` queda como ruta canónica vía InsForge CLI; las raw SQL previas se archivaron en `docs/archive/db-migrations-legacy/` y Docker dejó de ejecutar migraciones al arrancar.
+- ✅ 2026-05-16 — **Zod schemas para responses de API**. Responses JSON principales validadas con contrato compartido en `upload`, `auth/*`, `projects`, `sessions`, `documents`, `documents/save`, `indices`, `admin/*` y `super-admin/*`. Las rutas `generate/*` devuelven binarios (`xlsx`, `docx`, `pdf`), no JSON.
+- ✅ 2026-05-16 — **Correlation IDs en logger**. `proxy.ts` genera/propaga `x-request-id` y `getRequestLogger()` vincula logs por request.
+- ✅ 2026-05-16 — **Sub-organizar `src/components/chat/`**. Componentes divididos en `chat/sidebar/`, `chat/input/`, `chat/cards/` y raíz mínima.
 
 ### 2.4 · UX / Producto
 
-- 🔥 **S** — **Onboarding forzado de índices**. Si la org no tiene índices de precios cargados, `comparar_con_indices` es muerto. Detectar y mostrar wizard al admin.
-- 🟡 **M** — **Side-by-side upload (A vs B)**. La tool `comparar_presupuestos` existe; falta la UI para subir 2 archivos a la vez. Killer feature para PMs.
+- ✅ 2026-05-16 — **Onboarding forzado de índices**. El chat muestra un aviso operativo a admins cuando la org no tiene índices y enlaza directo a `Administración → Índices de Precio`.
+- ✅ 2026-05-16 — **Side-by-side upload (A vs B)**. `FileReadyView` ofrece "Comparar con otra versión" cuando el archivo A es Excel; al subir B se renderiza `ComparisonReadyView` y el agente recibe un prompt dual con ambos cacheIds para correr `comparar_presupuestos`.
 - 🟢 **M** — **Voice input**. PM en obra con casco no escribe. Web Speech API.
 - 🟢 **L** — **PWA + offline básico**. Tablet en obra sin wifi.
 
 ### 2.5 · Seguridad
 
-- 🟡 **M** — **PII scanning en uploads**. Presupuestos a veces traen CUIT/DNI. Detectar y avisar al admin.
-- 🟢 **M** — **Audit log inmutable**. Las auditorías deberían ser write-once. Importante legal.
+- ✅ 2026-05-16 — **PII scanning en uploads**. Detecta CUIT/CUIL/DNI/CBU/email/teléfono en texto auditable y advierte al usuario antes de auditar.
+- ✅ 2026-05-16 — **Audit log inmutable**. `audit_log_events` append-only con hash encadenado, triggers anti-update/delete y logging inicial de uploads/chat.
 
 ---
 
 ## 3 · Recomendación de orden (si tuvieras 1 semana)
 
 1. ✅ Limpieza workspace + reorganización (hecho 2026-05-16).
-2. **Consolidar migrations** (§2.3) — cierra el bug-magnet ahora.
-3. **Definir Capa de Contexto Empresarial** (§2.2) — fija el concepto de lanzamiento antes de seguir ampliando "Base Documental".
-4. **Lectura agéntica + plan-then-execute + self-critique** (§2.1) — 70 % del salto de calidad del agente.
-5. **Auto-detección de contradicciones al subir** (§2.2) — killer feature de dominio.
-6. **Tests del math-engine** (§2.3) — red de seguridad para todo lo demás.
-7. **Onboarding de índices** (§2.4) — desbloquea valor que ya existe.
+2. ✅ Consolidar migrations (§2.3).
+3. ✅ Definir Capa de Contexto Empresarial (§2.2, documentación de producto/arquitectura).
+4. ✅ Lectura agéntica + plan-then-execute + self-critique (§2.1).
+5. ✅ Auto-detección de contradicciones al subir (§2.2).
+6. ✅ Tests base del math-engine + parser Excel (§2.3).
+7. ✅ Onboarding de índices (§2.4).
 
-Si tenés solo **1 día**: 2, 3 y 7.
+Siguiente bloque recomendado: completar el motor de proactividad — activar schedule InsForge contra una URL pública y surfacear las alertas en la UI del dashboard.
 
 ---
 

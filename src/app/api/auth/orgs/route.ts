@@ -1,14 +1,11 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { verifyUserId, extractBearerToken } from "@/lib/auth/jwt";
 import { apiUnauthorized } from "@/lib/api/errors";
+import { orgsResponseSchema, type OrgOptionResponse } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
-export interface OrgOption {
-  orgId: string;
-  orgName: string;
-  role: string;
-}
+export type OrgOption = OrgOptionResponse;
 
 /** GET /api/auth/orgs — returns all organizations the caller belongs to (for org switcher). */
 export async function GET(req: Request): Promise<Response> {
@@ -34,12 +31,12 @@ export async function GET(req: Request): Promise<Response> {
       organizations: { name: string } | { name: string }[] | null;
     }[];
 
-    const orgs: OrgOption[] = rows.map((r) => {
+    const orgs = rows.map((r) => {
       const org = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations;
       return { orgId: r.organization_id, orgName: org?.name ?? r.organization_id, role: r.role };
     });
 
-    return Response.json({ orgs });
+    return Response.json(orgsResponseSchema.parse({ orgs }));
   } catch {
     return Response.json({ error: "Server error" }, { status: 500 });
   }

@@ -6,24 +6,10 @@ import { Users, Mail, Shield, ChevronDown, Link2, Trash2, Loader2, Plus, CheckCi
 import { Button } from "@/components/ui/button";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { adminMembersResponseSchema, type AdminMembersResponse } from "@/lib/validators/api-responses";
 
-interface Member {
-  id: string;
-  user_id: string;
-  email: string | null;
-  role: string;
-  created_at: string;
-}
-
-interface Invitation {
-  id: string;
-  invited_email: string;
-  role: string;
-  status: string;
-  expires_at: string;
-  created_at: string;
-  token: string;
-}
+type Member = AdminMembersResponse["members"][number];
+type Invitation = AdminMembersResponse["invitations"][number];
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -63,9 +49,10 @@ export default function AdminMembersPage() {
     if (!headers.Authorization) return;
     const res = await fetch("/api/admin/members", { headers });
     if (!res.ok) return;
-    const data = (await res.json()) as { members: Member[]; invitations: Invitation[] };
-    setMembers(data.members);
-    setInvitations(data.invitations);
+    const parsed = adminMembersResponseSchema.safeParse(await res.json());
+    if (!parsed.success) return;
+    setMembers(parsed.data.members);
+    setInvitations(parsed.data.invitations);
     setLoading(false);
   }, []);
 

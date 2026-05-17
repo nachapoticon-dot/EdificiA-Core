@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { orgSettingsResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,7 @@ export async function GET(req: Request): Promise<Response> {
     .single();
 
   if (!result.data) return Response.json({ error: "Organization not found" }, { status: 404 });
-  return Response.json(result.data);
+  return Response.json(orgSettingsResponseSchema.parse(result.data));
 }
 
 export async function PATCH(req: Request): Promise<Response> {
@@ -45,5 +46,5 @@ export async function PATCH(req: Request): Promise<Response> {
     .single();
 
   if (result.error) return Response.json({ error: "Update failed" }, { status: 500 });
-  return Response.json(result.data);
+  return Response.json(orgSettingsResponseSchema.parse(result.data));
 }

@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { slugify } from "@/lib/utils";
 import { randomBytes } from "crypto";
+import { okResponseSchema, superAdminFounderResponseSchema, superAdminFoundersResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ export async function GET(req: Request): Promise<Response> {
     .order("created_at", { ascending: false });
 
   if (error) return Response.json({ error: "DB error" }, { status: 500 });
-  return Response.json({ invitations: (data ?? []) as FounderInvitation[] });
+  return Response.json(superAdminFoundersResponseSchema.parse({ invitations: (data ?? []) as FounderInvitation[] }));
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -82,7 +83,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "No se pudo crear la invitación" }, { status: 500 });
   }
 
-  return Response.json({ invitation: data }, { status: 201 });
+  return Response.json(superAdminFounderResponseSchema.parse({ invitation: data }), { status: 201 });
 }
 
 export async function PATCH(req: Request): Promise<Response> {
@@ -106,7 +107,7 @@ export async function PATCH(req: Request): Promise<Response> {
     .single();
 
   if (error) return Response.json({ error: "No se pudo reactivar la invitación" }, { status: 500 });
-  return Response.json({ invitation: data });
+  return Response.json(superAdminFounderResponseSchema.parse({ invitation: data }));
 }
 
 export async function DELETE(req: Request): Promise<Response> {
@@ -122,5 +123,5 @@ export async function DELETE(req: Request): Promise<Response> {
     .update({ status: "revoked" })
     .eq("id", id);
 
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }

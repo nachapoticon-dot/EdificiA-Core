@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiForbidden } from "@/lib/api/errors";
 import { dbLogger } from "@/lib/logger";
+import { projectDetailsResponseSchema, projectResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -44,10 +45,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const quotaBytes = ((quotaResult.data as { storage_quota_bytes?: number } | null)?.storage_quota_bytes) ?? 5_368_709_120;
     const storagePct = Math.min(100, Math.round((usedBytes / quotaBytes) * 100));
 
-    return Response.json({
+    return Response.json(projectDetailsResponseSchema.parse({
       project: projectResult.data,
       storage: { usedBytes, quotaBytes, pct: storagePct },
-    });
+    }));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/projects/:id");
     return Response.json({ error: "Internal error" }, { status: 500 });
@@ -99,7 +100,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .single();
 
     if (result.error) throw result.error;
-    return Response.json({ project: result.data });
+    return Response.json(projectResponseSchema.parse({ project: result.data }));
   } catch (err) {
     dbLogger.error({ err }, "PATCH /api/projects/:id");
     return Response.json({ error: "Internal error" }, { status: 500 });

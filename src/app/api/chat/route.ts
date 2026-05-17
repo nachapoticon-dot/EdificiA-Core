@@ -1,12 +1,14 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { AI_MODEL, buildSystemPrompt, createBoundTools } from "@/lib/ai/agent";
+import { buildSystemPrompt, createBoundTools } from "@/lib/ai/agent";
+import { routeModel } from "@/lib/ai/model-router";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth, type AuthResult } from "@/lib/auth/require-auth";
 import { learnFromSession } from "@/lib/ai/session-learner";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
-import { aiLogger } from "@/lib/logger";
+import { aiLogger, getRequestLogger, REQUEST_ID_HEADER } from "@/lib/logger";
+import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 
 export const runtime = "nodejs";
 
@@ -19,6 +21,7 @@ const deepseek = createOpenAI({
 });
 
 export async function POST(req: Request) {
+  const log = getRequestLogger(req, aiLogger);
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -44,23 +47,51 @@ export async function POST(req: Request) {
   const projectName = req.headers.get("x-project-name") ?? undefined;
   const projectId   = req.headers.get("x-project-id")   ?? undefined;
 
-  const { systemPrompt, tools } = await resolveContext(auth, projectName, projectId);
+  const { systemPrompt, tools, auditProjectId } = await resolveContext(auth, projectName, projectId);
+
+  const route = routeModel(messages);
+  log.info({
+    orgId: auth.orgId,
+    tier: route.tier,
+    model: route.model,
+    reason: route.reason,
+    signals: route.signals,
+  }, "model routed");
 
   const t0 = Date.now();
   try {
     const result = streamText({
-      model: deepseek.chat(AI_MODEL),
+      model: deepseek.chat(route.model),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       tools,
       stopWhen: stepCountIs(20),
       onFinish: async ({ steps, usage }) => {
-        aiLogger.info({
+        log.info({
           orgId: auth.orgId,
+          model: route.model,
+          tier: route.tier,
           steps: steps.length,
           tokens: usage,
           latencyMs: Date.now() - t0,
         }, "chat finished");
+        void writeAuditLogEvent({
+          organizationId: auth.orgId,
+          projectId: auditProjectId,
+          actorUserId: auth.userId,
+          eventType: "chat.completed",
+          entityType: "chat_turn",
+          severity: "info",
+          requestId: req.headers.get(REQUEST_ID_HEADER),
+          payload: {
+            model: route.model,
+            tier: route.tier,
+            routeReason: route.reason,
+            steps: steps.length,
+            usage,
+            latencyMs: Date.now() - t0,
+          },
+        });
         void learnFromSession(steps as unknown as Parameters<typeof learnFromSession>[0], auth.orgId);
       },
     });
@@ -68,7 +99,7 @@ export async function POST(req: Request) {
     return result.toUIMessageStreamResponse();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    aiLogger.error({ err: msg, latencyMs: Date.now() - t0 }, "chat error");
+    log.error({ err: msg, latencyMs: Date.now() - t0 }, "chat error");
     if (msg.includes("429") || msg.toLowerCase().includes("rate limit")) {
       return Response.json({ error: "Cuota NVIDIA agotada. Intentá en unos minutos." }, { status: 429 });
     }
@@ -90,11 +121,12 @@ async function resolveContext(
   auth: AuthResult,
   projectName?: string,
   projectId?: string,
-): Promise<{ systemPrompt: string; tools: ReturnType<typeof createBoundTools> }> {
+): Promise<{ systemPrompt: string; tools: ReturnType<typeof createBoundTools>; auditProjectId?: string }> {
   const { userId, orgId } = auth;
   const fallback = {
     systemPrompt: buildSystemPrompt({ organizationId: orgId, projectName, projectId }),
     tools: createBoundTools(orgId),
+    auditProjectId: undefined,
   };
 
   try {
@@ -164,7 +196,7 @@ async function resolveContext(
       recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
     });
 
-    return { systemPrompt, tools: createBoundTools(orgId) };
+    return { systemPrompt, tools: createBoundTools(orgId), auditProjectId: validatedProjectId };
   } catch {
     return fallback;
   }

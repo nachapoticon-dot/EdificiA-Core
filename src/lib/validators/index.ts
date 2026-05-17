@@ -31,3 +31,5 @@ export const signUpSchema = z.object({
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
+
+export * from "./api-responses";

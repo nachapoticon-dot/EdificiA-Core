@@ -4,15 +4,15 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
-import { DashboardSidebar } from "@/components/chat/DashboardSidebar";
-import { ActiveProjectSection } from "@/components/chat/ActiveProjectSection";
-import { UserMenu } from "@/components/chat/UserMenu";
-import { AdminNavLink } from "@/components/chat/AdminNavLink";
-import { OrganizationCard } from "@/components/chat/OrganizationCard";
-import { NavLink } from "@/components/chat/NavLink";
+import { DashboardSidebar } from "@/components/chat/sidebar/DashboardSidebar";
+import { ActiveProjectSection } from "@/components/chat/sidebar/ActiveProjectSection";
+import { UserMenu } from "@/components/chat/sidebar/UserMenu";
+import { AdminNavLink } from "@/components/chat/sidebar/AdminNavLink";
+import { OrganizationCard } from "@/components/chat/sidebar/OrganizationCard";
+import { NavLink } from "@/components/chat/sidebar/NavLink";
 import { AuthWatcher } from "@/components/auth/AuthWatcher";
-import { MobileMenuButton } from "@/components/chat/MobileMenuButton";
-import { MobileSidebarOverlay } from "@/components/chat/MobileSidebarOverlay";
+import { MobileMenuButton } from "@/components/chat/sidebar/MobileMenuButton";
+import { MobileSidebarOverlay } from "@/components/chat/sidebar/MobileSidebarOverlay";
 
 function SidebarContent() {
   return (

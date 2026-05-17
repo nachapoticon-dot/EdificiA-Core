@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, X, Eye } from "lucide-react";
+import { documentSaveResponseSchema } from "@/lib/validators/api-responses";
 
 export interface FileProposal {
   fileName: string;
@@ -26,7 +27,7 @@ export function DocumentProposalCard({ proposal, onDecision }: DocumentProposalC
     setSaving(true);
     try {
       const authHeaders = await getAuthHeaders();
-      await fetch("/api/documents/save", {
+      const res = await fetch("/api/documents/save", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
@@ -36,6 +37,9 @@ export function DocumentProposalCard({ proposal, onDecision }: DocumentProposalC
           organizationId: proposal.organizationId,
         }),
       });
+      if (!res.ok) throw new Error("save failed");
+      const parsed = documentSaveResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("invalid save response");
       setDone(true);
       onDecision(true, name);
     } catch {

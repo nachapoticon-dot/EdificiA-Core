@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getQdrantClient, COLLECTION_NAME, EMBEDDING_DIM } from "@/lib/qdrant/client";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { superAdminResetResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -68,5 +69,5 @@ export async function POST(req: Request): Promise<Response> {
     log.push(`✗ qdrant: ${String(err)}`);
   }
 
-  return Response.json({ ok: true, log });
+  return Response.json(superAdminResetResponseSchema.parse({ ok: true, log }));
 }

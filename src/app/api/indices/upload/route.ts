@@ -3,6 +3,10 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { parsePriceListBuffer, toIndexInserts } from "@/lib/indices/upload-parser";
 import { insertPriceIndices } from "@/lib/indices/query";
 import { dbLogger } from "@/lib/logger";
+import {
+  priceIndexUploadConfirmResponseSchema,
+  priceIndexUploadPreviewResponseSchema,
+} from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -37,13 +41,13 @@ export async function POST(req: Request) {
     const parsed = parsePriceListBuffer(buffer, file.name);
 
     if (!confirm) {
-      return Response.json({
+      return Response.json(priceIndexUploadPreviewResponseSchema.parse({
         preview:      parsed.rows.slice(0, 50),
         total:        parsed.rows.length,
         warnings:     parsed.warnings,
         period_year:  parsed.period_year,
         period_month: parsed.period_month,
-      });
+      }));
     }
 
     if (parsed.rows.length === 0) {
@@ -59,10 +63,12 @@ export async function POST(req: Request) {
     });
 
     const inserted = await insertPriceIndices(inserts);
-    return Response.json(
-      { inserted, warnings: parsed.warnings, period_year: parsed.period_year, period_month: parsed.period_month },
-      { status: 201 },
-    );
+    return Response.json(priceIndexUploadConfirmResponseSchema.parse({
+      inserted,
+      warnings: parsed.warnings,
+      period_year: parsed.period_year,
+      period_month: parsed.period_month,
+    }), { status: 201 });
   } catch (err) {
     dbLogger.error({ err }, "POST /api/indices/upload");
     return Response.json({ error: "Internal error" }, { status: 500 });

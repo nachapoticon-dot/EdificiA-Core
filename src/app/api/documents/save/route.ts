@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { dbLogger } from "@/lib/logger";
+import { documentSaveResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
       generated_by: "edificia",
     });
 
-    return Response.json({ success: true, path });
+    return Response.json(documentSaveResponseSchema.parse({ success: true, path }));
   } catch (err) {
     dbLogger.error({ err }, "documents/save");
     return Response.json({ error: "Error saving file" }, { status: 500 });

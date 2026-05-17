@@ -1,25 +1,8 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { verifyUserId, decodeClaims } from "@/lib/auth/jwt";
+import { orgMemberResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
-
-interface MeResponse {
-  userId: string;
-  email: string | null;
-  displayName: string | null;
-  orgId: string;
-  role: string;
-  orgName: string;
-  branding: {
-    primaryColor: string;
-    logoUrl: string | null;
-    agentName: string;
-  };
-  stats: {
-    activeProjects: number;
-    memberCount: number;
-  };
-}
 
 /**
  * Returns the authenticated user's org membership + org branding.
@@ -102,7 +85,7 @@ export async function GET(req: Request): Promise<Response> {
       agent_name: string | null;
     } | null;
 
-    const body: MeResponse = {
+    const body = {
       userId,
       email,
       displayName: cleanDisplayName(name),
@@ -120,7 +103,7 @@ export async function GET(req: Request): Promise<Response> {
       },
     };
 
-    return Response.json(body);
+    return Response.json(orgMemberResponseSchema.parse(body));
   } catch {
     return Response.json({ error: "Server error" }, { status: 500 });
   }

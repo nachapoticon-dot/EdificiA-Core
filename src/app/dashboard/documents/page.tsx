@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { apiErrorResponseSchema, documentsResponseSchema } from "@/lib/validators/api-responses";
 
 import type { DocumentFile } from "@/types";
 
@@ -66,11 +67,14 @@ export default function DocumentsPage() {
     try {
       const headers = await getAuthHeaders();
       const res = await fetch("/api/documents", { headers });
-      const data = await res.json() as { files?: DocumentFile[]; error?: string };
+      const data: unknown = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Error al cargar documentos.");
+        const error = apiErrorResponseSchema.safeParse(data);
+        setError(error.success ? error.data.error : "Error al cargar documentos.");
       } else {
-        setFiles(data.files ?? []);
+        const parsed = documentsResponseSchema.safeParse(data);
+        if (!parsed.success) throw new Error("invalid /api/documents response");
+        setFiles(parsed.data.files);
       }
     } catch {
       setError("No se pudo conectar con el servidor.");
@@ -94,8 +98,9 @@ export default function DocumentsPage() {
       if (res.ok) {
         setFiles((prev) => prev.filter((f) => f.id !== id));
       } else {
-        const data = await res.json() as { error?: string };
-        setError(data.error ?? "Error al eliminar el archivo.");
+        const data: unknown = await res.json();
+        const error = apiErrorResponseSchema.safeParse(data);
+        setError(error.success ? error.data.error : "Error al eliminar el archivo.");
       }
     } catch {
       setError("Error al eliminar el archivo.");

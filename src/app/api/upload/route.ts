@@ -1,12 +1,18 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { processFile } from "@/lib/file-processor";
+import type { ProcessedFile } from "@/lib/file-processor/types";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { extractPatterns } from "@/lib/pattern-extractor";
 import { ingestDocument } from "@/lib/rag/ingest";
 import { cacheItems } from "@/lib/file-cache";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { apiRateLimited, apiTooLarge, apiBadRequest, apiForbidden } from "@/lib/api/errors";
-import { dbLogger, ragLogger } from "@/lib/logger";
+import { apiRateLimited, apiTooLarge, apiBadRequest, apiForbidden, apiInternal } from "@/lib/api/errors";
+import { dbLogger, ragLogger, getRequestLogger, REQUEST_ID_HEADER } from "@/lib/logger";
+import { scanForPii } from "@/lib/security/pii-detector";
+import { uploadResponseSchema } from "@/lib/validators/api-responses";
+import { writeAuditLogEvent } from "@/lib/audit/audit-log";
+import { scanDocumentContext } from "@/lib/document-intelligence/context-scan";
+import { writeRelationsFromContextScan } from "@/lib/knowledge-graph/relations";
 
 export const runtime = "nodejs";
 
@@ -127,7 +133,98 @@ export async function POST(req: Request) {
 
   const cacheId = processed.type === "excel" ? cacheItems(processed.items) : null;
 
-  return Response.json({ ...processed, fileId, cacheId });
+  const piiScan = scanForPii(extractTextForPii(processed));
+  const contextScan = await scanDocumentContext(processed, {
+    organizationId: orgId,
+    projectId,
+    fileId,
+  });
+
+  if (piiScan.hasMatches) {
+    const log = getRequestLogger(req, dbLogger);
+    log.warn(
+      { orgId, fileId, fileName: file.name, piiTotal: piiScan.totalCount, piiTypes: piiScan.matches.map((m) => m.type) },
+      "upload: PII detected",
+    );
+  }
+
+  if (contextScan.hasFindings) {
+    const log = getRequestLogger(req, dbLogger);
+    log.warn(
+      {
+        orgId,
+        projectId,
+        fileId,
+        fileName: file.name,
+        contextFindings: contextScan.findings.map((finding) => ({
+          type: finding.type,
+          severity: finding.severity,
+          relatedFileName: finding.relatedFileName,
+          deltaPct: finding.evidence.deltaPct,
+        })),
+      },
+      "upload: contextual contradictions detected",
+    );
+    if (fileId) {
+      void writeRelationsFromContextScan({
+        organizationId: orgId,
+        projectId: projectId ?? null,
+        fileId,
+        scan: contextScan,
+      });
+    }
+  }
+
+  const response = uploadResponseSchema.safeParse({ ...processed, fileId, cacheId, piiScan, contextScan });
+  if (!response.success) {
+    dbLogger.error(
+      { err: response.error.flatten(), fileName: file.name, processedType: processed.type },
+      "upload: response schema mismatch",
+    );
+    return apiInternal("upload response schema mismatch");
+  }
+
+  void writeAuditLogEvent({
+    organizationId: orgId,
+    projectId,
+    actorUserId: userId,
+    eventType: piiScan.hasMatches ? "upload.pii_detected" : "upload.file_ready",
+    entityType: "uploaded_file",
+    entityId: fileId,
+    severity: piiScan.hasMatches ? "warning" : "info",
+    requestId: req.headers.get(REQUEST_ID_HEADER),
+    payload: {
+      fileName: file.name,
+      fileType: processed.type,
+      fileSizeBytes: file.size,
+      piiTotal: piiScan.totalCount,
+      piiTypes: piiScan.matches.map((m) => m.type),
+      contextFindings: contextScan.totalCount,
+      contextFindingTypes: contextScan.findings.map((finding) => finding.type),
+      persisted: fileId !== null,
+    },
+    piiScan: piiScan.hasMatches ? piiScan : null,
+  });
+
+  return Response.json(response.data);
+}
+
+/** Extrae el texto auditable de un archivo procesado para escanear PII. */
+function extractTextForPii(p: ProcessedFile): string {
+  switch (p.type) {
+    case "excel":
+      return p.items
+        .map((it) => [it.code, it.description, it.unit].filter(Boolean).join(" "))
+        .join("\n");
+    case "pdf":
+    case "docx":
+      return p.text;
+    case "dxf":
+      return p.textAnnotations.join("\n");
+    case "image":
+    case "dwg_unsupported":
+      return "";
+  }
 }
 
 async function persistPatternsAndIngest(

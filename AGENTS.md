@@ -74,7 +74,7 @@ Formato de handoff recomendado:
 | Embeddings | NVIDIA NIM / OpenAI-compatible `text-embedding-3-small` | `src/lib/embeddings/` |
 | Vector DB | Qdrant | `src/lib/qdrant/` |
 | Backend/Auth/Storage | InsForge | `src/lib/insforge/` |
-| DB | PostgreSQL con RLS multi-tenant | `db/migrations/`, `migrations/` |
+| DB | PostgreSQL con RLS multi-tenant | `migrations/` (InsForge CLI) |
 | Validación | Zod v3 | `src/lib/validators/` |
 | Email | Resend | `src/lib/email/` |
 | Export | jsPDF, docx, xlsx | `src/lib/export/` |
@@ -99,7 +99,8 @@ Formato de handoff recomendado:
 - Seguir patrones locales antes de introducir abstracciones nuevas.
 - No instalar dependencias sin autorización.
 - No crear rutas API privadas sin auth.
-- No modificar migraciones existentes en `db/migrations/`; agregar nuevas si corresponde.
+- Migraciones nuevas: usar `npm run migrate:new` y aplicar con `npm run migrate` (`migrations/` es la ruta canónica).
+- `docs/archive/db-migrations-legacy/` es histórico read-only; no agregar cambios nuevos ahí.
 - Si se agrega un módulo estructural nuevo, actualizar `docs/04_architecture_map.md`.
 - Si se cambia una prioridad o se completa un pendiente relevante, actualizar `ROADMAP.md`.
 
@@ -123,7 +124,7 @@ No refactorizar estas áreas sin una razón directa de la tarea:
 - `src/lib/ai/agent-tools-bound.ts`
 - `src/lib/ai/agent-prompt.ts`
 - `src/components/chat/blocks/`
-- Migraciones ya aplicadas en `db/migrations/`
+- Migraciones archivadas en `docs/archive/db-migrations-legacy/`
 
 ---
 

@@ -3,21 +3,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { projectResponseSchema, projectsResponseSchema, type ApiProjectResponse } from "@/lib/validators/api-responses";
 
 import type { Project } from "@/types";
 export type { Project } from "@/types";
 
-interface ApiProject {
-  id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
-
 const ACTIVE_KEY = "edificia_active_project";
 const ACTIVE_EVENT = "edificia-active-project-updated";
 
-function toProject(p: ApiProject): Project {
+function toProject(p: ApiProjectResponse): Project {
   return {
     id: p.id,
     name: p.name,
@@ -51,8 +45,9 @@ export function useProjects() {
     queryFn: async (): Promise<Project[]> => {
       const res = await fetch("/api/projects", { headers: await getAuthHeaders() });
       if (!res.ok) return [];
-      const json = (await res.json()) as { projects: ApiProject[] };
-      return (json.projects ?? []).map(toProject);
+      const parsed = projectsResponseSchema.safeParse(await res.json());
+      if (!parsed.success) return [];
+      return parsed.data.projects.map(toProject);
     },
   });
 
@@ -64,8 +59,9 @@ export function useProjects() {
         body: JSON.stringify({ name }),
       });
       if (!res.ok) throw new Error("Failed to create project");
-      const json = (await res.json()) as { project: ApiProject };
-      return toProject(json.project);
+      const parsed = projectResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("Invalid project response");
+      return toProject(parsed.data.project);
     },
     onSuccess: (newProject) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });

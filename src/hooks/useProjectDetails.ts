@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { projectDetailsResponseSchema } from "@/lib/validators/api-responses";
 
 export interface ProjectDetails {
   id: string;
@@ -32,7 +33,9 @@ export function useProjectDetails(projectId: string | null) {
       if (!headers.Authorization) return null;
       const res = await fetch(`/api/projects/${projectId}`, { headers });
       if (!res.ok) return null;
-      return res.json() as Promise<{ project: ProjectDetails; storage: StorageStats }>;
+      const parsed = projectDetailsResponseSchema.safeParse(await res.json());
+      if (!parsed.success) return null;
+      return parsed.data;
     },
   });
 }

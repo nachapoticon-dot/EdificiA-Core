@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/insforge/client";
-import type { OrgOption } from "@/app/api/auth/orgs/route";
+import { orgsResponseSchema, type OrgOptionResponse } from "@/lib/validators/api-responses";
 
-export type { OrgOption };
+export type OrgOption = OrgOptionResponse;
 
 export function useOrgs() {
   return useQuery<OrgOption[]>({
@@ -15,8 +15,9 @@ export function useOrgs() {
       if (!headers.Authorization) return [];
       const res = await fetch("/api/auth/orgs", { headers });
       if (!res.ok) return [];
-      const json = (await res.json()) as { orgs: OrgOption[] };
-      return json.orgs ?? [];
+      const parsed = orgsResponseSchema.safeParse(await res.json());
+      if (!parsed.success) return [];
+      return parsed.data.orgs;
     },
   });
 }

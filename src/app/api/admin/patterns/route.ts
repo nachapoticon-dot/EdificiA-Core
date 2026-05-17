@@ -1,5 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { adminPatternsResponseSchema, okResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ export async function GET(req: Request): Promise<Response> {
     );
   }
 
-  return Response.json({ grouped, totalPatterns: rows.length });
+  return Response.json(adminPatternsResponseSchema.parse({ grouped, totalPatterns: rows.length }));
 }
 
 /** POST — promote a pattern to industry_benchmarks */
@@ -80,7 +81,7 @@ export async function POST(req: Request): Promise<Response> {
       updated_at: new Date().toISOString(),
     }, { onConflict: "document_type,category,benchmark_key" });
 
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }
 
 export async function DELETE(req: Request): Promise<Response> {
@@ -100,5 +101,5 @@ export async function DELETE(req: Request): Promise<Response> {
     .eq("document_type", body.documentType)
     .eq("pattern_key", body.patternKey);
 
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }

@@ -561,6 +561,134 @@ export const agentTools = {
     },
   }),
 
+  evaluar_impacto_clima: tool({
+    description:
+      "Consulta Open-Meteo en tiempo real y evalua impacto meteorologico sobre tareas de obra. Usala cuando el usuario pregunta por clima, lluvia, viento, hormigonado, izajes, trabajo en altura o reprogramacion por condiciones climaticas. Acepta ubicacion textual o coordenadas.",
+    inputSchema: z.object({
+      location: z.string().optional().describe("Ubicacion de la obra, ej. 'Cordoba, Argentina' o 'Rosario, Santa Fe'"),
+      latitude: z.number().min(-90).max(90).optional().describe("Latitud WGS84 si se conocen coordenadas exactas"),
+      longitude: z.number().min(-180).max(180).optional().describe("Longitud WGS84 si se conocen coordenadas exactas"),
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha inicial YYYY-MM-DD; opcional"),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha final YYYY-MM-DD; opcional"),
+    }).refine((value) => value.location || (value.latitude != null && value.longitude != null), {
+      message: "Indica location o latitude+longitude",
+    }),
+    execute: async (input) => {
+      const { evaluateWeatherImpact } = await import("@/lib/weather/open-meteo");
+      return evaluateWeatherImpact(input);
+    },
+  }),
+
+  verificar_ingreso_personal: tool({
+    description:
+      "Verifica si una cuadrilla, trabajador o subcontratista tiene ART/EPP/capacitaciones vigentes para entrar a la obra. Lee project_hse_records de la obra activa y devuelve veredicto (apto / observado / no_apto / sin_registro), vencimientos próximos y faltantes. Úsala cuando el usuario pregunte si puede ingresar personal, valide cuadrillas o cite ART, EPP o subcontratistas.",
+    inputSchema: z.object({
+      cuadrilla:      z.string().min(2).describe("Nombre del trabajador, cuadrilla o subcontratista a verificar"),
+      projectId:      z.string().describe("UUID de la obra activa"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const { verifyPersonnelClearance } = await import("@/lib/project-operations/personnel");
+      return verifyPersonnelClearance(input);
+    },
+  }),
+
+  reprogramar_e_informar: tool({
+    description:
+      "Reprograma una tarea del cronograma de obra (nueva fecha de vencimiento) y deja un evento de auditoría 'schedule.rescheduled' para que stakeholders puedan verlo. Resolve la tarea por código, nombre parcial o UUID. Si encuentra ambigüedad, devuelve candidatos. Úsala cuando el usuario decide correr una tarea o el clima/HSE/suministros obligan a mover una fecha.",
+    inputSchema: z.object({
+      taskRef:        z.string().min(1).describe("Código exacto, nombre parcial o UUID de la tarea a reprogramar"),
+      newDueDate:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Nueva fecha de vencimiento en formato YYYY-MM-DD"),
+      reason:         z.string().max(280).optional().describe("Motivo breve de la reprogramación (clima, HSE, suministro, decisión PM)"),
+      notifyTo:       z.array(z.string()).max(8).optional().describe("Lista de stakeholders a informar — se registra en el audit_log para que UI/notificaciones los surfacée"),
+      projectId:      z.string().describe("UUID de la obra activa"),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const { reprogramAndInform } = await import("@/lib/project-operations/schedule");
+      return reprogramAndInform(input);
+    },
+  }),
+
+  auditar_curva_inversion: tool({
+    description:
+      "Audita la curva S de la obra comparando snapshots de inversión planificada vs real vs comprometida. Devuelve los puntos de la curva, el último snapshot, ratio de avance y veredicto (alineado / observado / desviado_critico). Úsala cuando el usuario pregunte por avance financiero, desvío de inversión, curva S o costo comprometido vs plan.",
+    inputSchema: z.object({
+      projectId:      z.string().describe("UUID de la obra activa"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      limit:          z.number().int().min(2).max(60).optional().describe("Cantidad máxima de snapshots a leer (default 24)"),
+    }),
+    execute: async (input) => {
+      const { auditInvestmentCurve } = await import("@/lib/project-operations/financial-curve");
+      return auditInvestmentCurve(input);
+    },
+  }),
+
+  buscar_relaciones_documento: tool({
+    description:
+      "Consulta el knowledge graph de obra: lista qué documentos están relacionados con un archivo dado (contradicts / derives_from / supersedes / references / duplicates). Usala cuando el usuario pregunte '¿qué documentos se contradicen?', '¿qué archivos derivan de X?' o cuando necesites trazabilidad entre presupuestos, planos y memorias. Resolve por fileId o por nombre parcial.",
+    inputSchema: z.object({
+      fileId:         z.string().optional().describe("UUID exacto del archivo a investigar (preferido si lo tenés)"),
+      fileName:       z.string().optional().describe("Fragmento del nombre del archivo (ilike). Se resuelve al match más reciente"),
+      projectId:      z.string().optional().describe("Restringe a una obra específica"),
+      relationType:   z.enum(["contradicts", "derives_from", "supersedes", "references", "duplicates"]).optional().describe("Filtra por tipo de relación"),
+      organizationId: z.string().describe("ID de la organización activa"),
+      limit:          z.number().int().min(1).max(50).optional().describe("Cantidad máxima de relaciones (default 20)"),
+    }).refine((value) => value.fileId || value.fileName, {
+      message: "Indica fileId o fileName",
+    }),
+    execute: async (input) => {
+      const { queryObraRelations } = await import("@/lib/knowledge-graph/relations");
+      const result = await queryObraRelations({
+        organizationId: input.organizationId,
+        projectId: input.projectId ?? null,
+        fileId: input.fileId ?? null,
+        fileName: input.fileName ?? null,
+        relationType: input.relationType ?? null,
+        limit: input.limit,
+      });
+      if (!result.resolvedFileId) {
+        return {
+          found: false,
+          message: input.fileName
+            ? `No encontré un archivo cuyo nombre contenga "${input.fileName}" en esta organización.`
+            : "El fileId no existe o no pertenece a esta organización.",
+          relations: [],
+        };
+      }
+      if (result.relations.length === 0) {
+        return {
+          found: true,
+          resolvedFileId: result.resolvedFileId,
+          resolvedFileName: result.resolvedFileName,
+          relationsCount: 0,
+          message: "El archivo todavía no tiene relaciones registradas en el knowledge graph.",
+          relations: [],
+        };
+      }
+      return {
+        found: true,
+        resolvedFileId: result.resolvedFileId,
+        resolvedFileName: result.resolvedFileName,
+        relationsCount: result.relations.length,
+        relations: result.relations.map((rel) => {
+          const isSource = rel.source.fileId === result.resolvedFileId;
+          return {
+            id: rel.id,
+            relationType: rel.relationType,
+            direction: isSource ? "outgoing" : "incoming",
+            detectedBy: rel.detectedBy,
+            confidence: rel.confidence,
+            counterpart: isSource ? rel.target : rel.source,
+            evidence: rel.evidence,
+            createdAt: rel.createdAt,
+            updatedAt: rel.updatedAt,
+          };
+        }),
+      };
+    },
+  }),
+
   // ── Bloques de Respuesta — tools de presentación visual ──────────────────
 
   proyectar_metricas: tool({

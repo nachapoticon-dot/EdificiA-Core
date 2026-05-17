@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiForbidden } from "@/lib/api/errors";
 import { dbLogger } from "@/lib/logger";
+import { documentsResponseSchema, okResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
       project_id: string | null;
     }[];
 
-    if (files.length === 0) return Response.json({ files: [] });
+    if (files.length === 0) return Response.json(documentsResponseSchema.parse({ files: [] }));
 
     const fileIds = files.map((f) => f.id);
     const chunksResult = await client.database
@@ -45,7 +46,8 @@ export async function GET(req: Request) {
       chunkCounts.set(row.file_id, (chunkCounts.get(row.file_id) ?? 0) + 1);
     }
 
-    return Response.json({ files: files.map((f) => ({ ...f, chunkCount: chunkCounts.get(f.id) ?? 0 })) });
+    const body = { files: files.map((f) => ({ ...f, chunkCount: chunkCounts.get(f.id) ?? 0 })) };
+    return Response.json(documentsResponseSchema.parse(body));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/documents");
     return Response.json({ error: "Internal error" }, { status: 500 });
@@ -73,7 +75,7 @@ export async function DELETE(req: Request) {
       .is("deleted_at", null);
 
     if (result.error) return Response.json({ error: "No se pudo eliminar el archivo" }, { status: 500 });
-    return Response.json({ ok: true });
+    return Response.json(okResponseSchema.parse({ ok: true }));
   } catch (err) {
     dbLogger.error({ err }, "DELETE /api/documents");
     return Response.json({ error: "Internal error" }, { status: 500 });

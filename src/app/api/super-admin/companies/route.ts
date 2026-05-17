@@ -1,4 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { okResponseSchema, superAdminCompaniesResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -75,7 +76,7 @@ export async function GET(req: Request) {
       }),
     );
 
-    return Response.json({ companies: stats });
+    return Response.json(superAdminCompaniesResponseSchema.parse({ companies: stats }));
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
   }
@@ -108,5 +109,5 @@ export async function PATCH(req: Request) {
     .eq("id", body.id);
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }
