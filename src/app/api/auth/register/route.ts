@@ -3,6 +3,7 @@ import { signUpSchema } from "@/lib/validators";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
 import { slugify } from "@/lib/utils";
+import { okResponseSchema, registerInvitationCheckResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       .update({ status: "accepted" })
       .eq("id", founderInvitation.id);
 
-    return Response.json({ ok: true });
+    return Response.json(okResponseSchema.parse({ ok: true }));
   }
 
   // 1b. Verificar invitación de miembro (flujo existente)
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
     .update({ status: "accepted", updated_at: new Date().toISOString() })
     .eq("id", invitation.id);
 
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }
 
 // Paso previo: verificar si el email tiene una invitación pendiente
@@ -147,12 +148,12 @@ export async function GET(req: Request) {
 
   const founder = (founderRows ?? [])[0] as { id: string; company_name: string } | undefined;
   if (founder) {
-    return Response.json({
+    return Response.json(registerInvitationCheckResponseSchema.parse({
       authorized: true,
       organizationName: founder.company_name,
       role: "admin",
       isFounder: true,
-    });
+    }));
   }
 
   // Luego verificar invitación de miembro existente
@@ -165,13 +166,13 @@ export async function GET(req: Request) {
     .limit(1);
 
   if (error || !data || data.length === 0) {
-    return Response.json({ authorized: false }, { status: 200 });
+    return Response.json(registerInvitationCheckResponseSchema.parse({ authorized: false }), { status: 200 });
   }
 
   const inv = data[0] as unknown as { id: string; role: string; organizations: { name: string } | { name: string }[] | null };
-  return Response.json({
+  return Response.json(registerInvitationCheckResponseSchema.parse({
     authorized: true,
     organizationName: Array.isArray(inv.organizations) ? (inv.organizations[0]?.name ?? "tu empresa") : (inv.organizations?.name ?? "tu empresa"),
     role: inv.role,
-  });
+  }));
 }

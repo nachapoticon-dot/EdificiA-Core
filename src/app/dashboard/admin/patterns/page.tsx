@@ -5,19 +5,9 @@ import { useRouter } from "next/navigation";
 import { Brain, FileSpreadsheet, FileText, Box, ArrowLeft, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { adminPatternsResponseSchema, type AdminPatternsResponse } from "@/lib/validators/api-responses";
 
-interface PatternRow {
-  document_type: string;
-  pattern_key: string;
-  pattern_value: unknown;
-  sample_count: number;
-  updated_at: string;
-}
-
-interface GroupedPatterns {
-  patterns: PatternRow[];
-  maxSampleCount: number;
-}
+type GroupedPatterns = AdminPatternsResponse["grouped"][string];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   excel: "Excel / Presupuestos",
@@ -65,12 +55,10 @@ export default function PatternsPage() {
       if (!headers.Authorization) return;
       const res = await fetch("/api/admin/patterns", { headers });
       if (!res.ok) return;
-      const data = (await res.json()) as {
-        grouped: Record<string, GroupedPatterns>;
-        totalPatterns: number;
-      };
-      setGrouped(data.grouped);
-      setTotalPatterns(data.totalPatterns);
+      const parsed = adminPatternsResponseSchema.safeParse(await res.json());
+      if (!parsed.success) return;
+      setGrouped(parsed.data.grouped);
+      setTotalPatterns(parsed.data.totalPatterns);
       setLastUpdated(new Date());
     } finally {
       setLoading(false);

@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { getAllIndicesByCategory, insertPriceIndices } from "@/lib/indices/query";
 import type { PriceIndexRow } from "@/lib/indices/query";
 import { dbLogger } from "@/lib/logger";
+import { insertedCountResponseSchema, priceIndicesResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
 
   try {
     const indices = await getAllIndicesByCategory(auth.orgId);
-    return Response.json({ indices });
+    return Response.json(priceIndicesResponseSchema.parse({ indices }));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/indices");
     return Response.json({ error: "Internal error" }, { status: 500 });
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
       uploaded_by: auth.userId,
     }));
     const count = await insertPriceIndices(sanitized);
-    return Response.json({ inserted: count }, { status: 201 });
+    return Response.json(insertedCountResponseSchema.parse({ inserted: count }), { status: 201 });
   } catch (err) {
     dbLogger.error({ err }, "POST /api/indices");
     return Response.json({ error: "Internal error" }, { status: 500 });

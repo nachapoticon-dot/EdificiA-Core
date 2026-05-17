@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
 import { dbLogger } from "@/lib/logger";
+import { projectResponseSchema, projectsResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
 
-    return Response.json({ projects: result.data ?? [] });
+    return Response.json(projectsResponseSchema.parse({ projects: result.data ?? [] }));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/projects");
     return Response.json({ error: "Internal error" }, { status: 500 });
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       dbLogger.error({ code: dbErr.code, message: dbErr.message, details: dbErr.details }, "POST /api/projects DB error");
       return Response.json({ error: dbErr.message ?? "Error al crear el proyecto", code: dbErr.code }, { status: 500 });
     }
-    return Response.json({ project: result.data }, { status: 201 });
+    return Response.json(projectResponseSchema.parse({ project: result.data }), { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     dbLogger.error({ err: msg }, "POST /api/projects unexpected error");

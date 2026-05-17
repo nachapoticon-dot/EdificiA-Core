@@ -41,10 +41,25 @@ services:
       POSTGRES_DB: edificia
       POSTGRES_USER: ${POSTGRES_USER:-edificia}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edificia_dev}
+      # `--data-checksums` solo aplica al primer initdb (cluster vacío). Para clusters
+      # existentes, ejecutar `pg_checksums --enable` con el server detenido.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    # Configuración WAL explícita y auditable. Cambios requieren reinicio del contenedor.
+    command: >
+      postgres
+      -c wal_level=replica
+      -c wal_compression=on
+      -c max_wal_size=2GB
+      -c min_wal_size=80MB
+      -c checkpoint_completion_target=0.9
+      -c synchronous_commit=on
+      -c log_checkpoints=on
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edificia} -d edificia"]
+      # Combina liveness (pg_isready) con verificación de que WAL está avanzando.
+      # `pg_current_wal_lsn()` debe devolver un LSN no nulo si el WAL está activo.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edificia} -d edificia && psql -U ${POSTGRES_USER:-edificia} -d edificia -tAc 'SELECT pg_current_wal_lsn() IS NOT NULL' | grep -q t"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -4,6 +4,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/insforge/client";
 import type { PriceIndexRow } from "@/lib/indices/query";
 import type { ParsedPriceRow } from "@/lib/indices/upload-parser";
+import {
+  priceIndexUploadConfirmResponseSchema,
+  priceIndexUploadPreviewResponseSchema,
+  priceIndicesResponseSchema,
+} from "@/lib/validators/api-responses";
 
 export { type PriceIndexRow };
 
@@ -14,8 +19,9 @@ export function usePriceIndices() {
     queryFn: async () => {
       const res = await fetch("/api/indices", { headers: await getAuthHeaders() });
       if (!res.ok) throw new Error("indices fetch failed");
-      const json = (await res.json()) as { indices: PriceIndexRow[] };
-      return json.indices ?? [];
+      const parsed = priceIndicesResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("invalid indices response");
+      return parsed.data.indices;
     },
   });
 }
@@ -43,7 +49,9 @@ export function useUploadPriceList() {
         body: fd,
       });
       if (!res.ok) throw new Error("preview failed");
-      return res.json() as Promise<UploadPreview>;
+      const parsed = priceIndexUploadPreviewResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("invalid upload preview response");
+      return parsed.data;
     },
   });
 
@@ -60,7 +68,9 @@ export function useUploadPriceList() {
         body: fd,
       });
       if (!res.ok) throw new Error("upload failed");
-      return res.json() as Promise<{ inserted: number; warnings: string[] }>;
+      const parsed = priceIndexUploadConfirmResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("invalid upload confirm response");
+      return parsed.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["price-indices"] }),
   });

@@ -1,19 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart } from "ai";
 
 import { MessageBubble } from "@/components/chat/MessageBubble";
-import { ChatInput } from "@/components/chat/ChatInput";
-import { DropZone } from "@/components/chat/DropZone";
-import { UploadProgressCard } from "@/components/chat/FileCard";
+import { ChatInput } from "@/components/chat/input/ChatInput";
+import { DropZone } from "@/components/chat/input/DropZone";
+import { UploadProgressCard } from "@/components/chat/cards/FileCard";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
-import { Compass, Download, Sheet } from "lucide-react";
+import { AlertTriangle, Compass, Download, Sheet, TrendingUp } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";
-import { FileReadyView } from "@/components/chat/FileReadyView";
-import { TopBarActions } from "@/components/chat/TopBarActions";
+import { FileReadyView } from "@/components/chat/cards/FileReadyView";
+import { ComparisonReadyView } from "@/components/chat/cards/ComparisonReadyView";
+import { TopBarActions } from "@/components/chat/sidebar/TopBarActions";
+import { ProactivityAlertsBanner } from "@/components/chat/ProactivityAlertsBanner";
 import { useOrgMember } from "@/hooks/useOrgMember";
+import { usePriceIndices } from "@/hooks/usePriceIndices";
 import { Button } from "@/components/ui/button";
 import { exportAuditPdf } from "@/lib/export/generate-pdf";
 import { exportAuditXlsx } from "@/lib/export/generate-xlsx";
@@ -21,8 +25,9 @@ import type { ProcessedFile } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { saveMessages, loadMessages, fetchRemoteMessages } from "@/hooks/useMessageHistory";
+import { apiErrorResponseSchema, uploadResponseSchema, type UploadResponse } from "@/lib/validators/api-responses";
 
-type AttachedFile = ProcessedFile & { fileId: string | null; cacheId: string | null };
+type AttachedFile = UploadResponse;
 
 // Pending state: the full context to send when the user submits
 interface PendingFile {
@@ -62,14 +67,21 @@ export default function ChatPage() {
   const orgMemberState = useOrgMember();
   const currentUser = orgMemberState.status === "ok" ? orgMemberState.member : null;
   const canUpload = orgMemberState.status !== "ok" || orgMemberState.member.role !== "viewer";
+  const { data: priceIndices = [], isLoading: priceIndicesLoading } = usePriceIndices();
+  const needsIndexOnboarding =
+    currentUser?.role === "admin" &&
+    !priceIndicesLoading &&
+    priceIndices.length === 0;
 
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<PendingFile | null>(null);
+  const [pendingB, setPendingB] = useState<PendingFile | null>(null);
   const [showDxfViewer, setShowDxfViewer] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const comparisonFileInputRef = useRef<HTMLInputElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
 
   // Restore messages when session switches
@@ -81,6 +93,7 @@ export default function ChatPage() {
       if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
       return null;
     });
+    setPendingB(null);
     setUploadError(null);
     setShowDxfViewer(false);
 
@@ -120,16 +133,24 @@ export default function ChatPage() {
       if (activeProject?.id) uploadHeaders["x-project-id"] = activeProject.id;
 
       const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
-      const data = await res.json() as Record<string, unknown>;
+      const data: unknown = await res.json();
 
       if (!res.ok) {
-        const msg = data.error as string ?? "Error al procesar el archivo.";
-        const suggestion = data.suggestion as string | undefined;
+        const error = apiErrorResponseSchema.safeParse(data);
+        const msg = error.success ? error.data.error : "Error al procesar el archivo.";
+        const suggestion = error.success ? error.data.suggestion : undefined;
         setUploadError(suggestion ? `${msg} ${suggestion}` : msg);
         return;
       }
 
-      const processed = data as unknown as AttachedFile;
+      const parsed = uploadResponseSchema.safeParse(data);
+      if (!parsed.success) {
+        console.error("Invalid /api/upload response", parsed.error.flatten());
+        setUploadError("El servidor devolvió una respuesta inválida para el archivo.");
+        return;
+      }
+
+      const processed = parsed.data;
       let dxfBlobUrl: string | undefined;
 
       // Images: the server parser returns a dataUrl — send it as an inline image part
@@ -154,6 +175,7 @@ export default function ChatPage() {
         if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
         return null;
       });
+      setPendingB(null);
 
       setPending({ processed, prompt: buildFilePrompt(processed), dxfBlobUrl });
     } catch {
@@ -162,6 +184,84 @@ export default function ChatPage() {
       setIsUploading(false);
     }
   }, [sendMessage, recordSession]);
+
+  const handleAddComparisonFile = useCallback(async (file: File) => {
+    if (!pending || pending.processed.type !== "excel") {
+      setUploadError("La comparativa A vs B requiere un Excel cargado como archivo A.");
+      return;
+    }
+    setUploadError(null);
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const { getAuthHeaders } = await import("@/lib/insforge/client");
+      const uploadHeaders = { ...(await getAuthHeaders()) };
+      const ap = activeProjectRef.current;
+      if (ap?.id) uploadHeaders["x-project-id"] = ap.id;
+
+      const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
+      const data: unknown = await res.json();
+
+      if (!res.ok) {
+        const error = apiErrorResponseSchema.safeParse(data);
+        const msg = error.success ? error.data.error : "Error al procesar el archivo.";
+        setUploadError(msg);
+        return;
+      }
+
+      const parsed = uploadResponseSchema.safeParse(data);
+      if (!parsed.success) {
+        setUploadError("El servidor devolvió una respuesta inválida para el archivo.");
+        return;
+      }
+
+      const processed = parsed.data;
+      if (processed.type !== "excel") {
+        setUploadError("La comparativa A vs B solo admite Excel por ahora.");
+        return;
+      }
+
+      setPendingB({ processed, prompt: buildFilePrompt(processed) });
+    } catch {
+      setUploadError("No se pudo conectar con el servidor.");
+    } finally {
+      setIsUploading(false);
+    }
+  }, [pending]);
+
+  const handleStartComparison = useCallback(() => {
+    comparisonFileInputRef.current?.click();
+  }, []);
+
+  const handleComparisonInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void handleAddComparisonFile(file);
+  }, [handleAddComparisonFile]);
+
+  function handleRemoveB() {
+    setPendingB(null);
+  }
+
+  const handleSubmitComparison = useCallback(() => {
+    if (!pending || !pendingB || pending.processed.type !== "excel" || pendingB.processed.type !== "excel") return;
+    if (isStreaming) return;
+
+    const a = pending.processed;
+    const b = pendingB.processed;
+    const text = buildComparisonPrompt(a, b);
+
+    sendMessage({ text });
+    recordSession(`A vs B · ${a.fileName}`, "excel", activeProjectRef.current?.id);
+
+    if (pending.dxfBlobUrl) URL.revokeObjectURL(pending.dxfBlobUrl);
+    setPending(null);
+    setPendingB(null);
+    setInput("");
+  }, [pending, pendingB, isStreaming, sendMessage, recordSession]);
 
   function handleSubmit() {
     if (isStreaming) return;
@@ -175,9 +275,7 @@ export default function ChatPage() {
 
       sendMessage({ text: finalText });
 
-      const fileType = pending.processed.type === "dwg_unsupported"
-        ? undefined
-        : pending.processed.type as Parameters<typeof recordSession>[1];
+      const fileType = pending.processed.type as Parameters<typeof recordSession>[1];
       recordSession(pending.processed.fileName, fileType, activeProjectRef.current?.id);
 
       // Clean up DXF blob URL when the file leaves the input
@@ -199,9 +297,7 @@ export default function ChatPage() {
       ? `${actionText}\n\n---\n${pending.prompt}`
       : pending.prompt;
     sendMessage({ text: finalText });
-    const fileType = pending.processed.type === "dwg_unsupported"
-      ? undefined
-      : pending.processed.type as Parameters<typeof recordSession>[1];
+    const fileType = pending.processed.type as Parameters<typeof recordSession>[1];
     recordSession(pending.processed.fileName, fileType, activeProjectRef.current?.id);
     if (pending.dxfBlobUrl) URL.revokeObjectURL(pending.dxfBlobUrl);
     setPending(null);
@@ -237,11 +333,14 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
       if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
       return null;
     });
+    setPendingB(null);
     setUploadError(null);
   }
 
   // Build the chip shown inside the ChatInput
-  const chip = pending ? buildChip(pending.processed) : null;
+  const chip = pending && pendingB
+    ? { name: `${pending.processed.fileName}  vs  ${pendingB.processed.fileName}`, subtitle: "comparativa A vs B lista", fileType: "excel" as const }
+    : pending ? buildChip(pending.processed) : null;
 
   const exportTitle = pending?.processed.fileName ?? messages[0]?.id ?? "Auditoría EdificIA";
 
@@ -290,9 +389,20 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
         </div>
       </header>
 
+      {/* Hidden input used by FileReadyView's "Comparar con otra versión" CTA */}
+      <input
+        ref={comparisonFileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={handleComparisonInputChange}
+      />
+
       {/* Messages + Drop Zone */}
       <DropZone onFileDrop={handleFileSelect} canUpload={canUpload}>
         <div className="flex-1 overflow-y-auto ed-blueprint-bg">
+          {needsIndexOnboarding && <PriceIndexOnboardingBanner />}
+          <ProactivityAlertsBanner projectId={activeProject?.id ?? null} />
           {messages.length === 0 && !pending ? (
             <div className="min-h-full flex flex-col justify-center">
               <AgentGreeting
@@ -304,11 +414,21 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
                 onFileSelect={handleFileSelect}
               />
             </div>
+          ) : messages.length === 0 && pending && pendingB && pending.processed.type === "excel" && pendingB.processed.type === "excel" ? (
+            <ComparisonReadyView
+              fileA={pending.processed}
+              fileB={pendingB.processed}
+              onSubmit={handleSubmitComparison}
+              onRemoveB={handleRemoveB}
+            />
           ) : messages.length === 0 && pending ? (
             <FileReadyView
               file={pending.processed}
+              piiScan={pending.processed.piiScan}
+              contextScan={pending.processed.contextScan}
               onActionSelect={handleActionSubmit}
               onRemove={handleRemoveFile}
+              onStartComparison={pending.processed.type === "excel" ? handleStartComparison : undefined}
             />
           ) : (
             <div className="pb-4">
@@ -378,6 +498,31 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
   );
 }
 
+function PriceIndexOnboardingBanner() {
+  return (
+    <div className="border-b border-[oklch(0.72_0.16_65)]/30 bg-[oklch(0.72_0.16_65)]/[0.07] px-6 py-3">
+      <div className="mx-auto flex max-w-[920px] items-center gap-3">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-[oklch(0.62_0.18_60)]" strokeWidth={1.75} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold text-foreground">
+            Faltan índices de precio para comparar presupuestos
+          </p>
+          <p className="text-[11.5px] text-muted-foreground">
+            Sin listas cargadas, el agente no puede validar valores contra referencias reales de mercado.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/admin/indices"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <TrendingUp className="h-3.5 w-3.5" />
+          Cargar índices
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ── Chip builder ──────────────────────────────────────────────────────────────
 
 function buildChip(file: ProcessedFile) {
@@ -398,7 +543,7 @@ function buildChip(file: ProcessedFile) {
 
 // Embed a machine-readable marker as the first line so MessageBubble can render a file card
 // without displaying raw JSON to the user. The AI model also sees this metadata.
-function fileMeta(file: ProcessedFile & { cacheId?: string | null }): string {
+function fileMeta(file: ProcessedFile & { cacheId?: string | null; contextScan?: UploadResponse["contextScan"] }): string {
   const meta: Record<string, unknown> = {
     fileName: file.fileName,
     type: file.type,
@@ -414,6 +559,15 @@ function fileMeta(file: ProcessedFile & { cacheId?: string | null }): string {
     meta.isScanned = file.isScanned;
   } else if (file.type === "docx") {
     meta.wordCount = file.wordCount;
+  }
+  if (file.contextScan?.hasFindings) {
+    meta.contextFindings = file.contextScan.findings.map((finding) => ({
+      type: finding.type,
+      severity: finding.severity,
+      message: finding.message,
+      relatedFileName: finding.relatedFileName,
+      deltaPct: finding.evidence.deltaPct,
+    }));
   }
   return `__file_meta__:${JSON.stringify(meta)}`;
 }
@@ -508,4 +662,38 @@ ${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]"
 function buildImagePrompt(fileName: string): string {
   const safe = safeStr(fileName);
   return `__file_meta__:${JSON.stringify({ fileName, type: "image" })}\nImagen "${safe}" adjunta. Si es una planilla o presupuesto: extraé ítems, cantidades y precios. Si es un plano: describí elementos constructivos y dimensiones visibles. Si es otra cosa: describí qué ves y su relevancia para auditoría de construcción.`;
+}
+
+function buildComparisonPrompt(a: AttachedFile & { type: "excel" }, b: AttachedFile & { type: "excel" }): string {
+  const nameA = safeStr(a.fileName);
+  const nameB = safeStr(b.fileName);
+  const cacheA = a.cacheId;
+  const cacheB = b.cacheId;
+
+  const cacheRefA = cacheA ? `cacheId="${cacheA}"` : "items inline";
+  const cacheRefB = cacheB ? `cacheId="${cacheB}"` : "items inline";
+
+  const declaredLineA = a.detectedTotal != null ? ` · total declarado $${a.detectedTotal.toLocaleString("es-AR")}` : "";
+  const declaredLineB = b.detectedTotal != null ? ` · total declarado $${b.detectedTotal.toLocaleString("es-AR")}` : "";
+
+  const declaredA = a.detectedTotal != null ? ` y declaredTotal=${a.detectedTotal}` : " (omitir si no hay total declarado)";
+  const declaredB = b.detectedTotal != null ? ` y declaredTotal=${b.detectedTotal}` : " (omitir si no hay total declarado)";
+
+  return `${fileMeta(a)}
+${fileMeta(b)}
+Auditoría comparativa de dos versiones del mismo presupuesto.
+
+- A: "${nameA}" — ${a.itemCount} ítems${declaredLineA} · ${cacheRefA}
+- B: "${nameB}" — ${b.itemCount} ítems${declaredLineB} · ${cacheRefB}
+
+Plan:
+1. calcular_totales con ${cacheRefA}.
+2. calcular_totales con ${cacheRefB}.
+3. validar_cierre_de_total con ${cacheRefA}${declaredA}.
+4. validar_cierre_de_total con ${cacheRefB}${declaredB}.
+5. detectar_exclusiones_logicas con ${cacheRefA} y con ${cacheRefB} para listar errores/warnings de cada versión.
+6. comparar_presupuestos con title="A vs B", columnA="A · ${nameA}", columnB="B · ${nameB}" y rows que incluyan: Total declarado, Costo directo calculado, Cantidad de ítems, Errores detectados, Warnings detectados, Brecha A→B.
+7. Resumen ejecutivo: qué cambió entre A y B, qué rubros divergen más, cuál es más confiable y qué decisión recomendás.
+
+Citá provenance en cada cifra crítica.`;
 }

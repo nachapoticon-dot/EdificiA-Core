@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/insforge/client";
+import { projectFilesResponseSchema } from "@/lib/validators/api-responses";
 
 import type { ProjectFile } from "@/types";
 export type { ProjectFile } from "@/types";
@@ -16,8 +17,9 @@ export function useProjectFiles(projectId: string | null) {
         headers: await getAuthHeaders(),
       });
       if (!res.ok) throw new Error("files fetch failed");
-      const json = (await res.json()) as { files: ProjectFile[] };
-      return json.files ?? [];
+      const parsed = projectFilesResponseSchema.safeParse(await res.json());
+      if (!parsed.success) throw new Error("invalid project files response");
+      return parsed.data.files;
     },
   });
 }

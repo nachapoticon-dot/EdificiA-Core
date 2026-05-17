@@ -63,7 +63,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 | Embeddings | NVIDIA NIM (`text-embedding-3-small`) | `src/lib/embeddings/index.ts` |
 | BaaS | InsForge (auth, DB, storage) | `src/lib/insforge/server.ts` (admin) · `client.ts` (browser) |
 | Vector DB | Qdrant | `src/lib/qdrant/client.ts` |
-| DB | PostgreSQL con RLS multi-tenant | `db/migrations/` (14 archivos) |
+| DB | PostgreSQL con RLS multi-tenant | `migrations/` (InsForge CLI) |
 | Validación | Zod v3 | `src/lib/validators/` |
 | Email | Resend | `src/lib/email/resend.ts` |
 | UI | Shadcn + Tailwind v4 + Framer Motion | `src/components/` |
@@ -131,5 +131,6 @@ src/
 - `src/lib/file-processor/` — Procesadores de PDF, Excel, DXF, DOCX, imagen. Funcionan.
 - `src/lib/ai/agent-tools.ts` y `agent-tools-bound.ts` — 38KB de tools. Muy estable.
 - `src/lib/ai/agent-prompt.ts` — System prompt de 198 líneas cuidadosamente calibrado.
-- `db/migrations/` — NO modificar migraciones existentes. Solo agregar nuevas.
+- `migrations/` — ruta canónica de migraciones. Crear con `npm run migrate:new` y aplicar con `npm run migrate`.
+- `docs/archive/db-migrations-legacy/` — histórico read-only de migraciones raw SQL previas.
 - `src/components/chat/blocks/` — 4 bloques de UI Generativa completos y funcionando.

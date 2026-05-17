@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { sendInvitationEmail } from "@/lib/email/resend";
 import { dbLogger, httpLogger } from "@/lib/logger";
+import { superAdminMemberInviteResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -68,5 +69,5 @@ export async function POST(req: Request): Promise<Response> {
     httpLogger.error({ err }, "super-admin/members email error");
   });
 
-  return Response.json({ ok: true, token }, { status: 201 });
+  return Response.json(superAdminMemberInviteResponseSchema.parse({ ok: true, token }), { status: 201 });
 }

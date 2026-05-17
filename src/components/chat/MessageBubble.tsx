@@ -12,11 +12,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2 } from "lucide-react";
-import { ChartBlock, type ChartSpec } from "./ChartBlock";
-import { DocumentProposalCard, type FileProposal } from "./DocumentProposalCard";
-import { FindingCallout, type FindingSpec } from "./FindingCallout";
-import { ComparisonTable, type ComparisonTableSpec } from "./ComparisonTable";
-import { GeneratedDocCard, type DocGenerationProposal } from "./GeneratedDocCard";
+import { ChartBlock, type ChartSpec } from "./cards/ChartBlock";
+import { DocumentProposalCard, type FileProposal } from "./cards/DocumentProposalCard";
+import { FindingCallout, type FindingSpec } from "./cards/FindingCallout";
+import { ComparisonTable, type ComparisonTableSpec } from "./cards/ComparisonTable";
+import { GeneratedDocCard, type DocGenerationProposal } from "./cards/GeneratedDocCard";
+import { PlanBlock, PlanPendingPlaceholder, extractPlan } from "./cards/PlanBlock";
 import { ResponseBlock } from "./blocks";
 import { BlockSpec, type BlockKind } from "@/lib/validators/blocks";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -136,6 +137,11 @@ const TOOL_LABELS: Record<string, string> = {
   comparar_presupuestos:           "Generando tabla comparativa",
   analizar_estado_obra:            "Analizando estado documental de la obra",
   comparar_con_indices:            "Comparando precios con índices de mercado",
+  evaluar_impacto_clima:           "Consultando pronóstico meteorológico",
+  verificar_ingreso_personal:      "Verificando legajo HSE de la cuadrilla",
+  reprogramar_e_informar:          "Reprogramando tarea y registrando evento",
+  auditar_curva_inversion:         "Auditando curva S vs plan",
+  buscar_relaciones_documento:     "Consultando knowledge graph de obra",
 };
 
 const SPECIAL_TOOLS = new Set([
@@ -341,37 +347,47 @@ function TextPart({
     );
   }
 
+  // Assistant message: extract the optional <plan>{...}</plan> block so it
+  // renders as a dedicated card instead of raw text inside the bubble.
+  const { plan, cleanText, pending } = extractPlan(part.text);
+
   return (
-    <div className="px-4 py-2.5 text-sm leading-relaxed bg-card border border-border text-foreground rounded-[2px_12px_12px_12px] prose prose-sm prose-neutral dark:prose-invert max-w-none">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          h1: ({ children }) => <h1 className="text-base font-semibold mt-3 mb-1 first:mt-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-sm font-semibold mt-2.5 mb-1 first:mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-medium mt-2 mb-0.5 first:mt-0">{children}</h3>,
-          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-          ul: ({ children }) => <ul className="my-1.5 ml-4 list-disc space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="my-1.5 ml-4 list-decimal space-y-0.5">{children}</ol>,
-          li: ({ children }) => <li className="text-sm">{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-          em: ({ children }) => <em className="italic">{children}</em>,
-          code: ({ children, className }) => {
-            const isBlock = className?.includes("language-");
-            return isBlock
-              ? <code className="block bg-muted rounded-[6px] px-3 py-2 text-xs font-mono overflow-x-auto my-2">{children}</code>
-              : <code className="bg-muted rounded px-1 py-0.5 text-xs font-mono">{children}</code>;
-          },
-          pre: ({ children }) => <pre className="my-2">{children}</pre>,
-          blockquote: ({ children }) => <blockquote className="border-l-2 border-primary/40 pl-3 italic text-muted-foreground my-2">{children}</blockquote>,
-          hr: () => <hr className="my-3 border-border" />,
-          table: ({ children }) => <div className="overflow-x-auto my-2"><table className="text-xs border-collapse w-full">{children}</table></div>,
-          th: ({ children }) => <th className="border border-border px-2 py-1 bg-muted font-medium text-left">{children}</th>,
-          td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
-          a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:opacity-80">{children}</a>,
-        }}
-      >
-        {part.text}
-      </ReactMarkdown>
+    <div className="flex w-full flex-col gap-2">
+      {plan && <PlanBlock spec={plan} />}
+      {pending && <PlanPendingPlaceholder />}
+      {cleanText && (
+        <div className="px-4 py-2.5 text-sm leading-relaxed bg-card border border-border text-foreground rounded-[2px_12px_12px_12px] prose prose-sm prose-neutral dark:prose-invert max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1: ({ children }) => <h1 className="text-base font-semibold mt-3 mb-1 first:mt-0">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-sm font-semibold mt-2.5 mb-1 first:mt-0">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-sm font-medium mt-2 mb-0.5 first:mt-0">{children}</h3>,
+              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="my-1.5 ml-4 list-disc space-y-0.5">{children}</ul>,
+              ol: ({ children }) => <ol className="my-1.5 ml-4 list-decimal space-y-0.5">{children}</ol>,
+              li: ({ children }) => <li className="text-sm">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+              code: ({ children, className }) => {
+                const isBlock = className?.includes("language-");
+                return isBlock
+                  ? <code className="block bg-muted rounded-[6px] px-3 py-2 text-xs font-mono overflow-x-auto my-2">{children}</code>
+                  : <code className="bg-muted rounded px-1 py-0.5 text-xs font-mono">{children}</code>;
+              },
+              pre: ({ children }) => <pre className="my-2">{children}</pre>,
+              blockquote: ({ children }) => <blockquote className="border-l-2 border-primary/40 pl-3 italic text-muted-foreground my-2">{children}</blockquote>,
+              hr: () => <hr className="my-3 border-border" />,
+              table: ({ children }) => <div className="overflow-x-auto my-2"><table className="text-xs border-collapse w-full">{children}</table></div>,
+              th: ({ children }) => <th className="border border-border px-2 py-1 bg-muted font-medium text-left">{children}</th>,
+              td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
+              a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:opacity-80">{children}</a>,
+            }}
+          >
+            {cleanText}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   );
 }

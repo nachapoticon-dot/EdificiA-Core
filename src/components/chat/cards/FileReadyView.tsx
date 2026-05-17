@@ -3,14 +3,19 @@
 import { motion } from "framer-motion";
 import {
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
-  CheckCircle2, ChevronRight, X, Zap,
+  CheckCircle2, ChevronRight, X, Zap, ShieldAlert, GitCompare,
 } from "lucide-react";
 import type { ProcessedFile } from "@/lib/file-processor/types";
+import { piiLabel, type PiiScanResult } from "@/lib/security/pii-detector";
+import type { ContextScanResult } from "@/lib/document-intelligence/context-scan";
 
 interface FileReadyViewProps {
   file: ProcessedFile;
+  piiScan?: PiiScanResult;
+  contextScan?: ContextScanResult;
   onActionSelect: (actionText: string) => void;
   onRemove: () => void;
+  onStartComparison?: () => void;
 }
 
 /* ── Per-type config ─────────────────────────────────────────────────── */
@@ -135,15 +140,19 @@ function formatSize(bytes: number) {
 
 /* ── Component ───────────────────────────────────────────────────────── */
 
-export function FileReadyView({ file, onActionSelect, onRemove }: FileReadyViewProps) {
+export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRemove, onStartComparison }: FileReadyViewProps) {
   const cfg = getConfig(file);
   if (!cfg || file.type === "dwg_unsupported") return null;
 
   const { Icon, iconBg, iconColor, meta, stats, actions } = cfg;
+  const canCompare = file.type === "excel" && typeof onStartComparison === "function";
 
   return (
     <div className="py-10">
       <div className="mx-auto max-w-[680px] space-y-6 px-6">
+
+        {piiScan?.hasMatches && <PiiWarningBanner scan={piiScan} />}
+        {contextScan?.hasFindings && <ContextWarningBanner scan={contextScan} />}
 
         {/* ── File card ── */}
         <motion.div
@@ -212,6 +221,26 @@ export function FileReadyView({ file, onActionSelect, onRemove }: FileReadyViewP
               />
             ))}
           </div>
+          {canCompare && (
+            <button
+              type="button"
+              onClick={onStartComparison}
+              className="mt-2 flex w-full items-center gap-3 rounded-[10px] border border-dashed border-border bg-card/60 p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
+            >
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-muted text-muted-foreground">
+                <GitCompare className="h-3.5 w-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-display text-[13px] font-semibold leading-tight text-foreground">
+                  Comparar con otra versión (A vs B)
+                </p>
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  Subí un segundo Excel y el agente audita las diferencias en un mismo turno
+                </p>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+            </button>
+          )}
         </motion.div>
 
         {/* Divider hint */}
@@ -230,6 +259,81 @@ export function FileReadyView({ file, onActionSelect, onRemove }: FileReadyViewP
 }
 
 /* ── Sub-components ──────────────────────────────────────────────────── */
+
+function PiiWarningBanner({ scan }: { scan: PiiScanResult }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="overflow-hidden rounded-[10px] border border-[oklch(0.72_0.16_60)]/50 bg-[oklch(0.72_0.16_60)]/[0.06]"
+    >
+      <div className="flex items-start gap-3 px-4 py-3">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[oklch(0.62_0.18_60)]" strokeWidth={1.75} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px] font-semibold text-foreground">
+            Datos personales detectados en el archivo
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
+            Se encontraron {scan.totalCount} coincidencia{scan.totalCount === 1 ? "" : "s"}. Revisá antes de compartir externamente.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {scan.matches.map((m) => (
+              <span
+                key={m.type}
+                className="inline-flex items-center gap-1.5 rounded-[4px] border border-[oklch(0.72_0.16_60)]/30 bg-[oklch(0.72_0.16_60)]/[0.06] px-2 py-0.5 font-mono text-[10px] text-foreground/80"
+                title={m.samples.join(", ")}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[oklch(0.62_0.18_60)]" />
+                {piiLabel(m.type)} · {m.count}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ContextWarningBanner({ scan }: { scan: ContextScanResult }) {
+  const strongest = scan.findings[0];
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="overflow-hidden rounded-[10px] border border-destructive/35 bg-destructive/[0.06]"
+    >
+      <div className="flex items-start gap-3 px-4 py-3">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" strokeWidth={1.75} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold text-foreground">
+            Posibles contradicciones con documentos previos
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
+            {strongest?.message ?? `Se detectaron ${scan.totalCount} diferencias relevantes contra el contexto de la obra.`}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {scan.findings.map((finding) => (
+              <span
+                key={`${finding.type}:${finding.relatedFileName}`}
+                className="inline-flex items-center gap-1.5 rounded-[4px] border border-destructive/25 bg-destructive/[0.04] px-2 py-0.5 font-mono text-[10px] text-foreground/80"
+                title={`${finding.relatedFileName}: actual ${formatFindingNumber(finding.evidence.currentValue)} vs previo ${formatFindingNumber(finding.evidence.relatedValue)}`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                {finding.relatedFileName} · {finding.evidence.deltaPct.toFixed(1)}%
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function formatFindingNumber(value: number): string {
+  return Math.round(value).toLocaleString("es-AR");
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (

@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { dbLogger } from "@/lib/logger";
+import { projectFilesResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .eq("organization_id", auth.orgId)
       .order("created_at", { ascending: false });
 
-    return Response.json({ files: result.data ?? [] });
+    return Response.json(projectFilesResponseSchema.parse({ files: result.data ?? [] }));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/projects/:id/files");
     return Response.json({ error: "Internal error" }, { status: 500 });

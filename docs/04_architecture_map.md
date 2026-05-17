@@ -1,6 +1,6 @@
 # Mapa de Arquitectura y Dependencias (Repo Map)
 
-> **Última actualización**: 2026-05-13 (post-auditoría: 10 archivos muertos eliminados)
+> **Última actualización**: 2026-05-16 (arquitectura operativa de obra + audit log inmutable)
 
 Este documento contiene el mapa estructural del proyecto. 
 **Regla para la IA**: Cada vez que crees un módulo nuevo (Frontend, Backend, Database), DEBES actualizar este grafo. Antes de modificar código existente, lee este grafo para entender qué otras partes del sistema vas a afectar y evitar romper el código.
@@ -39,7 +39,7 @@ graph TD
     InsForgeBackend[InsForge BaaS\nhttps://daw63k5s.us-east.insforge.app]
 
     %% DB
-    DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\nchat_sessions · document_chunks\norg_founder_invitations\ncompany_learned_patterns\nproject_phase_docs)]
+    DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\nchat_sessions · document_chunks\norg_founder_invitations\ncompany_learned_patterns\nproject_phase_docs\naudit_log_events\nproject_schedule_tasks · project_financial_snapshots\nproject_subcontracts · project_hse_records · project_supply_items)]
 
     %% Qdrant
     Qdrant[(Qdrant Cloud\nVector DB para RAG)]
@@ -143,6 +143,8 @@ src/
 │   │   │   └── orgs/route.ts       → GET organizaciones del usuario
 │   │   ├── chat/route.ts           → POST streaming chat (DeepSeek + tools)
 │   │   ├── upload/route.ts         → POST subir archivo + RAG ingest
+│   │   ├── cron/
+│   │   │   └── project-proactivity/route.ts → CRON con secreto: scanner diario de riesgos de obra
 │   │   ├── projects/
 │   │   │   ├── route.ts            → GET/POST proyectos
 │   │   │   └── [id]/
@@ -211,6 +213,8 @@ src/
 │   │   ├── jwt.ts                  → Verificación JWT con InsForge + fallback decode-only
 │   │   ├── require-auth.ts         → Guard centralizado para API routes (auth + org + role)
 │   │   └── reset-token.ts          → HMAC-SHA256 tokens para password reset
+│   ├── audit/
+│   │   └── audit-log.ts            → Writer server-side de eventos append-only
 │   ├── api/
 │   │   ├── errors.ts               → Helpers de error estandarizados
 │   │   └── rate-limit.ts           → Rate limiter in-memory
@@ -231,6 +235,12 @@ src/
 │   ├── indices/
 │   │   ├── query.ts                → Queries de índices de precios
 │   │   └── compare.ts              → Comparación de índices
+│   ├── weather/
+│   │   └── open-meteo.ts           → Forecast Open-Meteo + impacto operativo de clima
+│   ├── document-intelligence/
+│   │   └── context-scan.ts         → Detección heurística de contradicciones al subir
+│   ├── proactivity/
+│   │   └── daily-scan.ts           → Scanner diario de riesgos sobre obras activas
 │   ├── excel/
 │   │   └── parser.ts               → Parser de Excel (separado del file-processor)
 │   ├── pattern-extractor/          → Extractor de patrones de archivos
@@ -239,31 +249,35 @@ src/
 │   ├── logger.ts                   → Logger estructurado (Pino)
 │   ├── validators/
 │   │   ├── index.ts                → Schemas Zod compartidos (login, signUp, tenant)
+│   │   ├── api-responses.ts        → Contratos Zod de responses API consumidas por frontend
 │   │   └── blocks.ts               → Schemas Zod de los bloques de UI Generativa
 │   └── utils.ts                    → Utilidades (cn, etc.)
 
-db/
-└── migrations/
-    ├── 001_initial_schema.sql      → organizations + organization_members + RLS
-    ├── 002_files_and_sessions.sql  → projects + uploaded_files + audit_sessions + chat_messages
-    ├── 003_hardening.sql           → indexes + soft deletes + RLS fixes
-    ├── 004_new_tables.sql          → organization_invitations + audit_results
-    ├── 005_fix_rls_recursion.sql   → Fix recursión en políticas RLS
-    ├── 006_agent_learning.sql      → company_learned_patterns
-    ├── 007_document_chunks.sql     → document_chunks para RAG
-    ├── 008_project_scoped_docs.sql → Docs scoped a proyecto
-    ├── 009_project_phase_docs.sql  → Fases de obra + cobertura
-    ├── 010_price_indices.sql       → Índices de precios
-    ├── 011_chat_sessions.sql       → Sesiones de chat persistidas
-    ├── 012_founder_invitations.sql → Invitaciones de fundador
-    ├── 013_member_email.sql        → Email en organization_members
-    └── 014_project_metadata.sql    → Metadatos extendidos de proyecto
-
-migrations/ (InsForge CLI)
+migrations/ (canónico, InsForge CLI)
     ├── 20260507195853_catchup-missing-columns.sql
     ├── 20260513215703_project-metadata.sql
-    └── 20260513220428_security-fixes.sql
+    ├── 20260513220428_security-fixes.sql
+    ├── 20260515032815_add-founder-columns.sql
+    ├── 20260516140000_immutable-audit-log.sql
+    └── 20260516215250_project-operations-schema.sql
+
+docs/archive/db-migrations-legacy/
+    └── 001..016_*.sql              → histórico raw SQL previo; read-only, no usar para cambios nuevos
 ```
+
+## Esquema Operativo de Obra
+
+La arquitectura extendida de obra vive en PostgreSQL/RLS y queda preparada para CRON/workers y tools del agente. Todas las tablas tienen `organization_id`, `project_id`, soft-delete, `metadata JSONB`, timestamps e índices por organización/obra.
+
+| Tabla | Propósito |
+|---|---|
+| `project_schedule_tasks` | Cronograma real: tareas, fechas, progreso, bloqueo y predecesoras. |
+| `project_financial_snapshots` | Curva S y avance económico: planificado, real, comprometido, facturado y pagado. |
+| `project_subcontracts` | Directorio de subcontratos por obra: rubro, monto, estado, contacto y retenciones. |
+| `project_hse_records` | HSE/legales: ART, EPP, capacitaciones, aptos médicos, incidentes y accesos. |
+| `project_supply_items` | Acopios y suministros: cantidades requeridas/pedidas/recibidas, proveedor, costo y fecha requerida. |
+
+RLS: miembros de la organización leen; `admin` y `engineer` insertan/actualizan; solo `admin` puede borrar. El rol interno `project_admin` conserva acceso total para operaciones de backend. `projects.status` queda normalizado a `en_obra`, `planificacion`, `finalizado`, `pausado`.
 
 ## Registro de Cambios Estructurales
 
@@ -285,4 +299,11 @@ migrations/ (InsForge CLI)
 | 2026-05-13 | Limpieza | Auditoría de 133+ archivos: eliminados archivos muertos (OrgSwitcher.tsx, demo-data.ts, scripts debug, .mcp.json, .claude-flow/, zip raíz) |
 | 2026-05-14 | Seguridad | Fix completo de auth: proxy/middleware real, requireAuth() centralizado, verifyUserId vía InsForge, localStorage+cookie, logout limpio. 18 routes refactorizadas. |
 | 2026-05-16 | Corrección docs | `src/proxy.ts` confirmado como guard activo de dashboard + CORS. Referencias obsoletas a `src/middleware.ts` corregidas. |
+| 2026-05-16 | Contratos API | Agregado `src/lib/validators/api-responses.ts` para validar responses críticas (`upload`, `auth/me`, `projects`, `sessions`) en route handlers y clientes. |
+| 2026-05-16 | Audit log | Agregado `audit_log_events` append-only con hash encadenado, RLS de lectura por org y triggers anti-update/delete; `upload` y `chat` registran eventos server-side. |
+| 2026-05-16 | Migraciones | `migrations/` queda como ruta canónica vía InsForge CLI. `db/migrations/` se archivó en `docs/archive/db-migrations-legacy/` y Docker dejó de ejecutar migraciones raw SQL al arrancar. |
+| 2026-05-16 | Inteligencia documental | Agregado `src/lib/document-intelligence/context-scan.ts` para advertir contradicciones numéricas contra documentos previos al subir archivos. |
+| 2026-05-16 | Dominio de obra | Agregadas tablas operativas `project_schedule_tasks`, `project_financial_snapshots`, `project_subcontracts`, `project_hse_records` y `project_supply_items` con RLS por organización. |
+| 2026-05-16 | Proactividad | Agregado `runDailyProjectScan()` y `/api/cron/project-proactivity` para detectar riesgos diarios y escribir resumen en `audit_log_events`; schedule externo pendiente de URL pública. |
+| 2026-05-16 | Clima | Agregada tool `evaluar_impacto_clima` con Open-Meteo para forecast diario y riesgo operativo por lluvia, viento y temperatura. |
 | 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |

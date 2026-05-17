@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { signUpSchema, loginSchema, type SignUpInput } from "@/lib/validators";
+import { apiErrorResponseSchema, okResponseSchema, registerInvitationCheckResponseSchema } from "@/lib/validators/api-responses";
 
 type Step = "check" | "complete";
 type FieldErrors = Partial<Record<keyof SignUpInput, string>>;
@@ -38,9 +39,9 @@ function RegisterForm() {
     if (!emailParam || !tokenParam) return;
     void (async () => {
       const res = await fetch(`/api/auth/register?email=${encodeURIComponent(emailParam)}`);
-      const data = await res.json() as { authorized?: boolean; organizationName?: string };
-      if (data.authorized) {
-        setOrgName(data.organizationName ?? "tu empresa");
+      const parsed = registerInvitationCheckResponseSchema.safeParse(await res.json());
+      if (parsed.success && parsed.data.authorized) {
+        setOrgName(parsed.data.organizationName);
         setStep("complete");
       }
     })();
@@ -69,14 +70,21 @@ function RegisterForm() {
     setServerError(null);
     try {
       const res = await fetch(`/api/auth/register?email=${encodeURIComponent(trimmed)}`);
-      const data = await res.json() as { authorized?: boolean; organizationName?: string; error?: string };
+      const data: unknown = await res.json();
 
-      if (!data.authorized) {
+      if (!res.ok) {
+        const error = apiErrorResponseSchema.safeParse(data);
+        setServerError(error.success ? error.data.error : "No se pudo verificar el email. Intentá de nuevo.");
+        return;
+      }
+
+      const parsed = registerInvitationCheckResponseSchema.safeParse(data);
+      if (!parsed.success || !parsed.data.authorized) {
         setServerError("Tu email no está autorizado. Solicitá una invitación al administrador de tu empresa.");
         return;
       }
 
-      setOrgName(data.organizationName ?? "tu empresa");
+      setOrgName(parsed.data.organizationName);
       setStep("complete");
     } catch {
       setServerError("No se pudo verificar el email. Intentá de nuevo.");
@@ -107,14 +115,16 @@ function RegisterForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data),
       });
-      const data = await res.json() as { ok?: boolean; error?: string };
+      const data: unknown = await res.json();
 
       if (res.status === 409) {
         setServerError("__already_exists__");
         return;
       }
-      if (!res.ok || !data.ok) {
-        setServerError(data.error ?? "Error al crear la cuenta.");
+      const ok = okResponseSchema.safeParse(data);
+      if (!res.ok || !ok.success) {
+        const error = apiErrorResponseSchema.safeParse(data);
+        setServerError(error.success ? error.data.error : "Error al crear la cuenta.");
         return;
       }
 

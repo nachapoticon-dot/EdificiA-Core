@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
+import { okResponseSchema, sessionsResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
@@ -33,12 +34,12 @@ export async function GET(req: Request): Promise<Response> {
   const sessions = rows.map((r) => ({
     id: r.id,
     title: r.title,
-    fileType: r.file_type ?? undefined,
+    fileType: normalizeSessionFileType(r.file_type),
     startedAt: r.started_at,
     projectId: r.project_id ?? undefined,
   }));
 
-  return Response.json({ sessions });
+  return Response.json(sessionsResponseSchema.parse({ sessions }));
 }
 
 /** POST /api/sessions — Upsert a session entry */
@@ -69,7 +70,7 @@ export async function POST(req: Request): Promise<Response> {
     { onConflict: "id" },
   );
 
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
 }
 
 /** DELETE /api/sessions?id=xxx  or  ?clearAll=true */
@@ -93,5 +94,18 @@ export async function DELETE(req: Request): Promise<Response> {
   if (!clearAll && id) q = q.eq("id", id);
 
   await q;
-  return Response.json({ ok: true });
+  return Response.json(okResponseSchema.parse({ ok: true }));
+}
+
+function normalizeSessionFileType(value: string | null): "excel" | "pdf" | "dxf" | "docx" | "image" | undefined {
+  if (
+    value === "excel" ||
+    value === "pdf" ||
+    value === "dxf" ||
+    value === "docx" ||
+    value === "image"
+  ) {
+    return value;
+  }
+  return undefined;
 }

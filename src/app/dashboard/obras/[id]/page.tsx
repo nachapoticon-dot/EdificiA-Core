@@ -16,6 +16,7 @@ import { useProjectFiles, type ProjectFile } from "@/hooks/useProjectFiles";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { getAuthHeaders } from "@/lib/insforge/client";
 import type { PhaseCoverage } from "@/lib/obra/coverage";
+import { ScheduleImportSection } from "./_components/ScheduleImportSection";
 
 const STATUS_OPTIONS = [
   { value: "en_obra",      label: "En obra" },
@@ -416,6 +417,8 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
           </div>
 
         </div>
+
+        <ScheduleImportSection projectId={id} />
       </div>
     </div>
   );

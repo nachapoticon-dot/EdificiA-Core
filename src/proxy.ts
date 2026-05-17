@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "edificia_session";
+const REQUEST_ID_HEADER = "x-request-id";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
   .split(",")
@@ -9,13 +10,17 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,Authorization,x-org-id,x-project-id,x-project-name",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization,x-org-id,x-project-id,x-project-name,x-request-id",
+  "Access-Control-Expose-Headers": "x-request-id",
   "Access-Control-Max-Age": "86400",
 };
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const origin = req.headers.get("origin") ?? "";
+
+  // Respetar el ID inyectado por el cliente (útil para correlación cross-system) o generar uno nuevo.
+  const requestId = req.headers.get(REQUEST_ID_HEADER) ?? crypto.randomUUID();
 
   // ── CORS preflight ───────────────────────────────────────────────────────
   if (req.method === "OPTIONS" && pathname.startsWith("/api/")) {
@@ -25,6 +30,7 @@ export function proxy(req: NextRequest) {
       res.headers.set("Vary", "Origin");
     }
     for (const [k, v] of Object.entries(CORS_HEADERS)) res.headers.set(k, v);
+    res.headers.set(REQUEST_ID_HEADER, requestId);
     return res;
   }
 
@@ -39,8 +45,9 @@ export function proxy(req: NextRequest) {
       url.searchParams.set("next", pathname);
       return NextResponse.redirect(url);
     }
-    const res = NextResponse.next();
+    const res = nextWithRequestId(req, requestId);
     setCorsHeader(res, origin);
+    res.headers.set(REQUEST_ID_HEADER, requestId);
     return res;
   }
 
@@ -52,9 +59,16 @@ export function proxy(req: NextRequest) {
     }
   }
 
-  const res = NextResponse.next();
+  const res = nextWithRequestId(req, requestId);
   if (pathname.startsWith("/api/")) setCorsHeader(res, origin);
+  res.headers.set(REQUEST_ID_HEADER, requestId);
   return res;
+}
+
+function nextWithRequestId(req: NextRequest, requestId: string): NextResponse {
+  const headers = new Headers(req.headers);
+  headers.set(REQUEST_ID_HEADER, requestId);
+  return NextResponse.next({ request: { headers } });
 }
 
 function setCorsHeader(res: NextResponse, origin: string) {

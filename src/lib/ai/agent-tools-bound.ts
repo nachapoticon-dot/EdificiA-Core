@@ -22,6 +22,7 @@ export function createBoundTools(orgId: string) {
     reportar_hallazgo:              agentTools.reportar_hallazgo,
     reportar_hallazgos_batch:       agentTools.reportar_hallazgos_batch,
     comparar_presupuestos:          agentTools.comparar_presupuestos,
+    evaluar_impacto_clima:          agentTools.evaluar_impacto_clima,
 
     // ── Bloques de UI generativa — pure computation, no org context ─────────
     proyectar_metricas:    agentTools.proyectar_metricas,
@@ -299,6 +300,108 @@ export function createBoundTools(orgId: string) {
             fileType: s.file_type,
             date: new Date(s.started_at).toLocaleDateString("es-AR"),
           })),
+        };
+      },
+    }),
+
+    verificar_ingreso_personal: tool({
+      description: agentTools.verificar_ingreso_personal.description,
+      inputSchema: z.object({
+        cuadrilla: z.string().min(2).describe("Nombre del trabajador, cuadrilla o subcontratista a verificar"),
+        projectId: z.string().describe("UUID de la obra activa"),
+      }),
+      execute: async (input) => {
+        const { verifyPersonnelClearance } = await import("@/lib/project-operations/personnel");
+        return verifyPersonnelClearance({ ...input, organizationId: orgId });
+      },
+    }),
+
+    reprogramar_e_informar: tool({
+      description: agentTools.reprogramar_e_informar.description,
+      inputSchema: z.object({
+        taskRef:    z.string().min(1).describe("Código exacto, nombre parcial o UUID de la tarea a reprogramar"),
+        newDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Nueva fecha YYYY-MM-DD"),
+        reason:     z.string().max(280).optional().describe("Motivo breve de la reprogramación"),
+        notifyTo:   z.array(z.string()).max(8).optional().describe("Stakeholders a informar — quedan en el audit_log"),
+        projectId:  z.string().describe("UUID de la obra activa"),
+      }),
+      execute: async (input) => {
+        const { reprogramAndInform } = await import("@/lib/project-operations/schedule");
+        return reprogramAndInform({ ...input, organizationId: orgId });
+      },
+    }),
+
+    auditar_curva_inversion: tool({
+      description: agentTools.auditar_curva_inversion.description,
+      inputSchema: z.object({
+        projectId: z.string().describe("UUID de la obra activa"),
+        limit:     z.number().int().min(2).max(60).optional().describe("Snapshots máximos (default 24)"),
+      }),
+      execute: async (input) => {
+        const { auditInvestmentCurve } = await import("@/lib/project-operations/financial-curve");
+        return auditInvestmentCurve({ ...input, organizationId: orgId });
+      },
+    }),
+
+    buscar_relaciones_documento: tool({
+      description: agentTools.buscar_relaciones_documento.description,
+      inputSchema: z.object({
+        fileId:       z.string().optional().describe("UUID del archivo"),
+        fileName:     z.string().optional().describe("Fragmento del nombre del archivo"),
+        projectId:    z.string().optional().describe("Restringe a una obra"),
+        relationType: z.enum(["contradicts", "derives_from", "supersedes", "references", "duplicates"]).optional().describe("Filtra por tipo de relación"),
+        limit:        z.number().int().min(1).max(50).optional().describe("Cantidad máxima (default 20)"),
+      }).refine((value) => value.fileId || value.fileName, {
+        message: "Indica fileId o fileName",
+      }),
+      execute: async (input) => {
+        const { queryObraRelations } = await import("@/lib/knowledge-graph/relations");
+        const result = await queryObraRelations({
+          organizationId: orgId,
+          projectId: input.projectId ?? null,
+          fileId: input.fileId ?? null,
+          fileName: input.fileName ?? null,
+          relationType: input.relationType ?? null,
+          limit: input.limit,
+        });
+        if (!result.resolvedFileId) {
+          return {
+            found: false,
+            message: input.fileName
+              ? `No encontré un archivo cuyo nombre contenga "${input.fileName}".`
+              : "El fileId no existe en esta organización.",
+            relations: [],
+          };
+        }
+        if (result.relations.length === 0) {
+          return {
+            found: true,
+            resolvedFileId: result.resolvedFileId,
+            resolvedFileName: result.resolvedFileName,
+            relationsCount: 0,
+            message: "Sin relaciones registradas.",
+            relations: [],
+          };
+        }
+        return {
+          found: true,
+          resolvedFileId: result.resolvedFileId,
+          resolvedFileName: result.resolvedFileName,
+          relationsCount: result.relations.length,
+          relations: result.relations.map((rel) => {
+            const isSource = rel.source.fileId === result.resolvedFileId;
+            return {
+              id: rel.id,
+              relationType: rel.relationType,
+              direction: isSource ? "outgoing" : "incoming",
+              detectedBy: rel.detectedBy,
+              confidence: rel.confidence,
+              counterpart: isSource ? rel.target : rel.source,
+              evidence: rel.evidence,
+              createdAt: rel.createdAt,
+              updatedAt: rel.updatedAt,
+            };
+          }),
         };
       },
     }),

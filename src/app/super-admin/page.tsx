@@ -7,32 +7,23 @@ import {
   HardDrive, ToggleLeft, ToggleRight, CreditCard, BarChart3, Copy, KeyRound,
   UserPlus, RotateCcw, X, Ban, Link2,
 } from "lucide-react";
+import {
+  apiErrorResponseSchema,
+  superAdminCompaniesResponseSchema,
+  superAdminFounderResponseSchema,
+  superAdminFoundersResponseSchema,
+  superAdminMemberInviteResponseSchema,
+  superAdminResetResponseSchema,
+  type SuperAdminCompanyStats,
+  type SuperAdminFounderInvitation,
+} from "@/lib/validators/api-responses";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface FounderInvitation {
-  id: string;
-  email: string;
-  company_name: string;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  expires_at: string;
-  invite_token?: string | null;
-}
-
-interface CompanyStats {
-  id: string;
-  name: string;
-  createdAt: string;
-  disabled: boolean;
-  subscriptionStatus: string;
-  members: number;
-  projects: number;
-  storage: { usedBytes: number; quotaBytes: number; pct: number };
-}
+type FounderInvitation = SuperAdminFounderInvitation;
+type CompanyStats = SuperAdminCompanyStats;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Style maps
@@ -113,8 +104,9 @@ export default function SuperAdminPage() {
       headers: { Authorization: `Bearer ${k}` },
     });
     if (!res.ok) { setAuthError(true); setLoading(false); return; }
-    const data = await res.json() as { invitations: FounderInvitation[] };
-    setInvitations(data.invitations);
+    const parsed = superAdminFoundersResponseSchema.safeParse(await res.json());
+    if (!parsed.success) { setAuthError(true); setLoading(false); return; }
+    setInvitations(parsed.data.invitations);
     setAuthed(true);
     setLoading(false);
   }, []);
@@ -125,8 +117,8 @@ export default function SuperAdminPage() {
       headers: { Authorization: `Bearer ${key}` },
     });
     if (res.ok) {
-      const data = await res.json() as { companies: CompanyStats[] };
-      setCompanies(data.companies);
+      const parsed = superAdminCompaniesResponseSchema.safeParse(await res.json());
+      if (parsed.success) setCompanies(parsed.data.companies);
     }
     setLoading(false);
   }, [key]);
@@ -147,12 +139,19 @@ export default function SuperAdminPage() {
       headers: authHeaders(),
       body: JSON.stringify({ email: email.trim(), company_name: companyName.trim(), notes: notes.trim() || undefined }),
     });
-    const data = await res.json() as { invitation?: FounderInvitation; error?: string };
-    if (!res.ok) { setCreateError(data.error ?? "Error al crear"); setCreating(false); return; }
-    setInvitations((prev) => [data.invitation!, ...prev]);
+    const data: unknown = await res.json();
+    if (!res.ok) {
+      const error = apiErrorResponseSchema.safeParse(data);
+      setCreateError(error.success ? error.data.error : "Error al crear");
+      setCreating(false);
+      return;
+    }
+    const parsed = superAdminFounderResponseSchema.safeParse(data);
+    if (!parsed.success) { setCreateError("Respuesta inválida del servidor"); setCreating(false); return; }
+    setInvitations((prev) => [parsed.data.invitation, ...prev]);
     setEmail(""); setCompanyName(""); setNotes("");
     setLastCreated(email.trim());
-    setLastCreatedToken(data.invitation?.invite_token ?? null);
+    setLastCreatedToken(parsed.data.invitation.invite_token ?? null);
     setTimeout(() => setLastCreated(null), 30_000);
     setCreating(false);
   };
@@ -162,8 +161,8 @@ export default function SuperAdminPage() {
     setResetting(true);
     setResetLog(null);
     const res = await fetch("/api/super-admin/reset", { method: "POST", headers: authHeaders() });
-    const data = await res.json() as { ok?: boolean; log?: string[] };
-    setResetLog(data.log ?? []);
+    const parsed = superAdminResetResponseSchema.safeParse(await res.json());
+    setResetLog(parsed.success ? parsed.data.log : []);
     setInvitations([]);
     setResetting(false);
   };
@@ -204,9 +203,15 @@ export default function SuperAdminPage() {
       headers: authHeaders(),
       body: JSON.stringify({ orgId, email: adminEmail.trim(), role: adminRole }),
     });
-    const data = await res.json() as { ok?: boolean; error?: string };
+    const data: unknown = await res.json();
     setAdminSubmitting(false);
-    if (!res.ok) { setAdminError(data.error ?? "Error al enviar la invitación"); return; }
+    if (!res.ok) {
+      const error = apiErrorResponseSchema.safeParse(data);
+      setAdminError(error.success ? error.data.error : "Error al enviar la invitación");
+      return;
+    }
+    const parsed = superAdminMemberInviteResponseSchema.safeParse(data);
+    if (!parsed.success) { setAdminError("Respuesta inválida del servidor"); return; }
     setAdminSuccess(adminEmail.trim());
     setAdminEmail("");
     setTimeout(() => { setAdminSuccess(null); setAddingAdminFor(null); }, 4000);
@@ -220,8 +225,10 @@ export default function SuperAdminPage() {
       body: JSON.stringify({ id }),
     });
     if (res.ok) {
-      const data = await res.json() as { invitation: FounderInvitation };
-      setInvitations((prev) => prev.map((inv) => inv.id === id ? data.invitation : inv));
+      const parsed = superAdminFounderResponseSchema.safeParse(await res.json());
+      if (parsed.success) {
+        setInvitations((prev) => prev.map((inv) => inv.id === id ? parsed.data.invitation : inv));
+      }
     }
     setReactivating(null);
   };
