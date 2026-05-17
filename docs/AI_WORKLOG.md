@@ -446,3 +446,11 @@ Formato:
 - Verificacion reciente: `npm run type-check` OK; `npm test` OK (58/58). Después solo se agregó `.vscode/settings.json` y esta entrada de handoff.
 - Siguiente bloque recomendado: crear migración InsForge en `migrations/` para `work_cases`, `work_case_events` y `work_case_evidence`, con RLS estricto por `organization_id`, sin tocar todavía UI ni prompt. Luego actualizar `docs/04_architecture_map.md`, `ROADMAP.md` y este worklog.
 - Riesgos/guardrails: no confiar en IDs cliente; toda API privada futura debe usar `requireAuth(req)`; no usar `audit_log_events` como read model de estado vivo; no mover `agent-tools.ts`, `agent-tools-bound.ts` ni `agent-prompt.ts` en el mismo bloque.
+
+## 2026-05-17 - Codex - Repo principal migrado a EdificiA-Core
+
+- Objetivo: dejar el repo nuevo como remoto principal antes de borrar el anterior.
+- Cambios: `origin` apunta a `https://github.com/nachapoticon-dot/EdificiA-Core.git`; `main` trackea `origin/main`; README actualizado para clonar `EdificiA-Core`.
+- Archivos: `README.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `git remote -v` apunta a `EdificiA-Core`; búsqueda de referencias al repo viejo sin resultados activos.
+- Pendiente: borrar el repositorio anterior desde GitHub cuando confirmes que `EdificiA-Core` quedó completo.
