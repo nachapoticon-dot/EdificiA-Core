@@ -1,14 +1,38 @@
 export type AgentScopeLevel = "company" | "project" | "work_case";
 
+// Mantener alineado con el CHECK de `work_cases.kind` en
+// `migrations/20260517210141_work-cases.sql`.
 export type WorkCaseKind =
+  | "budget_audit"
   | "document_audit"
-  | "operational_risk"
+  | "schedule_review"
+  | "financial_review"
+  | "hse_review"
+  | "supplies_review"
+  | "subcontract_review"
   | "daily_brief"
-  | "document_generation"
+  | "operations_update"
   | "communication"
+  | "general"
   | "legacy_conversation";
 
-export type WorkCaseStatus = "open" | "waiting_user" | "resolved" | "archived";
+// Mantener alineado con el CHECK de `work_cases.status`.
+export type WorkCaseStatus =
+  | "open"
+  | "in_progress"
+  | "waiting"
+  | "resolved"
+  | "closed"
+  | "archived";
+
+// Mantener alineado con el CHECK de `work_cases.verdict`
+// (`migrations/20260518190721_work-case-verdict-closure.sql`).
+export type WorkCaseVerdict =
+  | "approved"
+  | "flagged"
+  | "inconclusive"
+  | "rejected"
+  | "superseded";
 
 export type AgentCapabilityId =
   | "context.search"

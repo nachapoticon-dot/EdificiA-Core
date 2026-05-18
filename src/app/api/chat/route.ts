@@ -1,16 +1,16 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { buildSystemPrompt, createBoundTools } from "@/lib/ai/agent";
 import { routeModel } from "@/lib/ai/model-router";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { requireAuth, type AuthResult } from "@/lib/auth/require-auth";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { learnFromSession } from "@/lib/ai/session-learner";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
-import { aiLogger, getRequestLogger, REQUEST_ID_HEADER } from "@/lib/logger";
+import { aiLogger, dbLogger, getRequestLogger, REQUEST_ID_HEADER } from "@/lib/logger";
 import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 import { summarizeToolUsage, toTelemetryRows, type StepLike } from "@/lib/ai/observability/tool-telemetry";
-import { buildAgentCoreScope, getCapabilitiesForScope, type AgentCapabilityId, type AgentCoreScope } from "@/lib/agent-core";
+import { resolveAgentRuntimeContext } from "@/lib/agent-core/runtime";
+import { writeAgentRun } from "@/lib/agent-core/agent-run-writer";
 
 export const runtime = "nodejs";
 
@@ -48,8 +48,9 @@ export async function POST(req: Request) {
 
   const projectName = req.headers.get("x-project-name") ?? undefined;
   const projectId   = req.headers.get("x-project-id")   ?? undefined;
+  const chatSessionId = req.headers.get("x-chat-session-id")?.trim() || undefined;
 
-  const { systemPrompt, tools, auditProjectId, agentScope, capabilityIds } = await resolveContext(auth, projectName, projectId);
+  const { systemPrompt, tools, auditProjectId, agentScope, capabilityIds } = await resolveAgentRuntimeContext(auth, projectName, projectId, chatSessionId);
 
   const route = routeModel(messages);
   const stepBudget = route.tier === "deep" ? 35 : 20;
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
   }, "model routed");
 
   const t0 = Date.now();
+  const startedAt = new Date(t0);
   try {
     const result = streamText({
       model: deepseek.chat(route.model),
@@ -75,29 +77,76 @@ export async function POST(req: Request) {
       onFinish: async ({ steps, usage }) => {
         const telemetry = summarizeToolUsage(steps as unknown as StepLike[]);
         const telemetryRows = toTelemetryRows(telemetry);
+        const toolCallsTotal = telemetryRows.reduce((sum, t) => sum + t.calls, 0);
         const totalErrors = telemetryRows.reduce((sum, t) => sum + t.errors, 0);
         const totalRetries = telemetryRows.reduce((sum, t) => sum + t.retries, 0);
+        const finishedAt = new Date();
+        const latencyMs = finishedAt.getTime() - t0;
+        const requestId = req.headers.get(REQUEST_ID_HEADER);
         log.info({
           orgId: auth.orgId,
           agentScopeLevel: agentScope.scopeLevel,
           model: route.model,
           tier: route.tier,
           steps: steps.length,
-          toolCalls: telemetryRows.reduce((sum, t) => sum + t.calls, 0),
+          toolCalls: toolCallsTotal,
           toolErrors: totalErrors,
           toolRetries: totalRetries,
           tokens: usage,
-          latencyMs: Date.now() - t0,
+          latencyMs,
         }, "chat finished");
+        const agentRunId = await writeAgentRun({
+          organizationId: auth.orgId,
+          projectId: auditProjectId ?? null,
+          workCaseId: agentScope.workCaseId ?? null,
+          chatSessionId: chatSessionId ?? null,
+          actorUserId: auth.userId,
+          model: route.model,
+          tier: route.tier,
+          routeReason: route.reason,
+          capabilityIds,
+          stepBudget,
+          steps: steps.length,
+          usage,
+          toolTelemetry: telemetryRows,
+          toolCallsTotal,
+          toolErrorsTotal: totalErrors,
+          toolRetriesTotal: totalRetries,
+          latencyMs,
+          requestId,
+          startedAt,
+          finishedAt,
+        });
+        if (agentScope.workCaseId) {
+          void writeWorkCaseTurnCompletedEvent({
+            organizationId: auth.orgId,
+            workCaseId: agentScope.workCaseId,
+            projectId: auditProjectId ?? null,
+            actorUserId: auth.userId,
+            payload: {
+              tier: route.tier,
+              model: route.model,
+              stepBudget,
+              steps: steps.length,
+              toolCallsTotal,
+              toolErrorsTotal: totalErrors,
+              toolRetriesTotal: totalRetries,
+              latencyMs,
+              agentRunId,
+            },
+          });
+        }
         void writeAuditLogEvent({
           organizationId: auth.orgId,
           projectId: auditProjectId,
           actorUserId: auth.userId,
           eventType: "chat.completed",
           entityType: "chat_turn",
+          entityId: agentRunId,
           severity: totalErrors > 0 ? "warning" : "info",
-          requestId: req.headers.get(REQUEST_ID_HEADER),
+          requestId,
           payload: {
+            agentRunId,
             model: route.model,
             tier: route.tier,
             routeReason: route.reason,
@@ -114,9 +163,9 @@ export async function POST(req: Request) {
             stepBudget,
             steps: steps.length,
             usage,
-            latencyMs: Date.now() - t0,
+            latencyMs,
             toolTelemetry: telemetryRows,
-            toolCallsTotal: telemetryRows.reduce((sum, t) => sum + t.calls, 0),
+            toolCallsTotal,
             toolErrorsTotal: totalErrors,
             toolRetriesTotal: totalRetries,
           },
@@ -139,116 +188,31 @@ export async function POST(req: Request) {
   }
 }
 
-interface RecentSession {
-  title: string;
-  file_type: string | null;
-  started_at: number;
-  project_id: string | null;
+interface WorkCaseTurnCompletedEventInput {
+  organizationId: string;
+  workCaseId: string;
+  projectId?: string | null;
+  actorUserId: string;
+  payload: Record<string, unknown>;
 }
 
-async function resolveContext(
-  auth: AuthResult,
-  projectName?: string,
-  projectId?: string,
-): Promise<{
-  systemPrompt: string;
-  tools: ReturnType<typeof createBoundTools>;
-  auditProjectId?: string;
-  agentScope: AgentCoreScope;
-  capabilityIds: AgentCapabilityId[];
-}> {
-  const { userId, orgId } = auth;
-  const fallbackScope = buildAgentCoreScope({
-    organizationId: orgId,
-    actorUserId: userId,
-    projectId,
-    projectName,
-  });
-  const fallback = {
-    systemPrompt: buildSystemPrompt({ organizationId: orgId, projectName, projectId }),
-    tools: createBoundTools(orgId, userId),
-    auditProjectId: undefined,
-    agentScope: fallbackScope,
-    capabilityIds: getCapabilitiesForScope(Boolean(fallbackScope.projectId)).map((capability) => capability.id),
-  };
-
+async function writeWorkCaseTurnCompletedEvent(input: WorkCaseTurnCompletedEventInput): Promise<void> {
   try {
     const client = getInsForgeAdminClient();
+    const result = await client.database.from("work_case_events").insert({
+      organization_id: input.organizationId,
+      work_case_id: input.workCaseId,
+      project_id: input.projectId ?? null,
+      actor_user_id: input.actorUserId,
+      event_type: "chat.turn_completed",
+      summary: null,
+      payload: input.payload,
+    });
 
-    const [patternsResult, recentSessionsResult, projectCheckResult, orgResult] = await Promise.all([
-      client.database
-        .from("company_learned_patterns")
-        .select("document_type, pattern_key, pattern_value")
-        .eq("organization_id", orgId)
-        .limit(50),
-
-      client.database
-        .from("chat_sessions")
-        .select("title, file_type, started_at, project_id")
-        .eq("organization_id", orgId)
-        .eq("user_id", userId)
-        .is("deleted_at", null)
-        .order("started_at", { ascending: false })
-        .limit(4),
-
-      projectId
-        ? client.database
-            .from("projects")
-            .select("id")
-            .eq("id", projectId)
-            .eq("organization_id", orgId)
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-
-      client.database
-        .from("organizations")
-        .select("name, agent_name, primary_color")
-        .eq("id", orgId)
-        .single(),
-    ]);
-
-    const org = orgResult.data as {
-      name: string;
-      agent_name: string | null;
-      primary_color: string | null;
-    } | null;
-
-    const rawPatterns = (patternsResult.data ?? []) as {
-      document_type: string;
-      pattern_key: string;
-      pattern_value: unknown;
-    }[];
-
-    const learnedPatterns: Record<string, Record<string, unknown>> = {};
-    for (const row of rawPatterns) {
-      learnedPatterns[row.document_type] ??= {};
-      learnedPatterns[row.document_type]![row.pattern_key] = row.pattern_value;
+    if (result.error) {
+      dbLogger.warn({ err: result.error, workCaseId: input.workCaseId }, "work_case_event insert failed");
     }
-
-    const validatedProjectId = projectId && projectCheckResult.data ? projectId : undefined;
-    const recentSessions = (recentSessionsResult.data ?? []) as RecentSession[];
-    const agentScope = buildAgentCoreScope({
-      organizationId: orgId,
-      organizationName: org?.name,
-      actorUserId: userId,
-      projectId: validatedProjectId,
-      projectName,
-    });
-    const capabilityIds = getCapabilitiesForScope(Boolean(validatedProjectId)).map((capability) => capability.id);
-
-    const systemPrompt = buildSystemPrompt({
-      companyName: org?.name,
-      agentName: org?.agent_name ?? "EdificIA",
-      organizationId: orgId,
-      learnedPatterns: Object.keys(learnedPatterns).length > 0 ? learnedPatterns : undefined,
-      projectName,
-      projectId: validatedProjectId,
-      recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
-    });
-
-    return { systemPrompt, tools: createBoundTools(orgId, userId), auditProjectId: validatedProjectId, agentScope, capabilityIds };
-  } catch {
-    return fallback;
+  } catch (err) {
+    dbLogger.warn({ err, workCaseId: input.workCaseId }, "work_case_event insert failed");
   }
 }

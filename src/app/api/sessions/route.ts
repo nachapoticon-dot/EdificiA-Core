@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiBadRequest, apiRateLimited } from "@/lib/api/errors";
 import { okResponseSchema, sessionsResponseSchema } from "@/lib/validators/api-responses";
+import { ensureWorkCaseForChatSession } from "@/lib/agent-core";
 
 export const runtime = "nodejs";
 
@@ -65,6 +66,29 @@ export async function POST(req: Request): Promise<Response> {
     return apiBadRequest("Obra inválida.");
   }
 
+  let workCaseId: string | null = null;
+  if (projectId) {
+    const existing = await client.database
+      .from("chat_sessions")
+      .select("work_case_id")
+      .eq("id", body.id)
+      .eq("organization_id", auth.orgId)
+      .maybeSingle();
+    workCaseId = (existing.data as { work_case_id: string | null } | null)?.work_case_id ?? null;
+
+    if (!workCaseId) {
+      workCaseId = await ensureWorkCaseForChatSession({
+        client,
+        organizationId: auth.orgId,
+        actorUserId: auth.userId,
+        projectId,
+        sessionId: body.id,
+        title: body.title,
+        fileType: body.fileType ?? null,
+      });
+    }
+  }
+
   await client.database.from("chat_sessions").upsert(
     {
       id: body.id,
@@ -74,6 +98,7 @@ export async function POST(req: Request): Promise<Response> {
       file_type: body.fileType ?? null,
       started_at: body.startedAt,
       project_id: projectId,
+      work_case_id: workCaseId,
     },
     { onConflict: "id" },
   );

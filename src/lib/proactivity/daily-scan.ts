@@ -1,6 +1,7 @@
 import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { dbLogger } from "@/lib/logger";
+import { replaceProjectOperationalFindings } from "./operational-findings";
 
 type FindingSeverity = "info" | "warning" | "critical";
 type FindingType =
@@ -122,6 +123,7 @@ export async function runDailyProjectScan(options: RunDailyProjectScanOptions = 
   for (const project of projects) {
     const summary = await scanProject(client, project, now);
     summaries.push(summary);
+    await replaceProjectOperationalFindings(client, summary, now);
 
     await writeAuditLogEvent({
       organizationId: project.organization_id,
@@ -136,7 +138,8 @@ export async function runDailyProjectScan(options: RunDailyProjectScanOptions = 
         projectName: project.name,
         findingCount: summary.findings.length,
         bySeverity: countBySeverity(summary.findings),
-        findings: summary.findings.slice(0, 20),
+        findingKeys: summary.findings.slice(0, 50).map((finding) => finding.id),
+        readModel: "operational_findings",
       },
     });
   }

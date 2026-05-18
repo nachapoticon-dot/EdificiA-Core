@@ -1,6 +1,6 @@
 # Mapa de Arquitectura y Dependencias (Repo Map)
 
-> **Última actualización**: 2026-05-17 (Agent Core + organización por dominios)
+> **Última actualización**: 2026-05-18 (Agent Core + Expedientes Operativos)
 
 Este documento contiene el mapa estructural del proyecto. 
 **Regla para la IA**: Cada vez que crees un módulo nuevo (Frontend, Backend, Database), DEBES actualizar este grafo. Antes de modificar código existente, lee este grafo para entender qué otras partes del sistema vas a afectar y evitar romper el código.
@@ -39,7 +39,7 @@ graph TD
     InsForgeBackend[InsForge BaaS\nhttps://daw63k5s.us-east.insforge.app]
 
     %% DB
-    DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\nchat_sessions · document_chunks\norg_founder_invitations\ncompany_learned_patterns\nproject_phase_docs\naudit_log_events\nproject_schedule_tasks · project_financial_snapshots\nproject_subcontracts · project_hse_records · project_supply_items)]
+    DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\nchat_sessions · document_chunks\norg_founder_invitations\ncompany_learned_patterns\nproject_phase_docs\naudit_log_events · agent_runs\ndocument_intelligence_reports · operational_findings\nproject_schedule_tasks · project_financial_snapshots\nproject_subcontracts · project_hse_records · project_supply_items\nwork_cases · work_case_events · work_case_evidence)]
 
     %% Qdrant
     Qdrant[(Qdrant Cloud\nVector DB para RAG)]
@@ -130,6 +130,7 @@ src/
 │   │   ├── layout.tsx              → Dashboard layout (sidebar + providers)
 │   │   ├── chat/page.tsx           → Chat principal con el agente
 │   │   ├── obras/[id]/page.tsx     → Detalle de obra
+│   │   ├── obras/[id]/expedientes/[workCaseId]/page.tsx → Trazabilidad de expediente
 │   │   ├── obras/[id]/today/page.tsx → Día en la obra
 │   │   ├── documents/              → Base documental (pendiente)
 │   │   └── admin/settings/         → Config admin empresa
@@ -143,6 +144,9 @@ src/
 │   │   │   ├── logout/route.ts     → POST logout
 │   │   │   └── orgs/route.ts       → GET organizaciones del usuario
 │   │   ├── chat/route.ts           → POST streaming chat (DeepSeek + tools)
+│   │   ├── work-cases/
+│   │   │   ├── route.ts            → GET expedientes operativos por org/obra
+│   │   │   └── [id]/route.ts       → GET detalle y PATCH estado de expediente con eventos/evidencias
 │   │   ├── upload/route.ts         → POST subir archivo + RAG ingest
 │   │   ├── cron/
 │   │   │   └── project-proactivity/route.ts → CRON con secreto: scanner diario de riesgos de obra
@@ -207,6 +211,7 @@ src/
 │   ├── useProjectFiles.ts          → Archivos de un proyecto
 │   ├── usePriceIndices.ts          → Índices de precios
 │   ├── useSessionHistory.ts        → Historial de sesiones
+│   ├── useWorkCases.ts             → Expedientes operativos por obra
 │   └── useMessageHistory.ts        → Mensajes de una sesión
 ├── lib/
 │   ├── auth/
@@ -219,7 +224,11 @@ src/
 │   │   ├── types.ts                → Tipos base para scope, expediente operativo y capacidades
 │   │   ├── context-builder.ts      → Builder puro del scope Empresa/Obra/Expediente
 │   │   ├── capability-registry.ts  → Registro conceptual de capacidades del Agent Core
-│   │   └── prompt-modules.ts       → Composición modular futura del prompt
+│   │   ├── prompt-modules.ts       → Composición modular futura del prompt
+│   │   ├── runtime.ts              → Resolución runtime de scope, prompt efectivo, tools y capabilities
+│   │   ├── agent-run-writer.ts     → Registro best-effort de ejecuciones del agente
+│   │   ├── work-case-writer.ts     → Creación/asociación best-effort de expedientes desde sesiones
+│   │   └── work-case-closer.ts     → Cierre agéntico de expedientes con veredicto, summary y evidencia
 │   ├── api/
 │   │   ├── errors.ts               → Helpers de error estandarizados
 │   │   └── rate-limit.ts           → Rate limiter in-memory
@@ -246,7 +255,9 @@ src/
 │   ├── weather/
 │   │   └── open-meteo.ts           → Forecast Open-Meteo + impacto operativo de clima
 │   ├── document-intelligence/
-│   │   └── context-scan.ts         → Detección heurística de contradicciones al subir
+│   │   ├── context-scan.ts         → Detección heurística de contradicciones al subir
+│   │   ├── report-writer.ts        → Persistencia best-effort de reportes documentales
+│   │   └── report-linker.ts        → Vinculación de reportes a evidencia de expediente
 │   ├── proactivity/
 │   │   └── daily-scan.ts           → Scanner diario de riesgos sobre obras activas
 │   ├── project-operations/
@@ -285,7 +296,14 @@ migrations/ (canónico, InsForge CLI)
     ├── 20260513220428_security-fixes.sql
     ├── 20260515032815_add-founder-columns.sql
     ├── 20260516140000_immutable-audit-log.sql
-    └── 20260516215250_project-operations-schema.sql
+    ├── 20260516215250_project-operations-schema.sql
+    ├── 20260516223000_obra-relations.sql
+    ├── 20260517210141_work-cases.sql
+    ├── 20260517210757_chat-session-work-case-link.sql
+    ├── 20260518001800_operational-findings.sql
+    ├── 20260518002617_legacy-work-cases.sql
+    ├── 20260518004152_agent-runs.sql
+    └── 20260518104406_document-intelligence-reports.sql
 
 docs/archive/db-migrations-legacy/
     └── 001..016_*.sql              → histórico raw SQL previo; read-only, no usar para cambios nuevos
@@ -304,6 +322,96 @@ La arquitectura extendida de obra vive en PostgreSQL/RLS y queda preparada para 
 | `project_supply_items` | Acopios y suministros: cantidades requeridas/pedidas/recibidas, proveedor, costo y fecha requerida. |
 
 RLS: miembros de la organización leen; `admin` y `engineer` insertan/actualizan; solo `admin` puede borrar. El rol interno `project_admin` conserva acceso total para operaciones de backend. `projects.status` queda normalizado a `en_obra`, `planificacion`, `finalizado`, `pausado`.
+
+## Expedientes Operativos (Agent Core)
+
+Esquema introducido por `migrations/20260517210141_work-cases.sql`. Implementa el modelo `Empresa -> Obra -> Expediente Operativo -> Eventos/Evidencias` descripto en `docs/08_agent_core_redesign.md`. El consumo inicial es audit-only: sin cambios de prompt ni UX.
+
+| Tabla | Propósito |
+|---|---|
+| `work_cases` | Expediente operativo por obra/empresa. Campos: `kind`, `status`, `title`, `summary`, `verdict`, `owner_user_id`, `closed_by_user_id`, `closed_at`, `metadata`, soft-delete. `project_id` nullable (no toda obra todavía vincula, y expedientes empresariales pueden existir sin obra). |
+| `work_case_events` | Bitácora append-only del expediente. `event_type` libre, `payload JSONB`. `project_id` nullable para reflejar el campo del expediente padre. Sin UPDATE permitido (solo admin puede DELETE). |
+| `work_case_evidence` | Vínculos a evidencia (`file`, `chunk`, `relation`, `audit_event`, `tool_run`, `finding`, `message`, `schedule_task`, `hse_record`, `supply_item`, `financial_snapshot`, `subcontract`, `document_report`, `external`). `entity_type`/`entity_id` flexibles para apuntar a cualquier tabla operativa. |
+| `agent_runs` | Ejecuciones del agente con `work_case_id`, `chat_session_id`, actor, modelo, tier, capacidades, usage, telemetría de tools, latencia y request id. Sirve como trazabilidad granular por turno sin usar `audit_log_events` como read model operativo. |
+
+Constraints clave:
+
+- `work_cases.kind` ∈ {`budget_audit`, `document_audit`, `schedule_review`, `financial_review`, `hse_review`, `supplies_review`, `subcontract_review`, `daily_brief`, `operations_update`, `communication`, `general`, `legacy_conversation`}.
+- `work_cases.status` ∈ {`open`, `in_progress`, `waiting`, `resolved`, `closed`, `archived`}.
+- `work_cases.verdict` ∈ {`approved`, `flagged`, `inconclusive`, `rejected`, `superseded`} ∪ `NULL`. Solo se escribe cuando el expediente entra a un estado terminal (`resolved`/`closed`/`archived`).
+- `work_case_evidence.confidence` opcional, en rango `[0,1]`.
+
+RLS por `organization_id` con el patrón habitual: miembros leen; `admin`/`engineer` insertan/actualizan `work_cases`; eventos y evidencia son append-only para `engineer` (solo `admin` borra); `agent_runs` permite insert de `admin`/`engineer` y lectura por miembros; rol interno `project_admin` mantiene acceso total para backend.
+
+### Asociación inicial chat_sessions → work_cases
+
+`migrations/20260517210757_chat-session-work-case-link.sql` agrega `chat_sessions.work_case_id UUID NULL` con FK a `work_cases(id)` ON DELETE SET NULL e índices parciales por org/work_case. La columna es nullable para mantener legacy intacto.
+
+Cuando un cliente llama `POST /api/sessions` con un `projectId` válido y la sesión es nueva, el server:
+
+1. Verifica con admin client si ya existe `chat_sessions.work_case_id` para ese `id` (idempotente).
+2. Si no existe, llama `ensureWorkCaseForChatSession()` (en `src/lib/agent-core/work-case-writer.ts`), que inserta un `work_case` con `kind` inferido del `fileType` (`excel → budget_audit`, `pdf/docx/dxf/image → document_audit`, default `general`), `status='open'`, `owner_user_id=auth.userId`, `metadata.chatSessionId`, y un evento `work_case_events` de tipo `chat_session.linked`.
+3. Hace upsert de `chat_sessions` con el `work_case_id` resuelto.
+
+Sesiones sin `projectId` siguen sin expediente. Las sesiones legacy preexistentes fueron migradas por `20260518002617_legacy-work-cases.sql`. No hay cambios de prompt en este bloque.
+
+### Trazabilidad audit-only en /api/chat
+
+`src/app/dashboard/chat/page.tsx` envía `x-chat-session-id` desde el `DefaultChatTransport`; `src/proxy.ts` lo permite en CORS. `src/app/api/chat/route.ts` usa ese header solo como puntero: busca `chat_sessions` filtrando por `organization_id = auth.orgId`, `user_id = auth.userId`, `id = x-chat-session-id` y `deleted_at IS NULL`, seleccionando `work_case_id, project_id`.
+
+Si la sesión resuelta tiene `work_case_id`, el `AgentCoreScope` pasa a nivel `work_case` y `audit_log_events.payload.agentCore.scope.workCaseId` queda persistido. Si además la sesión trae `project_id` y no venía `x-project-id`, se usa ese `project_id` ya filtrado server-side para el scope y el audit log. Al finalizar cada turno, `/api/chat` inserta best-effort una fila en `agent_runs` con modelo, tier, capacidades, usage, telemetría de tools y latencia. Si hay expediente, también inserta `work_case_events.event_type = 'chat.turn_completed'` y vincula `agentRunId` en el payload. Fallas de estos inserts se loguean y no rompen el stream.
+
+### UI y legacy de expedientes
+
+`GET /api/work-cases` lista expedientes de la organización autenticada, con filtro opcional `projectId`. Si hay una `chat_session` del usuario actual vinculada al expediente, devuelve `chatSessionId` para abrir el chat correspondiente. La ruta valida `projectId` contra `organization_id = auth.orgId` antes de consultar.
+
+`GET /api/work-cases/[id]` devuelve el expediente filtrado por `organization_id = auth.orgId` junto con `work_case_events`, `work_case_evidence` y los `document_intelligence_reports` vinculados (con `fileName` resuelto desde `uploaded_files`). También resuelve la sesión de chat asociada para el usuario actual, si existe. `PATCH /api/work-cases/[id]` permite a `admin`/`engineer` cambiar `status`/`summary`/`verdict`, ajusta `closed_at` y `closed_by_user_id` cuando entra a estado terminal, limpia `verdict` y actor de cierre al reabrir, y registra `work_case_events.work_case.status_changed` con `previousVerdict`, `verdict`, `summary` y `closedByUserId` en el payload. No expone expedientes de otros tenants ni confía en IDs de cliente para aislar organización.
+
+La tool bound `proponer_cierre_expediente` permite al agente marcar el expediente activo como `resolved` cuando ya completó la auditoría y tiene evidencia suficiente. El `organization_id` y `actor_user_id` se inyectan server-side desde `createBoundTools()`, el `workCaseId` llega al prompt solo desde la sesión validada, y `closeWorkCaseFromAgent()` rechaza expedientes inexistentes, de otra organización o ya terminales. La operación escribe `verdict`, `summary`, `closed_at`, `closed_by_user_id`, un evento `work_case.status_changed` y evidencia opcional en `work_case_evidence`.
+
+`src/hooks/useWorkCases.ts` consume esa API y `/dashboard/obras/[id]` muestra una banda de expedientes operativos arriba de documentos/cobertura. El botón "Abrir" cambia a la sesión asociada y activa la obra, manteniendo el historial de sesiones como compatibilidad. La vista `/dashboard/obras/[id]/expedientes/[workCaseId]` muestra métricas, replay de eventos con `payload` expandible, evidencia con `metadata` expandible, la sección "Reportes documentales" (con clasificación, extracción, riesgos y hallazgos expandibles por reporte) y un bloque "Resolución del expediente" que renderiza el `verdict` y `summary` actuales. Las acciones `Resolver` y `Cerrar` abren un modal con selector de veredicto (`approved`/`flagged`/`inconclusive`/`rejected`/`superseded`) y textarea de resumen editable antes del estado terminal. `Reabrir` limpia `verdict`, `summary`, `closed_at` y `closed_by_user_id`.
+
+`migrations/20260518002617_legacy-work-cases.sql` migra sesiones históricas con `project_id` a expedientes `legacy_conversation`: crea `work_cases`, actualiza `chat_sessions.work_case_id`, registra `work_case_events.chat_session.legacy_linked`, agrega evidencia `message` para el snapshot y evidencia `file` cuando puede inferir archivos por `fileId` o nombre dentro del JSON de mensajes.
+
+## Operational Findings
+
+`migrations/20260518001800_operational-findings.sql` agrega `operational_findings` como read model vivo para alertas operativas. La tabla separa estado accionable de `audit_log_events`, que queda como evidencia inmutable append-only.
+
+Campos principales: `organization_id`, `project_id`, `project_name`, `finding_key`, `type`, `severity`, `status`, `title`, `detail`, `entity_type`, `entity_id`, `due_date`, `metadata`, `first_detected_at`, `last_detected_at`, `resolved_at`, `scanned_at`.
+
+Invariantes:
+
+- `finding_key` es estable y única por `organization_id, project_id`.
+- `status` ∈ {`open`, `resolved`, `dismissed`}.
+- `type` cubre los hallazgos de proactividad vigentes (`schedule.*`, `hse.*`, `supply.*`, `financial.overrun`, `project.stale_docs`).
+- RLS por `organization_id`: miembros leen; `admin`/`engineer` insertan/actualizan; solo `admin` borra; `project_admin` tiene acceso total interno.
+
+Flujo actual:
+
+1. `runDailyProjectScan()` detecta hallazgos por obra.
+2. `replaceProjectOperationalFindings()` upsertea hallazgos actuales en `operational_findings` y marca como `resolved` los `open` que ya no aparecen en la corrida.
+3. `writeAuditLogEvent("project.proactivity_scan")` conserva un resumen append-only con conteos y `findingKeys`, no el estado vivo primario.
+4. `GET /api/proactivity/findings` y `buildDailyBrief()` leen `operational_findings` con `status = open`.
+
+## Document Intelligence Reports
+
+`migrations/20260518104406_document-intelligence-reports.sql` agrega `document_intelligence_reports` como read model documental por archivo. La tabla persiste clasificación, extracción estructurada, riesgos, hallazgos, veredicto y confianza, separando el estado consultable del audit log inmutable.
+
+Campos principales: `organization_id`, `project_id`, `work_case_id`, `file_id`, `agent_run_id`, `report_type`, `status`, `source`, `document_type`, `classification`, `extraction`, `risks`, `findings`, `verdict`, `confidence`, `summary`, `metadata`.
+
+Invariantes:
+
+- `report_type` ∈ {`upload_scan`, `agent_audit`, `manual_review`}.
+- `status` ∈ {`ready`, `needs_review`, `superseded`, `failed`}.
+- `verdict` ∈ {`consistent`, `inconsistent`, `needs_review`, `unsupported`}.
+- RLS por `organization_id`: miembros leen; `admin`/`engineer` insertan/actualizan; solo `admin` borra; `project_admin` tiene acceso total interno.
+
+Flujo actual:
+
+1. `/api/upload` procesa el archivo, corre PII scan y context scan.
+2. `writeDocumentIntelligenceReport()` inserta un reporte `upload_scan` best-effort con clasificación heurística, señales extraídas, riesgos, hallazgos y veredicto inicial.
+3. Si el upload ya puede resolver un `work_case_id`, se agrega `work_case_evidence.evidence_type = 'document_report'`.
+4. Si el expediente se crea después desde `POST /api/sessions`, `linkLatestDocumentReportToWorkCase()` vincula el último reporte del archivo por `organization_id + project_id + file_name` al expediente recién creado.
 
 ## Registro de Cambios Estructurales
 
@@ -330,9 +438,19 @@ RLS: miembros de la organización leen; `admin` y `engineer` insertan/actualizan
 | 2026-05-16 | Migraciones | `migrations/` queda como ruta canónica vía InsForge CLI. `db/migrations/` se archivó en `docs/archive/db-migrations-legacy/` y Docker dejó de ejecutar migraciones raw SQL al arrancar. |
 | 2026-05-16 | Inteligencia documental | Agregado `src/lib/document-intelligence/context-scan.ts` para advertir contradicciones numéricas contra documentos previos al subir archivos. |
 | 2026-05-16 | Dominio de obra | Agregadas tablas operativas `project_schedule_tasks`, `project_financial_snapshots`, `project_subcontracts`, `project_hse_records` y `project_supply_items` con RLS por organización. |
-| 2026-05-16 | Proactividad | Agregado `runDailyProjectScan()` y `/api/cron/project-proactivity` para detectar riesgos diarios y escribir resumen en `audit_log_events`; schedule externo pendiente de URL pública. |
+| 2026-05-16 | Proactividad | Agregado `runDailyProjectScan()` y `/api/cron/project-proactivity` para detectar riesgos diarios; schedule externo pendiente de URL pública. |
 | 2026-05-16 | Clima | Agregada tool `evaluar_impacto_clima` con Open-Meteo para forecast diario y riesgo operativo por lluvia, viento y temperatura. |
 | 2026-05-17 | Día en la obra | Agregado `buildDailyBrief()`, `GET /api/projects/[id]/daily-brief`, `useDailyProjectBrief()` y `/dashboard/obras/[id]/today` para consolidar cronograma, HSE, acopios, finanzas, alertas y clima. |
 | 2026-05-17 | Subcontratos | Agregado `src/lib/project-operations/contracts/subcontracts.ts` y tools `registrar_subcontrato` / `auditar_subcontratos` para gestión contractual y retenciones. |
 | 2026-05-17 | Organización por dominios | Helpers nuevos del agente y operaciones de obra movidos a subcarpetas por responsabilidad (`ai/output`, `ai/observability`, `project-operations/{brief,communications,contracts,supplies,agent-writers}`); tests agrupados por dominio. |
+| 2026-05-17 | Agent Core / Expedientes | Migración `20260517210141_work-cases.sql` introduce `work_cases`, `work_case_events` y `work_case_evidence` con RLS por organización. Schema-first: no se cambian APIs, prompt ni UX en este bloque. |
+| 2026-05-17 | Agent Core / Sesiones | Migración `20260517210757_chat-session-work-case-link.sql` agrega `chat_sessions.work_case_id` (nullable). `POST /api/sessions` crea/asocia un `work_case` cuando la sesión nueva tiene `projectId`, vía helper `ensureWorkCaseForChatSession()`. Backward-compatible: sin cambios de prompt ni UX. `WorkCaseKind`/`WorkCaseStatus` en `src/lib/agent-core/types.ts` quedan alineados al CHECK de la migración. |
+| 2026-05-17 | Agent Core / Chat audit-only | `x-chat-session-id` llega a `/api/chat`, se resuelve server-side contra `chat_sessions` por org/user/id, persiste `agentCore.scope.workCaseId` en `audit_log_events` y registra `work_case_events.chat.turn_completed` best-effort al cerrar el turno. |
+| 2026-05-18 | Operational Findings | Migración `20260518001800_operational-findings.sql` agrega `operational_findings` como read model vivo de alertas. `runDailyProjectScan()` lo mantiene por upsert/resolución y `/api/proactivity/findings` + `buildDailyBrief()` dejan de leer `audit_log_events` como estado primario. |
+| 2026-05-18 | Agent Core / UI y legacy | Agregado `GET /api/work-cases`, hook `useWorkCases()` y banda de expedientes en `/dashboard/obras/[id]`; migración `20260518002617_legacy-work-cases.sql` crea expedientes `legacy_conversation` desde sesiones históricas; `/api/chat` delega resolución runtime en `src/lib/agent-core/runtime.ts`. |
+| 2026-05-18 | Agent Core / Trazabilidad | Agregado `GET /api/work-cases/[id]`, `useWorkCaseDetails()` y vista `/dashboard/obras/[id]/expedientes/[workCaseId]` con replay de eventos y evidencia expandible. |
+| 2026-05-18 | Agent Core / Runs y acciones | Migración `20260518004152_agent-runs.sql` agrega `agent_runs`; `/api/chat` registra ejecuciones best-effort y vincula `agentRunId` al audit log/evento de expediente; `PATCH /api/work-cases/[id]` permite resolver/cerrar/reabrir expedientes con evento `work_case.status_changed`. |
+| 2026-05-18 | Document Intelligence | Migración `20260518104406_document-intelligence-reports.sql` agrega `document_intelligence_reports`; `/api/upload` persiste reportes `upload_scan` best-effort y los vincula a `work_case_evidence.document_report` cuando hay expediente. |
+| 2026-05-18 | Agent Core / Cierre con veredicto | Migración `20260518190721_work-case-verdict-closure.sql` agrega `verdict` y `closed_by_user_id` a `work_cases`. `GET /api/work-cases/[id]` devuelve `documentReports[]` con `fileName` resuelto; `PATCH` acepta `verdict`+`summary` y los registra en `work_case_events.work_case.status_changed`. `/dashboard/obras/[id]/expedientes/[workCaseId]` renderiza reportes documentales expandibles y abre modal de cierre con selector de veredicto y resumen editable. |
+| 2026-05-18 | Agent Core / Cierre agéntico | Agregada tool bound `proponer_cierre_expediente`: el agente puede proponer cierre `resolved` con `verdict`, `summary` y evidencia citable solo para el `workCaseId` validado por sesión/org. `closeWorkCaseFromAgent()` escribe estado, evento y evidencia opcional sin exponer `organization_id` al modelo. |
 | 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |

@@ -40,6 +40,7 @@ export default function ChatPage() {
   const { activeProject } = useProjectContext();
   // Use a ref so the headers callback always reads the latest project without re-creating the transport
   const activeProjectRef = useRef(activeProject);
+  const chatSessionIdRef = useRef<string | null>(null);
   // eslint-disable-next-line react-hooks/refs
   activeProjectRef.current = activeProject;
 
@@ -58,12 +59,16 @@ export default function ChatPage() {
         if (project?.id)   headers["x-project-id"]   = project.id;
         const activeOrgId = localStorage.getItem("edificia:active_org_id");
         if (activeOrgId)   headers["x-org-id"]        = activeOrgId;
+        const sessionId = chatSessionIdRef.current;
+        if (sessionId) headers["x-chat-session-id"] = sessionId;
         return headers;
       },
     }),
   });
   /* eslint-enable react-hooks/refs */
   const { sessionId, recordSession, switchSession } = useSessionContext();
+  // eslint-disable-next-line react-hooks/refs
+  chatSessionIdRef.current = sessionId;
   const orgMemberState = useOrgMember();
   const currentUser = orgMemberState.status === "ok" ? orgMemberState.member : null;
   const canUpload = orgMemberState.status !== "ok" || orgMemberState.member.role !== "viewer";
@@ -131,6 +136,7 @@ export default function ChatPage() {
       const uploadHeaders = { ...(await getAuthHeaders()) };
       const activeProject = activeProjectRef.current;
       if (activeProject?.id) uploadHeaders["x-project-id"] = activeProject.id;
+      if (chatSessionIdRef.current) uploadHeaders["x-chat-session-id"] = chatSessionIdRef.current;
 
       const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
       const data: unknown = await res.json();
@@ -201,6 +207,7 @@ export default function ChatPage() {
       const uploadHeaders = { ...(await getAuthHeaders()) };
       const ap = activeProjectRef.current;
       if (ap?.id) uploadHeaders["x-project-id"] = ap.id;
+      if (chatSessionIdRef.current) uploadHeaders["x-chat-session-id"] = chatSessionIdRef.current;
 
       const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
       const data: unknown = await res.json();

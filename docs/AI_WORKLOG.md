@@ -23,6 +23,145 @@ Formato:
 
 ---
 
+## 2026-05-18 - Codex - Cierre agéntico de expediente
+
+- Objetivo: permitir que el agente proponga el cierre de un expediente operativo con veredicto, resumen y evidencia citable cuando ya completó la auditoría.
+- Cambios:
+  - Nueva tool `proponer_cierre_expediente` en el catálogo y versión bound en `createBoundTools()`. La versión expuesta al modelo no acepta `organizationId` ni `actorUserId`; ambos se inyectan server-side.
+  - `buildSystemPrompt()` recibe `workCaseId` desde el runtime validado y agrega reglas estrictas para usar la tool solo con evidencia suficiente y nunca sobre expedientes ya terminales.
+  - `closeWorkCaseFromAgent()` actualiza el expediente a `resolved`, escribe `verdict`, `summary`, `closed_at`, `closed_by_user_id`, registra `work_case.status_changed` y agrega evidencia opcional en `work_case_evidence`.
+  - Documentado el cierre agéntico en arquitectura, roadmap y rediseño Agent Core.
+- Archivos: `src/lib/agent-core/work-case-closer.ts`, `src/lib/agent-core/index.ts`, `src/lib/agent-core/types.ts`, `src/lib/ai/agent-tools.ts`, `src/lib/ai/agent-tools-bound.ts`, `src/lib/ai/agent-prompt.ts`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register-ts-loader.mjs --test tests/**/*.test.mjs` OK (58/58); `npm run lint` OK; `npm run build` OK. `npm test` sin cargar `.env.local` falla en este entorno por `Missing NEXT_PUBLIC_INSFORGE_URL`.
+- Pendiente: no hay migración nueva. Siguiente línea sugerida: vista global/agrupada de expedientes por estado y veredicto, o Contexto Empresarial.
+
+## 2026-05-18 - Claude - Cierre de expediente con veredicto + reportes documentales en UI
+
+- Objetivo: cerrar el plan de migración Agent Core exponiendo lectura completa de `document_intelligence_reports` en el expediente y habilitando cierre con `verdict` + `summary` editables antes del estado terminal.
+- Cambios:
+  - Migración `20260518190721_work-case-verdict-closure.sql`: agrega `work_cases.verdict` (CHECK ∈ {`approved`,`flagged`,`inconclusive`,`rejected`,`superseded`}) y `work_cases.closed_by_user_id`; índice parcial por `organization_id, verdict`.
+  - `GET /api/work-cases/[id]`: ahora consulta `document_intelligence_reports` por `work_case_id`, resuelve `fileName` desde `uploaded_files` (filtrado por org) y devuelve `documentReports[]` con clasificación, extracción, riesgos, hallazgos, veredicto, confianza y metadata. Devuelve también `verdict`, `closedByUserId` y `closedAt` del expediente.
+  - `PATCH /api/work-cases/[id]`: acepta `verdict` (validado contra el CHECK) y `summary`; al pasar a estado terminal escribe `closed_at` y `closed_by_user_id = auth.userId`; al reabrir limpia ambos y resetea `verdict` cuando no se envía explícitamente. El evento `work_case.status_changed` agrega `previousVerdict`, `verdict`, `summary` y `closedByUserId` al payload.
+  - `WorkCaseVerdict` exportado desde `src/lib/agent-core/types.ts` y `src/lib/agent-core/index.ts`; schemas `workCaseVerdictSchema`, `documentReportEntrySchema` y campos nuevos del expediente añadidos en `src/lib/validators/api-responses.ts`.
+  - `src/hooks/useWorkCases.ts`: `updateWorkCaseStatus()` ahora acepta `{ status, summary?, verdict? }` además del string legacy.
+  - `/dashboard/obras/[id]/expedientes/[workCaseId]/page.tsx`: nueva sección "Reportes documentales" con badges de veredicto/tipo, riesgos y hallazgos expandibles más detalle de clasificación/extracción/metadata; bloque "Resolución del expediente" muestra `verdict`+`summary` cuando existen; las acciones `Resolver`/`Cerrar` ahora abren un modal con selector de veredicto y textarea de resumen (límite 2000). `Reabrir` limpia veredicto y summary.
+- Archivos: `migrations/20260518190721_work-case-verdict-closure.sql`, `src/app/api/work-cases/route.ts`, `src/app/api/work-cases/[id]/route.ts`, `src/lib/agent-core/types.ts`, `src/lib/agent-core/index.ts`, `src/lib/validators/api-responses.ts`, `src/hooks/useWorkCases.ts`, `src/app/dashboard/obras/[id]/expedientes/[workCaseId]/page.tsx`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run lint` OK; `npm run build` OK; `npm run migrate` aplicó `20260518190721_work-case-verdict-closure.sql`.
+- Pendiente: plan de migración Agent Core cerrado. Próxima línea sugerida: tool agéntica que proponga `verdict`/`summary` con evidencia citable, o vista global de expedientes agrupados por estado/veredicto.
+
+---
+
+## 2026-05-18 - Codex - Document intelligence reports
+
+- Objetivo: persistir clasificación, extracción, riesgos y veredictos documentales por archivo, vinculables a expedientes/evidencia.
+- Cambios:
+  - Migración `20260518104406_document-intelligence-reports.sql`: crea `document_intelligence_reports` con RLS por `organization_id`, vínculos a archivo/obra/expediente/agent_run, `classification`, `extraction`, `risks`, `findings`, `verdict`, `confidence` y `summary`.
+  - `work_case_evidence` suma `evidence_type='document_report'`.
+  - `/api/upload` escribe reportes `upload_scan` best-effort usando el procesamiento existente, PII scan y context scan; acepta `x-chat-session-id` para vincular expediente si ya existe.
+  - `ensureWorkCaseForChatSession()` vincula el último reporte documental del archivo al expediente recién creado cuando el upload ocurrió antes de la sesión.
+- Archivos: `migrations/20260518104406_document-intelligence-reports.sql`, `src/lib/document-intelligence/report-writer.ts`, `src/lib/document-intelligence/report-linker.ts`, `src/app/api/upload/route.ts`, `src/app/dashboard/chat/page.tsx`, `src/lib/agent-core/work-case-writer.ts`, `src/lib/validators/api-responses.ts`, `src/app/dashboard/obras/[id]/expedientes/[workCaseId]/page.tsx`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run lint` OK; `npm run build` OK; `npm run migrate` aplicó `20260518104406_document-intelligence-reports.sql`.
+- Pendiente: exponer lectura completa de reportes documentales en la UI/API de expediente y usar estos reportes para un cierre con veredicto editable.
+
+## 2026-05-18 - Codex - Agent runs y acciones de expediente
+
+- Objetivo: cerrar la trazabilidad granular por ejecución del agente y permitir resolver/cerrar/reabrir expedientes desde la vista operativa.
+- Cambios:
+  - Migración `20260518004152_agent-runs.sql`: crea `agent_runs` con RLS por `organization_id`, vínculos a obra/expediente/sesión, modelo, tier, capabilities, usage, telemetría de tools, latencia y request id.
+  - `writeAgentRun()` registra ejecuciones best-effort; `/api/chat` lo invoca en `onFinish`, vincula `agentRunId` al audit log y al evento `work_case_events.chat.turn_completed`.
+  - `PATCH /api/work-cases/[id]`: valida auth/rol/org, cambia `status`/`summary`, ajusta `closed_at` y registra `work_case_events.work_case.status_changed`.
+  - La vista `/dashboard/obras/[id]/expedientes/[workCaseId]` suma acciones `Resolver`, `Cerrar` y `Reabrir`.
+- Archivos: `migrations/20260518004152_agent-runs.sql`, `src/lib/agent-core/agent-run-writer.ts`, `src/app/api/chat/route.ts`, `src/app/api/work-cases/[id]/route.ts`, `src/hooks/useWorkCases.ts`, `src/app/dashboard/obras/[id]/expedientes/[workCaseId]/page.tsx`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run lint` OK; `npm run build` OK; `npm run migrate` aplicó `20260518004152_agent-runs.sql`.
+- Pendiente: siguiente bloque recomendado: `document_intelligence_reports` para persistir clasificación/extracción/veredictos documentales y vincularlos a expedientes/evidencia.
+
+## 2026-05-18 - Codex - Vista de trazabilidad de expediente
+
+- Objetivo: hacer visible la trazabilidad profunda de un expediente operativo desde la obra.
+- Cambios:
+  - `GET /api/work-cases/[id]`: devuelve expediente, eventos (`work_case_events`) y evidencias (`work_case_evidence`) filtrando por `organization_id = auth.orgId`; resuelve la sesión del usuario actual si existe.
+  - `workCaseDetailResponseSchema` y tipos derivados en `src/lib/validators/api-responses.ts`.
+  - `useWorkCaseDetails()` en `src/hooks/useWorkCases.ts`.
+  - `/dashboard/obras/[id]`: cada expediente ahora tiene acción "Ver" además de "Abrir" chat.
+  - Nueva vista `/dashboard/obras/[id]/expedientes/[workCaseId]`: métricas, replay de eventos con payload expandible, evidencia con metadata expandible y CTA a chat asociado.
+- Archivos: `src/app/api/work-cases/[id]/route.ts`, `src/app/dashboard/obras/[id]/expedientes/[workCaseId]/page.tsx`, `src/app/dashboard/obras/[id]/page.tsx`, `src/hooks/useWorkCases.ts`, `src/lib/validators/api-responses.ts`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run lint` OK; `npm run build` OK.
+- Pendiente: `agent_runs` para trazabilidad granular por ejecución y acciones explícitas de resolución/cierre de expediente.
+
+---
+
+## 2026-05-18 - Codex - Cierre plan migración Agent Core
+
+- Objetivo: completar pendientes del plan de migración Agent Core: UI inicial de expediente, legacy migration y modularización runtime sin cambiar prompt efectivo ni catálogo de tools.
+- Cambios:
+  - `GET /api/work-cases`: lista expedientes por org/obra y devuelve la `chatSessionId` asociada al usuario actual cuando existe.
+  - `useWorkCases()` y `/dashboard/obras/[id]`: muestran expedientes operativos y permiten abrir el chat vinculado al expediente.
+  - Migración `20260518002617_legacy-work-cases.sql`: crea `work_cases.kind='legacy_conversation'` para `chat_sessions` históricas con `project_id`, actualiza `chat_sessions.work_case_id`, registra evento `chat_session.legacy_linked` y evidencia de snapshot/archivos inferidos.
+  - `src/lib/agent-core/runtime.ts`: concentra resolución de scope, obra/sesión validada, prompt efectivo, tools bound, recent sessions, patrones aprendidos y `capabilityIds`. `/api/chat` queda como orquestador de stream, telemetría y audit writes.
+- Archivos: `migrations/20260518002617_legacy-work-cases.sql`, `src/app/api/work-cases/route.ts`, `src/hooks/useWorkCases.ts`, `src/app/dashboard/obras/[id]/page.tsx`, `src/lib/agent-core/runtime.ts`, `src/lib/agent-core/index.ts`, `src/app/api/chat/route.ts`, `src/lib/validators/api-responses.ts`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run lint` OK; `npm run build` OK; `npm run migrate` aplicó `20260518002617_legacy-work-cases.sql`. Dev server activo en `http://localhost:3000`.
+- Pendiente: trazabilidad visual profunda de expediente (`work_case_events`/`work_case_evidence`), replay de auditoría y explicación expandible de hallazgos. El plan de migración Agent Core de esta etapa queda cerrado.
+
+---
+
+## 2026-05-18 - Codex - Operational findings read model
+
+- Objetivo: separar hallazgos vivos de `audit_log_events` para que proactividad y daily brief lean estado accionable desde una tabla propia.
+- Cambios:
+  - Migración `20260518001800_operational-findings.sql`: crea `operational_findings` con RLS por `organization_id`, `status` (`open/resolved/dismissed`), `finding_key` único por org/obra, severidad/tipo, vínculo a entidad, metadata y timestamps de detección/resolución.
+  - `src/lib/proactivity/operational-findings.ts`: helper `replaceProjectOperationalFindings()` upsertea hallazgos actuales por obra y marca como `resolved` los `open` que ya no aparecen.
+  - `runDailyProjectScan()` ahora actualiza `operational_findings` y deja en `audit_log_events` solo resumen append-only con conteos y `findingKeys`.
+  - `GET /api/proactivity/findings` lee `operational_findings(status=open)` y mantiene el mismo contrato de respuesta para la UI.
+  - `buildDailyBrief()` calcula alertas desde `operational_findings`, no desde `audit_log_events`.
+- Archivos: `migrations/20260518001800_operational-findings.sql`, `src/lib/proactivity/operational-findings.ts`, `src/lib/proactivity/daily-scan.ts`, `src/app/api/proactivity/findings/route.ts`, `src/lib/project-operations/brief/daily-brief.ts`, `docs/04_architecture_map.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run migrate` aplicó `20260518001800_operational-findings.sql`; smoke `runDailyProjectScan({ limit: 1 })` OK (`scannedProjects=0`, sin hallazgos en el entorno actual).
+- Pendiente: primer UI de expediente en obra: listar expedientes abiertos/recientes y permitir abrir chat dentro de un expediente sin eliminar compatibilidad de sesiones.
+
+---
+
+## 2026-05-17 - Codex - Wire audit-only workCaseId en chat
+
+- Objetivo: que `/api/chat` persista `agentCore.scope.workCaseId` real y deje bitácora del turno cuando la sesión pertenece a un expediente, sin cambiar prompt, tools ni UX.
+- Cambios:
+  - `src/proxy.ts`: CORS permite `x-chat-session-id`.
+  - `src/app/dashboard/chat/page.tsx`: `DefaultChatTransport` envía `x-chat-session-id` desde la sesión activa cuando existe.
+  - `src/app/api/chat/route.ts`: lee el header, busca `chat_sessions(work_case_id, project_id)` filtrando por `organization_id`, `user_id`, `id` y `deleted_at IS NULL`; pasa `workCaseId` a `buildAgentCoreScope()` y usa `project_id` de la sesión si no venía `x-project-id`.
+  - `onFinish` inserta best-effort `work_case_events.event_type = 'chat.turn_completed'` con telemetría de modelo, tier, step budget, steps, totales de tools y latencia. Fallas del insert se loguean sin romper el stream.
+- Archivos: `src/proxy.ts`, `src/app/dashboard/chat/page.tsx`, `src/app/api/chat/route.ts`, `docs/04_architecture_map.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run migrate` no ejecutado porque no hay migración nueva.
+- Pendiente: crear migración/read model `operational_findings` para que `runDailyProjectScan()` y `buildDailyBrief()` dejen de usar `audit_log_events` como tabla primaria de estado vivo.
+
+---
+
+## 2026-05-17 - Claude - Asociar chat_sessions a work_cases (backward-compatible)
+
+- Objetivo: que cada sesión nueva iniciada desde una obra cree o reuse un expediente operativo, sin tocar legacy ni UX.
+- Cambios:
+  - Migración `20260517210757_chat-session-work-case-link.sql`: `chat_sessions.work_case_id UUID NULL` con FK a `work_cases(id) ON DELETE SET NULL` + dos índices parciales (`idx_chat_sessions_work_case`, `idx_chat_sessions_org_work_case`).
+  - `src/lib/agent-core/types.ts`: `WorkCaseKind` y `WorkCaseStatus` alineados al CHECK de `migrations/20260517210141_work-cases.sql`. El test `agent-core scope` sigue verde porque usa `document_audit`.
+  - `src/lib/agent-core/work-case-writer.ts` (nuevo): `ensureWorkCaseForChatSession()` crea un `work_case` con `kind` inferido del `fileType` (`excel → budget_audit`, `pdf/docx/dxf/image → document_audit`, default `general`), `status='open'`, `owner_user_id=auth.userId`, `metadata.chatSessionId`, y registra evento `chat_session.linked` en `work_case_events`. Tolera errores (devuelve `null` y loggea con `dbLogger.warn`).
+  - `src/lib/agent-core/index.ts`: exporta el helper.
+  - `src/app/api/sessions/route.ts` (POST): cuando hay `projectId` válido, busca primero `chat_sessions.work_case_id` existente (idempotencia ante re-upsert); si está vacío, llama al helper y persiste el resultado en la columna nueva.
+- Archivos: `migrations/20260517210757_chat-session-work-case-link.sql`, `src/lib/agent-core/types.ts`, `src/lib/agent-core/work-case-writer.ts`, `src/lib/agent-core/index.ts`, `src/app/api/sessions/route.ts`, `docs/04_architecture_map.md`, `ROADMAP.md`.
+- Verificacion: `npm run type-check` OK; `npm test` OK (58/58); `npm run migrate` aplicó la migración contra InsForge.
+- Pendiente: wire audit-only opcional en `/api/chat` (leer `x-chat-session-id`, hacer lookup de `chat_sessions.work_case_id` y persistir en `agentScope.workCaseId` del audit payload); siguiente bloque mayor: `operational_findings` para que proactividad y daily brief dejen de leer `audit_log_events` como read model.
+
+---
+
+## 2026-05-17 - Claude - Migración inicial de Expedientes Operativos
+
+- Objetivo: introducir schema base del Agent Core (`Empresa -> Obra -> Expediente Operativo -> Eventos/Evidencias`) sin tocar UX ni prompt.
+- Cambios: nueva migración con tres tablas + RLS por `organization_id`.
+  - `work_cases` (kind/status/title/summary/owner_user_id/closed_at/metadata + soft-delete). `kind` y `status` con CHECK; `project_id` nullable; índices por org/created_at, org/project, org/status, org/kind.
+  - `work_case_events` (bitácora append-only): `event_type TEXT` libre, `summary`, `payload JSONB`, FK a `work_cases` con `ON DELETE CASCADE`. Solo `admin` puede DELETE; sin policy de UPDATE.
+  - `work_case_evidence`: `evidence_type` con CHECK sobre 13 tipos (`file`/`chunk`/`relation`/`audit_event`/`tool_run`/`finding`/`message`/`schedule_task`/`hse_record`/`supply_item`/`financial_snapshot`/`subcontract`/`external`); `entity_type`/`entity_id` flexibles; `confidence` opcional en `[0,1]`.
+  - RLS estándar del repo: `get_my_org_ids()` para SELECT, `organization_members` con role `admin`/`engineer` para INSERT/UPDATE, solo `admin` para DELETE, rol interno `project_admin` con acceso total.
+- Archivos: `migrations/20260517210141_work-cases.sql`, `docs/04_architecture_map.md`, `ROADMAP.md`.
+- Verificacion: `npm run type-check` OK (sin código nuevo a tipar); `npm test` OK (58/58); `npm run migrate` aplicó `20260517210141_work-cases.sql` contra InsForge.
+- Pendiente: asociar nuevas `chat_sessions` a `work_case_id` de forma backward-compatible; mantener flujo legacy intacto; siguiente bloque debería introducir `operational_findings` (no incluido acá por decisión explícita del prompt).
+
+---
+
 ## 2026-05-16 - Codex - Reglas operativas compartidas
 
 - Objetivo: crear una guía nativa para Codex y un registro de handoff compatible con Claude Code.

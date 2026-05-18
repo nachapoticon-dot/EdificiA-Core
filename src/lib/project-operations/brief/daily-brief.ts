@@ -46,10 +46,9 @@ interface FinancialRow {
 }
 
 interface ProactivityRow {
-  payload: {
-    findings?: Array<{ severity?: string; title?: string }>;
-    bySeverity?: { critical?: number; warning?: number; info?: number };
-  } | null;
+  severity: string;
+  title: string;
+  last_detected_at: string;
 }
 
 export interface DailyBriefResult {
@@ -162,24 +161,26 @@ export async function buildDailyBrief(input: DailyBriefInput): Promise<DailyBrie
       .limit(1),
 
     client.database
-      .from("audit_log_events")
-      .select("payload")
+      .from("operational_findings")
+      .select("severity, title, last_detected_at")
       .eq("organization_id", input.organizationId)
       .eq("project_id", input.projectId)
-      .eq("event_type", "project.proactivity_scan")
-      .order("created_at", { ascending: false })
-      .limit(1),
+      .eq("status", "open")
+      .is("deleted_at", null)
+      .order("last_detected_at", { ascending: false })
+      .limit(50),
   ]);
 
   if (scheduleRes.error) dbLogger.warn({ err: scheduleRes.error }, "daily-brief schedule query failed");
   if (hseRes.error)      dbLogger.warn({ err: hseRes.error },      "daily-brief hse query failed");
   if (supplyRes.error)   dbLogger.warn({ err: supplyRes.error },   "daily-brief supplies query failed");
+  if (proactRes.error)   dbLogger.warn({ err: proactRes.error },   "daily-brief proactivity query failed");
 
   const schedule = scoreSchedule(scheduleRes.data as ScheduleRow[] | null, today, in7);
   const hse = scoreHse(hseRes.data as HseRow[] | null, today, in7);
   const supplies = scoreSupplies(supplyRes.data as SupplyRow[] | null, today, in14);
   const financial = scoreFinancial((finRes.data as FinancialRow[] | null)?.[0] ?? null);
-  const alerts = scoreAlerts((proactRes.data as ProactivityRow[] | null)?.[0] ?? null);
+  const alerts = scoreAlerts(proactRes.data as ProactivityRow[] | null);
 
   let weather: WeatherSection | null = null;
   if (input.includeWeather) {
@@ -349,17 +350,25 @@ function scoreFinancial(row: FinancialRow | null): DailyBriefResult["financial"]
   };
 }
 
-function scoreAlerts(row: ProactivityRow | null): DailyBriefResult["alerts"] {
-  if (!row?.payload) return { critical: 0, warning: 0, info: 0, topTitles: [] };
-  const bySev = row.payload.bySeverity ?? {};
-  const findings = (row.payload.findings ?? []).filter((f) => f?.title);
-  const top = findings.slice(0, 4).map((f) => f.title!).filter(Boolean);
+function scoreAlerts(rows: ProactivityRow[] | null): DailyBriefResult["alerts"] {
+  const findings = rows ?? [];
+  const top = findings
+    .filter((finding) => finding.title)
+    .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
+    .slice(0, 4)
+    .map((finding) => finding.title);
   return {
-    critical: bySev.critical ?? 0,
-    warning: bySev.warning ?? 0,
-    info: bySev.info ?? 0,
+    critical: findings.filter((finding) => finding.severity === "critical").length,
+    warning: findings.filter((finding) => finding.severity === "warning").length,
+    info: findings.filter((finding) => finding.severity === "info").length,
     topTitles: top,
   };
+}
+
+function severityRank(severity: string): number {
+  if (severity === "critical") return 3;
+  if (severity === "warning") return 2;
+  return 1;
 }
 
 function buildSummary(args: {

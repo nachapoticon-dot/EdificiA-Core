@@ -322,6 +322,129 @@ export const sessionsResponseSchema = z.object({
 
 export type SessionEntryResponse = z.infer<typeof sessionEntryResponseSchema>;
 
+export const workCaseVerdictSchema = z.enum([
+  "approved",
+  "flagged",
+  "inconclusive",
+  "rejected",
+  "superseded",
+]);
+
+export const workCaseEntryResponseSchema = z.object({
+  id: z.string(),
+  kind: z.enum([
+    "budget_audit",
+    "document_audit",
+    "schedule_review",
+    "financial_review",
+    "hse_review",
+    "supplies_review",
+    "subcontract_review",
+    "daily_brief",
+    "operations_update",
+    "communication",
+    "general",
+    "legacy_conversation",
+  ]),
+  status: z.enum(["open", "in_progress", "waiting", "resolved", "closed", "archived"]),
+  title: z.string(),
+  summary: z.string().nullable(),
+  verdict: workCaseVerdictSchema.nullable(),
+  closedByUserId: z.string().nullable(),
+  closedAt: z.string().nullable(),
+  projectId: z.string().nullable(),
+  ownerUserId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  chatSessionId: z.string().nullable(),
+  chatSessionTitle: z.string().nullable(),
+  chatSessionFileType: z.enum(["excel", "pdf", "dxf", "docx", "image"]).nullable(),
+  chatSessionStartedAt: z.number().int().nullable(),
+});
+
+export const workCasesResponseSchema = z.object({
+  workCases: z.array(workCaseEntryResponseSchema),
+});
+
+export const workCaseEventResponseSchema = z.object({
+  id: z.string(),
+  eventType: z.string(),
+  summary: z.string().nullable(),
+  payload: z.record(z.unknown()),
+  actorUserId: z.string().nullable(),
+  projectId: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const workCaseEvidenceResponseSchema = z.object({
+  id: z.string(),
+  evidenceType: z.enum([
+    "file",
+    "chunk",
+    "relation",
+    "audit_event",
+    "tool_run",
+    "finding",
+    "message",
+    "schedule_task",
+    "hse_record",
+    "supply_item",
+    "financial_snapshot",
+    "subcontract",
+    "document_report",
+    "external",
+  ]),
+  entityType: z.string(),
+  entityId: z.string().nullable(),
+  label: z.string().nullable(),
+  confidence: z.number().nullable(),
+  metadata: z.record(z.unknown()),
+  projectId: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const documentReportVerdictSchema = z.enum([
+  "consistent",
+  "inconsistent",
+  "needs_review",
+  "unsupported",
+]);
+
+export const documentReportEntrySchema = z.object({
+  id: z.string(),
+  fileId: z.string().nullable(),
+  fileName: z.string().nullable(),
+  reportType: z.enum(["upload_scan", "agent_audit", "manual_review"]),
+  status: z.enum(["ready", "needs_review", "superseded", "failed"]),
+  source: z.enum(["system", "agent", "user"]),
+  documentType: z.string(),
+  verdict: documentReportVerdictSchema,
+  confidence: z.number().nullable(),
+  summary: z.string().nullable(),
+  classification: z.record(z.unknown()),
+  extraction: z.record(z.unknown()),
+  risks: z.array(z.record(z.unknown())),
+  findings: z.array(z.record(z.unknown())),
+  metadata: z.record(z.unknown()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const workCaseDetailResponseSchema = z.object({
+  workCase: workCaseEntryResponseSchema,
+  events: z.array(workCaseEventResponseSchema),
+  evidence: z.array(workCaseEvidenceResponseSchema),
+  documentReports: z.array(documentReportEntrySchema),
+});
+
+export type WorkCaseEntryResponse = z.infer<typeof workCaseEntryResponseSchema>;
+export type WorkCaseVerdict = z.infer<typeof workCaseVerdictSchema>;
+export type WorkCasesResponse = z.infer<typeof workCasesResponseSchema>;
+export type WorkCaseEventResponse = z.infer<typeof workCaseEventResponseSchema>;
+export type WorkCaseEvidenceResponse = z.infer<typeof workCaseEvidenceResponseSchema>;
+export type WorkCaseDetailResponse = z.infer<typeof workCaseDetailResponseSchema>;
+export type DocumentReportEntry = z.infer<typeof documentReportEntrySchema>;
+
 export const orgOptionSchema = z.object({
   orgId: z.string(),
   orgName: z.string(),
