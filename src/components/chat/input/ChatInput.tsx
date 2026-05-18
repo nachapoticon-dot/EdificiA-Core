@@ -141,7 +141,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={
             isUploading      ? "Procesando archivo…"
-            : attachedChip   ? "Preguntá algo o dejá vacío para auditar…"
+            : attachedChip   ? "Preguntá algo o dejá vacío para interpretarlo…"
             :                  "Enviá datos o hacé una pregunta…"
           }
           rows={1}
