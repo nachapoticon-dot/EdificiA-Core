@@ -18,20 +18,26 @@ function SidebarContent() {
   return (
     <>
       {/* Brand block */}
-      <div className="border-b px-4 py-4">
-        <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-foreground text-background shadow-sm">
-          <span className="font-display text-[15px] font-semibold italic leading-none select-none">E</span>
-        </div>
-        <div className="flex flex-col leading-tight">
-          <span className="font-display text-[16px] font-medium">EdificIA</span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.05em] text-muted-foreground">
-            v0.6 · construcción
-          </span>
-        </div>
-        </div>
-        <div className="mt-3 h-1 rounded-full bg-muted">
-          <div className="h-full w-2/3 rounded-full bg-primary" />
+      <div className="border-b border-sidebar-border px-3 py-3">
+        <div className="rounded-[8px] border border-sidebar-border bg-sidebar-accent/40 px-3 py-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-foreground text-background shadow-sm">
+              <span className="font-display text-[20px] font-semibold italic leading-none select-none">E</span>
+              <span className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-primary" />
+            </div>
+            <div className="min-w-0 leading-tight">
+              <span className="block font-display text-[18px] font-medium tracking-[-0.01em] text-sidebar-foreground">
+                EdificIA
+              </span>
+              <span className="mt-1 block truncate font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">
+                Operaciones de obra
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-sidebar-border pt-2">
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">v0.6</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">Autónomo</span>
+          </div>
         </div>
       </div>
 
