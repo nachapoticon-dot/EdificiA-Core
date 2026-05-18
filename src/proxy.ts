@@ -10,7 +10,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,Authorization,x-org-id,x-project-id,x-project-name,x-request-id",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization,x-org-id,x-project-id,x-project-name,x-chat-session-id,x-request-id",
   "Access-Control-Expose-Headers": "x-request-id",
   "Access-Control-Max-Age": "86400",
 };

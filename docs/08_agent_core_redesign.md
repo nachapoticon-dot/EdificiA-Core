@@ -189,6 +189,19 @@ Estado 2026-05-17:
 - `src/lib/agent-core/` ya existe con tipos base, registry conceptual de capacidades, builder de scope y composición inicial de módulos de prompt.
 - `/api/chat` ya calcula `agentCore.scope` y `capabilityIds` para logs/audit payload sin cambiar prompt efectivo ni tools.
 
-Siguiente paso:
+Estado 2026-05-18:
 
-- Diseñar migración de `chat_sessions` hacia `work_cases` y crear migración inicial de DB para expedientes operativos.
+- Expedientes operativos creados (`work_cases`, `work_case_events`, `work_case_evidence`) y nuevas sesiones asociadas server-side a `work_case_id`.
+- `/api/chat` resuelve `workCaseId` desde `x-chat-session-id` y registra `work_case_events.chat.turn_completed` best-effort.
+- `operational_findings` separa hallazgos vivos de `audit_log_events`.
+- `/dashboard/obras/[id]` muestra expedientes operativos y permite abrir el chat vinculado.
+- `/dashboard/obras/[id]/expedientes/[workCaseId]` muestra replay de eventos y evidencia expandible del expediente.
+- Sesiones históricas con `project_id` migradas a `legacy_conversation` mediante `20260518002617_legacy-work-cases.sql`.
+- `src/lib/agent-core/runtime.ts` concentra resolución de scope, prompt efectivo, tools bound y capabilities; `/api/chat` queda como orquestador.
+- `agent_runs` registra cada ejecución del agente con modelo, tier, sesión, expediente, capabilities, usage y telemetría de tools; `/api/chat` vincula `agentRunId` al audit log y a `work_case_events.chat.turn_completed`.
+- `PATCH /api/work-cases/[id]` habilita resolver/cerrar/reabrir expedientes con evento `work_case.status_changed`; la vista de expediente expone esas acciones sin cambiar prompt ni tools.
+- `document_intelligence_reports` persiste reportes documentales por archivo con clasificación, extracción, riesgos, hallazgos, veredicto y confianza; upload los escribe best-effort y los vincula a `work_case_evidence.document_report` cuando hay expediente.
+- Cierre de expediente con veredicto y resumen editables: migración `20260518190721_work-case-verdict-closure.sql` agrega `work_cases.verdict` (`approved`/`flagged`/`inconclusive`/`rejected`/`superseded`) y `closed_by_user_id`. `GET /api/work-cases/[id]` devuelve `documentReports[]` con `fileName` resuelto; `PATCH` acepta `verdict` + `summary` y registra `previousVerdict`/`verdict`/`summary`/`closedByUserId` en `work_case_events.work_case.status_changed`. La vista del expediente renderiza reportes documentales con clasificación/riesgos/hallazgos expandibles y abre un modal de cierre con selector de veredicto y resumen antes del estado terminal.
+- Cierre agéntico de expediente: `proponer_cierre_expediente` permite al agente marcar `resolved` con `verdict`, `summary` y evidencia citable solo cuando el `workCaseId` viene del contexto validado. `createBoundTools()` inyecta `organization_id`/actor server-side y `closeWorkCaseFromAgent()` rechaza expedientes de otra organización o ya terminales.
+
+Plan de migración Agent Core cerrado para esta etapa. Próxima línea: agrupar expedientes por estado/veredicto en la UI principal o avanzar con Contexto Empresarial.

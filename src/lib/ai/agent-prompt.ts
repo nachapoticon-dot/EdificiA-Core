@@ -33,6 +33,7 @@ export function buildSystemPrompt(ctx?: {
   learnedPatterns?: Record<string, unknown>;
   projectName?: string;
   projectId?: string;
+  workCaseId?: string;
   recentSessions?: RecentSession[];
 }): string {
   const agentName = ctx?.agentName ?? "EdificIA";
@@ -45,6 +46,7 @@ export function buildSystemPrompt(ctx?: {
   if (ctx?.projectName)   contextLines.push(`- **Obra activa**: ${ctx.projectName}`);
   if (ctx?.organizationId) contextLines.push(`- organizationId: \`${ctx.organizationId}\` (auto-inyectado, no es parámetro de tools)`);
   if (ctx?.projectId)     contextLines.push(`- projectId: \`${ctx.projectId}\` (usalo en \`buscar_en_base_documental\` para filtrar por obra)`);
+  if (ctx?.workCaseId)    contextLines.push(`- workCaseId: \`${ctx.workCaseId}\` (expediente operativo activo — pasalo a \`proponer_cierre_expediente\` solo cuando completes la auditoría con evidencia suficiente)`);
 
   const contextSection = contextLines.length
     ? `\n\n## Contexto de sesión (LEE PRIMERO)\n${contextLines.join("\n")}\n\nCuando el usuario te salude o haga la primera consulta de la sesión, **abrí mencionando explícitamente la empresa y la obra activa** ("Trabajando para ${companyName ?? "tu empresa"}${ctx?.projectName ? ` en la obra ${ctx.projectName}` : ""}…"). Después de eso, NUNCA repitas el nombre de la empresa en mensajes siguientes — el usuario ya lo sabe.`
@@ -219,6 +221,17 @@ El agente no debe inventar datos, pero sí debe registrarlos cuando el usuario l
 - **Reprogramación** → **reprogramar_e_informar** (ya documentada arriba).
 
 Regla: si el usuario dice una cifra concreta con sujeto y fecha, registrala. Si la cifra es ambigua o estimada por vos, NO la registres — pedí precisión primero.
+
+## Cierre agéntico de expediente operativo
+Solo cuando ya completaste la auditoría/tarea del expediente activo y tenés evidencia suficiente para concluir, podés usar **proponer_cierre_expediente** con el \`workCaseId\` recibido en el contexto. La tool mueve el estado a \`resolved\` (es reversible: un humano puede reabrir o avanzar a \`closed\`/\`archived\`).
+
+Reglas:
+
+- No la uses para silenciar trabajo pendiente ni si quedan contradicciones, hallazgos críticos sin reportar, o datos que faltan. En esos casos dejá el expediente abierto y resumí los pendientes en la respuesta.
+- Elegí \`verdict\` honestamente: \`approved\` (todo conforme), \`flagged\` (cerrado con observaciones a seguir), \`inconclusive\` (no hay datos suficientes), \`rejected\` (no procede), \`superseded\` (reemplazado por otro expediente).
+- \`summary\` debe explicar qué se verificó, qué se concluye y qué queda abierto. Es lo que el PM lee al revisar el cierre.
+- Incluí referencias en \`evidence\` cuando sean citables: \`document_report\` con el \`entityId\` del reporte documental, \`audit_event\` con el id del evento, \`finding\` con \`entityId\` del hallazgo. Si no hay evidencia concreta, no inventes filas.
+- Si el expediente ya está en estado terminal (\`resolved\`/\`closed\`/\`archived\`), NO la llames: pedile al humano que reabra primero.
 
 ## Brief diario de obra
 Cuando el usuario pide "cómo va la obra", "qué tengo hoy", "estado general" o al inicio del día con una obra activa, usá **resumen_diario_obra** con el \`projectId\` activo. La tool consolida cronograma, HSE, acopios, último snapshot financiero y alertas de proactividad en un solo llamado. Si la obra tiene ubicación conocida o el usuario la mencionó, pasá \`includeWeather\` con \`location\` o coordenadas para sumar el clima del día.

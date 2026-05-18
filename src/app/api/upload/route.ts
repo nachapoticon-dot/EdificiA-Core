@@ -12,6 +12,7 @@ import { scanForPii } from "@/lib/security/pii-detector";
 import { uploadResponseSchema } from "@/lib/validators/api-responses";
 import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 import { scanDocumentContext } from "@/lib/document-intelligence/context-scan";
+import { writeDocumentIntelligenceReport } from "@/lib/document-intelligence/report-writer";
 import { writeRelationsFromContextScan } from "@/lib/knowledge-graph/relations";
 
 export const runtime = "nodejs";
@@ -82,14 +83,20 @@ export async function POST(req: Request) {
   }
 
   const requestedProjectId = req.headers.get("x-project-id") ?? null;
+  const chatSessionId = req.headers.get("x-chat-session-id") ?? null;
   const client = getInsForgeAdminClient();
-  const projectId = requestedProjectId
+  const headerProjectId = requestedProjectId
     ? await validateProjectId(client, orgId, requestedProjectId)
     : null;
 
-  if (requestedProjectId && !projectId) {
+  if (requestedProjectId && !headerProjectId) {
     return apiBadRequest("Obra inválida.");
   }
+
+  const sessionContext = chatSessionId
+    ? await resolveUploadSessionContext(client, orgId, userId, chatSessionId)
+    : { projectId: null, workCaseId: null };
+  const projectId = headerProjectId ?? sessionContext.projectId;
 
   const buffer = await file.arrayBuffer();
   const processed = await processFile(buffer, file.name, file.type || undefined);
@@ -182,6 +189,17 @@ export async function POST(req: Request) {
     }
   }
 
+  void writeDocumentIntelligenceReport({
+    organizationId: orgId,
+    projectId,
+    workCaseId: sessionContext.workCaseId,
+    fileId,
+    actorUserId: userId,
+    processed,
+    piiScan,
+    contextScan,
+  });
+
   const response = uploadResponseSchema.safeParse({ ...processed, fileId, cacheId, piiScan, contextScan });
   if (!response.success) {
     dbLogger.error(
@@ -231,6 +249,29 @@ async function validateProjectId(
     .maybeSingle();
 
   return result.data ? projectId : null;
+}
+
+async function resolveUploadSessionContext(
+  client: ReturnType<typeof getInsForgeAdminClient>,
+  orgId: string,
+  userId: string,
+  chatSessionId: string,
+): Promise<{ projectId: string | null; workCaseId: string | null }> {
+  const result = await client.database
+    .from("chat_sessions")
+    .select("project_id, work_case_id")
+    .eq("id", chatSessionId)
+    .eq("organization_id", orgId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  const row = result.data as { project_id: string | null; work_case_id: string | null } | null;
+  return {
+    projectId: row?.project_id ?? null,
+    workCaseId: row?.work_case_id ?? null,
+  };
 }
 
 /** Extrae el texto auditable de un archivo procesado para escanear PII. */

@@ -10,11 +10,14 @@ import {
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
   CheckCircle2, Circle, ChevronDown, ChevronRight,
   Pencil, Check, X, Hash, MapPin, Banknote, CalendarDays,
+  BriefcaseBusiness, Clock3, ArrowUpRight,
 } from "lucide-react";
 import { useProjectContext } from "@/contexts/ProjectContext";
+import { useSessionContext } from "@/contexts/SessionContext";
 import { useProjectCoverage } from "@/hooks/useProjectCoverage";
 import { useProjectFiles, type ProjectFile } from "@/hooks/useProjectFiles";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
+import { useWorkCases, type WorkCaseEntry } from "@/hooks/useWorkCases";
 import { getAuthHeaders } from "@/lib/insforge/client";
 import type { PhaseCoverage } from "@/lib/obra/coverage";
 import { ScheduleImportSection } from "./_components/ScheduleImportSection";
@@ -31,6 +34,30 @@ const STATUS_COLORS: Record<string, string> = {
   planificacion: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   finalizado:   "bg-accent text-muted-foreground",
   pausado:      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
+
+const WORK_CASE_KIND_LABELS: Record<WorkCaseEntry["kind"], string> = {
+  budget_audit: "Presupuesto",
+  document_audit: "Documento",
+  schedule_review: "Cronograma",
+  financial_review: "Finanzas",
+  hse_review: "HSE",
+  supplies_review: "Acopios",
+  subcontract_review: "Subcontratos",
+  daily_brief: "Brief diario",
+  operations_update: "Operación",
+  communication: "Comunicación",
+  general: "General",
+  legacy_conversation: "Legacy",
+};
+
+const WORK_CASE_STATUS_LABELS: Record<WorkCaseEntry["status"], string> = {
+  open: "Abierto",
+  in_progress: "En curso",
+  waiting: "En espera",
+  resolved: "Resuelto",
+  closed: "Cerrado",
+  archived: "Archivado",
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -153,6 +180,60 @@ function PhaseRow({ phase, index }: { phase: PhaseCoverage; index: number }) {
   );
 }
 
+function WorkCaseRow({
+  workCase,
+  onOpenChat,
+  onOpenDetail,
+}: {
+  workCase: WorkCaseEntry;
+  onOpenChat: (workCase: WorkCaseEntry) => void;
+  onOpenDetail: (workCase: WorkCaseEntry) => void;
+}) {
+  const canOpenChat = Boolean(workCase.chatSessionId);
+
+  return (
+    <div className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-b-0">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-border bg-background">
+        <BriefcaseBusiness className="h-4 w-4 text-primary" strokeWidth={1.5} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-[13px] font-semibold text-foreground">{workCase.title}</p>
+          <span className="rounded-[5px] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.05em] text-muted-foreground">
+            {WORK_CASE_KIND_LABELS[workCase.kind]}
+          </span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          <span>{WORK_CASE_STATUS_LABELS[workCase.status]}</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="flex items-center gap-1">
+            <Clock3 className="h-3 w-3" />
+            {formatDate(workCase.updatedAt)}
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onOpenDetail(workCase)}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+      >
+        Ver
+        <ArrowUpRight className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        disabled={!canOpenChat}
+        onClick={() => onOpenChat(workCase)}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        <MessageSquare className="h-3.5 w-3.5" />
+        Abrir
+        <ArrowUpRight className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ObraDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -160,11 +241,13 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const queryClient = useQueryClient();
   const { projects, activateProject } = useProjectContext();
+  const { switchSession } = useSessionContext();
 
   const project = projects.find((p) => p.id === id);
   const { data: coverage, isLoading: coverageLoading } = useProjectCoverage(id);
   const { data: files = [], isLoading: filesLoading } = useProjectFiles(id);
   const { data: details } = useProjectDetails(id);
+  const { data: workCases = [], isLoading: workCasesLoading } = useWorkCases(id);
 
   const [editing, setEditing]     = useState(false);
   const [saving, setSaving]       = useState(false);
@@ -203,6 +286,23 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
   function handleConverse() {
     if (project) activateProject(project);
     router.push("/dashboard/chat");
+  }
+
+  function handleOpenWorkCaseChat(workCase: WorkCaseEntry) {
+    if (!workCase.chatSessionId) return;
+    if (project) activateProject(project);
+    switchSession({
+      id: workCase.chatSessionId,
+      title: workCase.chatSessionTitle ?? workCase.title,
+      fileType: workCase.chatSessionFileType ?? undefined,
+      startedAt: workCase.chatSessionStartedAt ?? Date.parse(workCase.createdAt),
+      projectId: workCase.projectId ?? undefined,
+    });
+    router.push("/dashboard/chat");
+  }
+
+  function handleOpenWorkCaseDetail(workCase: WorkCaseEntry) {
+    router.push(`/dashboard/obras/${id}/expedientes/${workCase.id}` as Route);
   }
 
   const projectName = project?.name ?? "Obra";
@@ -341,6 +441,45 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Body — two columns */}
       <div className="mx-auto w-full max-w-5xl px-8 py-8">
+        <div className="mb-8">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground shrink-0">
+              Expedientes operativos
+            </span>
+            <span className="h-px flex-1 bg-border" />
+            {!workCasesLoading && (
+              <span className="font-mono text-[10px] text-muted-foreground/60">{workCases.length}</span>
+            )}
+          </div>
+
+          {workCasesLoading && (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-14 animate-pulse rounded-[10px] border border-border bg-card" />
+              ))}
+            </div>
+          )}
+
+          {!workCasesLoading && workCases.length === 0 && (
+            <div className="rounded-[12px] border border-dashed border-border px-6 py-8 text-center">
+              <p className="text-[13px] text-muted-foreground">Todavía no hay expedientes asociados a esta obra.</p>
+            </div>
+          )}
+
+          {!workCasesLoading && workCases.length > 0 && (
+            <div className="overflow-hidden rounded-[12px] border border-border bg-card">
+              {workCases.slice(0, 6).map((workCase) => (
+                <WorkCaseRow
+                  key={workCase.id}
+                  workCase={workCase}
+                  onOpenChat={handleOpenWorkCaseChat}
+                  onOpenDetail={handleOpenWorkCaseDetail}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
 
           {/* ── Left: file timeline ─────────────────────────────── */}

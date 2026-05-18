@@ -713,5 +713,62 @@ export function createBoundTools(orgId: string, actorUserId?: string | null) {
         };
       },
     }),
+
+    proponer_cierre_expediente: tool({
+      description: agentTools.proponer_cierre_expediente.description,
+      inputSchema: z.object({
+        workCaseId: z.string().uuid().describe("UUID del expediente operativo activo"),
+        verdict: z.enum(["approved", "flagged", "inconclusive", "rejected", "superseded"]).describe("Veredicto final"),
+        summary: z.string().min(20).max(2000).describe("Resumen ejecutivo del cierre"),
+        rationale: z.string().max(600).optional().describe("Justificación corta del veredicto"),
+        evidence: z
+          .array(
+            z.object({
+              evidenceType: z.enum([
+                "audit_event",
+                "tool_run",
+                "finding",
+                "document_report",
+                "file",
+                "message",
+                "schedule_task",
+                "hse_record",
+                "supply_item",
+                "financial_snapshot",
+                "subcontract",
+                "relation",
+                "external",
+              ]),
+              entityType: z.string().min(1),
+              entityId: z.string().optional(),
+              label: z.string().max(280).optional(),
+              confidence: z.number().min(0).max(1).optional(),
+              metadata: z.record(z.unknown()).optional(),
+            }),
+          )
+          .max(20)
+          .optional(),
+      }),
+      execute: async (input) => {
+        if (!actorUserId) {
+          return {
+            ok: false,
+            reason: "missing_actor",
+            message: "No se pudo identificar al usuario que ejecuta el turno; no se cierra el expediente.",
+          };
+        }
+        const { closeWorkCaseFromAgent } = await import("@/lib/agent-core");
+        return closeWorkCaseFromAgent({
+          organizationId: orgId,
+          actorUserId,
+          workCaseId: input.workCaseId,
+          verdict: input.verdict,
+          summary: input.summary,
+          rationale: input.rationale ?? null,
+          evidence: input.evidence,
+          capabilityId: "operations.update",
+        });
+      },
+    }),
   };
 }

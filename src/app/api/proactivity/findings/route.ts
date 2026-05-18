@@ -9,15 +9,20 @@ export const runtime = "nodejs";
 
 type Severity = "info" | "warning" | "critical";
 
-interface AuditEventRow {
-  project_id: string | null;
-  created_at: string;
-  payload: {
-    projectName?: string;
-    findingCount?: number;
-    bySeverity?: Partial<Record<Severity, number>>;
-    findings?: unknown[];
-  } | null;
+interface OperationalFindingRow {
+  finding_key: string;
+  type: string;
+  severity: Severity;
+  title: string;
+  detail: string;
+  organization_id: string;
+  project_id: string;
+  project_name: string;
+  entity_type: string;
+  entity_id: string | null;
+  due_date: string | null;
+  metadata: Record<string, unknown> | null;
+  last_detected_at: string;
 }
 
 export async function GET(req: Request) {
@@ -32,12 +37,13 @@ export async function GET(req: Request) {
   try {
     const client = getInsForgeAdminClient();
     let query = client.database
-      .from("audit_log_events")
-      .select("project_id, created_at, payload")
+      .from("operational_findings")
+      .select("finding_key, type, severity, title, detail, organization_id, project_id, project_name, entity_type, entity_id, due_date, metadata, last_detected_at")
       .eq("organization_id", auth.orgId)
-      .eq("event_type", "project.proactivity_scan")
-      .order("created_at", { ascending: false })
-      .limit(120);
+      .eq("status", "open")
+      .is("deleted_at", null)
+      .order("last_detected_at", { ascending: false })
+      .limit(500);
 
     if (projectIdFilter) query = query.eq("project_id", projectIdFilter);
 
@@ -47,27 +53,27 @@ export async function GET(req: Request) {
       return Response.json({ error: "No se pudieron leer las alertas" }, { status: 500 });
     }
 
-    const rows = (result.data ?? []) as AuditEventRow[];
-    const latestPerProject = new Map<string, AuditEventRow>();
+    const rows = (result.data ?? []) as OperationalFindingRow[];
+    const findingsByProject = new Map<string, OperationalFindingRow[]>();
     for (const row of rows) {
-      if (!row.project_id) continue;
-      if (!latestPerProject.has(row.project_id)) latestPerProject.set(row.project_id, row);
+      const group = findingsByProject.get(row.project_id) ?? [];
+      group.push(row);
+      findingsByProject.set(row.project_id, group);
     }
 
-    const projects = Array.from(latestPerProject.values()).map((row) => {
-      const findings = (row.payload?.findings ?? []).filter((f): f is Record<string, unknown> => typeof f === "object" && f !== null);
-      const bySeverity: Record<Severity, number> = {
-        info: row.payload?.bySeverity?.info ?? 0,
-        warning: row.payload?.bySeverity?.warning ?? 0,
-        critical: row.payload?.bySeverity?.critical ?? 0,
-      };
+    const projects = Array.from(findingsByProject.entries()).map(([projectId, findings]) => {
+      const sortedFindings = findings.sort(compareFindings);
+      const bySeverity = countBySeverity(sortedFindings);
       return {
-        projectId: row.project_id!,
-        projectName: row.payload?.projectName ?? "Obra sin nombre",
-        scannedAt: row.created_at,
-        findingsCount: row.payload?.findingCount ?? findings.length,
+        projectId,
+        projectName: sortedFindings[0]?.project_name ?? "Obra sin nombre",
+        scannedAt: sortedFindings.reduce(
+          (latest, finding) => finding.last_detected_at > latest ? finding.last_detected_at : latest,
+          sortedFindings[0]?.last_detected_at ?? new Date(0).toISOString(),
+        ),
+        findingsCount: sortedFindings.length,
         bySeverity,
-        findings: findings as unknown,
+        findings: sortedFindings.map(toResponseFinding),
       };
     });
 
@@ -104,4 +110,43 @@ export async function GET(req: Request) {
     dbLogger.error({ err }, "GET /api/proactivity/findings failed");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
+}
+
+function toResponseFinding(row: OperationalFindingRow) {
+  return {
+    id: row.finding_key,
+    type: row.type,
+    severity: row.severity,
+    title: row.title,
+    detail: row.detail,
+    organizationId: row.organization_id,
+    projectId: row.project_id,
+    projectName: row.project_name,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    dueDate: row.due_date,
+    metadata: row.metadata ?? undefined,
+  };
+}
+
+function countBySeverity(rows: OperationalFindingRow[]): Record<Severity, number> {
+  return rows.reduce<Record<Severity, number>>(
+    (acc, row) => {
+      acc[row.severity] += 1;
+      return acc;
+    },
+    { info: 0, warning: 0, critical: 0 },
+  );
+}
+
+function compareFindings(a: OperationalFindingRow, b: OperationalFindingRow): number {
+  const severityDelta = severityRank(b.severity) - severityRank(a.severity);
+  if (severityDelta !== 0) return severityDelta;
+  return b.last_detected_at.localeCompare(a.last_detected_at);
+}
+
+function severityRank(severity: Severity): number {
+  if (severity === "critical") return 3;
+  if (severity === "warning") return 2;
+  return 1;
 }

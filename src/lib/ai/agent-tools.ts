@@ -1162,4 +1162,58 @@ export const agentTools = {
       };
     },
   }),
+
+  proponer_cierre_expediente: tool({
+    description:
+      "Cierra el expediente operativo activo con veredicto y resumen final. Mueve el estado a 'resolved' (acción reversible — un humano puede reabrir o avanzar a 'closed'/'archived'). Usala SOLO cuando ya tenés evidencia suficiente para concluir (auditorías completas, hallazgos reportados, contradicciones resueltas). NO la uses para abrir nuevas tareas ni para silenciar trabajo pendiente. Si el expediente ya está en estado terminal, NO la llames: solicitá reapertura humana primero. El veredicto debe reflejar el resultado real: approved (todo conforme), flagged (cerrado con observaciones a seguir), inconclusive (no hay datos suficientes), rejected (no procede), superseded (queda reemplazado por otro expediente). Agregá referencias en `evidence` solo cuando sirvan como justificación citable (reportes documentales, hallazgos, eventos auditados).",
+    inputSchema: z.object({
+      workCaseId: z.string().uuid().describe("UUID del expediente operativo activo"),
+      verdict: z.enum(["approved", "flagged", "inconclusive", "rejected", "superseded"]).describe("Veredicto final"),
+      summary: z.string().min(20).max(2000).describe("Resumen ejecutivo del cierre (qué se verificó, qué se concluye, qué queda abierto)"),
+      rationale: z.string().max(600).optional().describe("Justificación corta del veredicto, citable internamente"),
+      evidence: z
+        .array(
+          z.object({
+            evidenceType: z.enum([
+              "audit_event",
+              "tool_run",
+              "finding",
+              "document_report",
+              "file",
+              "message",
+              "schedule_task",
+              "hse_record",
+              "supply_item",
+              "financial_snapshot",
+              "subcontract",
+              "relation",
+              "external",
+            ]),
+            entityType: z.string().min(1).describe("Tabla o tipo de la entidad (ej. document_intelligence_reports, audit_log_events)"),
+            entityId: z.string().optional().describe("UUID de la entidad cuando aplica"),
+            label: z.string().max(280).optional(),
+            confidence: z.number().min(0).max(1).optional(),
+            metadata: z.record(z.unknown()).optional(),
+          }),
+        )
+        .max(20)
+        .optional()
+        .describe("Referencias citables que respaldan el veredicto. Máximo 20."),
+      organizationId: z.string().describe("ID de la organización activa"),
+      actorUserId: z.string().describe("UUID del usuario que ejecuta el turno"),
+    }),
+    execute: async (input) => {
+      const { closeWorkCaseFromAgent } = await import("@/lib/agent-core");
+      return closeWorkCaseFromAgent({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        workCaseId: input.workCaseId,
+        verdict: input.verdict,
+        summary: input.summary,
+        rationale: input.rationale ?? null,
+        evidence: input.evidence,
+        capabilityId: "operations.update",
+      });
+    },
+  }),
 };
