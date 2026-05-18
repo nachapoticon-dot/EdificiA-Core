@@ -23,6 +23,18 @@ Formato:
 
 ---
 
+## 2026-05-18 - Codex - UX de archivo, historial y estado del agente
+
+- Objetivo: corregir fricciones detectadas en prueba manual: tarjeta de archivo plana, respuesta demasiado rígida ante documentos no-presupuesto, historial sin navegación y copy "auditando" poco natural.
+- Cambios:
+  - `FileReadyView` ahora muestra lectura inicial, señales disponibles y acciones más amplias por tipo de archivo, no solo auditoría de presupuesto.
+  - Prompts de archivo y `agent-prompt` ajustados para clasificar y usar documentos como insumos operativos (listas de precios, catálogos, contratos, legajos, etc.) sin rechazarlos por no ser presupuesto.
+  - El historial del sidebar ahora navega a `/dashboard/chat` al seleccionar una conversación.
+  - Estado streaming alterna términos de obra como `encofrando`, `mezclando`, `replanteando`, etc., en vez de `auditando`.
+- Archivos: `src/components/chat/cards/FileReadyView.tsx`, `src/app/dashboard/chat/page.tsx`, `src/components/chat/input/ChatInput.tsx`, `src/components/chat/sidebar/DashboardSidebar.tsx`, `src/lib/ai/agent-prompt.ts`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm run build` OK.
+- Pendiente: QA visual autenticado en navegador sobre subida real de PDF/lista de precios y selección de historial.
+
 ## 2026-05-18 - Codex - Vista global de expedientes
 
 - Objetivo: exponer una vista operativa central de expedientes de toda la organización, agrupable por estado o veredicto.

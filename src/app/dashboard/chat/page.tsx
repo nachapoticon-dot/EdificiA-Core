@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart } from "ai";
@@ -28,6 +28,19 @@ import { saveMessages, loadMessages, fetchRemoteMessages } from "@/hooks/useMess
 import { apiErrorResponseSchema, uploadResponseSchema, type UploadResponse } from "@/lib/validators/api-responses";
 
 type AttachedFile = UploadResponse;
+
+const STREAMING_WORDS = [
+  "encofrando",
+  "mezclando",
+  "replanteando",
+  "nivelando",
+  "cubicando",
+  "hormigonando",
+  "apuntalando",
+  "afinando",
+  "levantando",
+  "trazando",
+];
 
 // Pending state: the full context to send when the user submits
 interface PendingFile {
@@ -85,9 +98,13 @@ export default function ChatPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [streamingWord, setStreamingWord] = useState(
+    () => STREAMING_WORDS[Math.floor(Math.random() * STREAMING_WORDS.length)] ?? "trabajando",
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const comparisonFileInputRef = useRef<HTMLInputElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
+  const streamingWordPool = useMemo(() => STREAMING_WORDS, []);
 
   // Restore messages when session switches
   useEffect(() => {
@@ -123,6 +140,17 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!isStreaming) return;
+    const id = window.setInterval(() => {
+      setStreamingWord((current) => {
+        const nextPool = streamingWordPool.filter((word) => word !== current);
+        return nextPool[Math.floor(Math.random() * nextPool.length)] ?? current;
+      });
+    }, 2200);
+    return () => window.clearInterval(id);
+  }, [isStreaming, streamingWordPool]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     setUploadError(null);
@@ -362,7 +390,7 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
         {isStreaming && (
           <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
             <span className="eb-pulse h-1.5 w-1.5 rounded-full bg-primary" />
-            auditando…
+            {streamingWord}…
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
@@ -610,12 +638,20 @@ function buildFilePrompt(file: AttachedFile): string {
       return `${fileMeta(file)}
 Archivo Excel "${safeStr(file.fileName)}" — ${file.itemCount} ítems, hoja "${safeStr(file.sheetName ?? "")}".${totalLine}${dataSection}
 
-Realizá una auditoría completa:
+Leé este Excel como documento operativo de construcción, no asumas que siempre es un presupuesto. Primero clasificá qué es y para qué sirve: presupuesto, cómputo, lista de precios, certificado, acopio, comparativa de proveedor u otro.
+
+Si tiene estructura de presupuesto/cómputo con cantidades e ítems de obra:
 1. calcular_totales${cacheId ? ` con cacheId="${cacheId}"` : ""}.
-2. validar_cierre_de_total${cacheId ? ` con cacheId="${cacheId}"` : ""}${file.detectedTotal != null ? ` y declaredTotal=${file.detectedTotal}` : " (omitir si no hay total declarado)"}.
+2. validar_cierre_de_total${cacheId ? ` con cacheId="${cacheId}"` : ""}${file.detectedTotal != null ? ` y declaredTotal=${file.detectedTotal}` : " (solo si hay total declarado)"}.
 3. detectar_exclusiones_logicas${cacheId ? ` con cacheId="${cacheId}"` : ""}.
-4. generar_grafica con la distribución de rubros.
-5. Resumen ejecutivo con veredicto.`;
+4. generar_grafica cuando la distribución de rubros ayude a decidir.
+
+Si es lista de precios/proveedor/catálogo:
+- No lo trates como "no sirve"; explicá qué decisiones habilita (comparar contra presupuesto, registrar referencia, armar compra, buscar artículos).
+- Extraé proveedor, fecha, moneda, rubros, unidades y ejemplos representativos.
+- Si el usuario ya dijo qué quiere hacer, avanzá con ese objetivo sin devolver una encuesta genérica.
+
+Cierre: decí qué entendiste del archivo, qué datos confiables extrajiste, qué acción concreta recomendás y qué faltaría si el usuario quisiera convertirlo en presupuesto de obra.`;
     }
 
     case "pdf": {
@@ -623,7 +659,7 @@ Realizá una auditoría completa:
         return `${fileMeta(file)}
 PDF escaneado "${safeStr(file.fileName)}" (${file.pageCount} páginas). Procesado con OCR.
 
-Identificá el tipo de documento, extraé todos los datos numéricos (ítems, cantidades, precios, totales) y si hay costos hacé un análisis de auditoría.`;
+Leé este PDF como documento operativo de construcción. Clasificá qué es y para qué sirve antes de juzgarlo: lista de precios, contrato, memoria, certificado, legajo, remito, presupuesto, plano escaneado u otro. Extraé datos útiles (proveedor, fecha, moneda, rubros, precios, cantidades, vencimientos o responsables) y conectalos con una acción concreta. No lo descartes por no ser presupuesto; si es referencia de proveedor, tratala como insumo para compras/cotización.`;
       }
       return `${fileMeta(file)}
 PDF "${safeStr(file.fileName)}" (${file.pageCount} páginas). Texto extraído:
@@ -632,7 +668,9 @@ PDF "${safeStr(file.fileName)}" (${file.pageCount} páginas). Texto extraído:
 ${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
 ---
 
-¿Es un presupuesto, cómputo métrico o memoria descriptiva? Si hay datos de costos o cantidades, extraélos y analizálos.`;
+Leé este documento como Project Manager de obra. Primero clasificá qué es y qué decisión habilita; después extraé señales útiles: proveedor/obra/fecha/moneda/rubros/precios/cantidades/vencimientos/responsables según corresponda.
+
+No respondas "no es un presupuesto" como conclusión principal. Si no es presupuesto, explicá qué sí es y cómo se puede usar en la operación: comparar precios, alimentar una compra, contrastar contra presupuesto, registrar referencia o pedir datos faltantes. Si el usuario ya indicó una intención, respondé a esa intención.`;
     }
 
     case "dxf": {
@@ -660,7 +698,7 @@ Contenido:
 ${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
 ---
 
-¿Es relevante para un presupuesto de construcción? Identificá especificaciones técnicas, listados de materiales, memorias descriptivas o datos de costos.`;
+Leé este Word como documento operativo de construcción. Clasificá tipo, propósito, responsables, fechas, especificaciones, materiales, costos o restricciones si aparecen. No lo fuerces a presupuesto: explicá para qué sirve y qué acción concreta habilita.`;
     }
 
     default:
@@ -670,7 +708,7 @@ ${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]"
 
 function buildImagePrompt(fileName: string): string {
   const safe = safeStr(fileName);
-  return `__file_meta__:${JSON.stringify({ fileName, type: "image" })}\nImagen "${safe}" adjunta. Si es una planilla o presupuesto: extraé ítems, cantidades y precios. Si es un plano: describí elementos constructivos y dimensiones visibles. Si es otra cosa: describí qué ves y su relevancia para auditoría de construcción.`;
+  return `__file_meta__:${JSON.stringify({ fileName, type: "image" })}\nImagen "${safe}" adjunta. Leela como insumo operativo de construcción. Si es una planilla/lista de precios: extraé proveedor, artículos, unidades y valores. Si es un plano: describí elementos constructivos y dimensiones visibles. Si es foto de obra o documento visual: explicá qué muestra, qué señales útiles hay y qué acción concreta habilita.`;
 }
 
 function buildComparisonPrompt(a: AttachedFile & { type: "excel" }, b: AttachedFile & { type: "excel" }): string {

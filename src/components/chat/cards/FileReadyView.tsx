@@ -30,6 +30,9 @@ function getConfig(file: ProcessedFile) {
         Icon: FileSpreadsheet,
         iconBg: "bg-[oklch(0.62_0.13_145)]/10",
         iconColor: "text-[oklch(0.62_0.13_145)]",
+        headline: "Planilla estructurada",
+        purpose: "Puede ser presupuesto, cómputo, comparativa o lista de precios. El agente primero la clasifica y después decide qué verificar.",
+        signals: ["ítems tabulados", "valores numéricos", "rubros comparables"],
         meta: `${file.itemCount} ítems · hoja "${file.sheetName}" · ${total} declarado`,
         stats: [
           { label: "Hoja", value: file.sheetName },
@@ -38,10 +41,10 @@ function getConfig(file: ProcessedFile) {
           { label: "Cierre", value: "✓ verificar" },
         ],
         actions: [
-          { label: "Auditoría completa", hint: "9 reglas + cierre + incidencias", primary: true },
-          { label: "Solo detectar exclusiones", hint: "movimientos, gastos generales, IVA" },
-          { label: "Calcular incidencias por rubro", hint: "% sobre costo directo" },
-          { label: "Comparar con histórico", hint: "benchmark de archivos anteriores" },
+          { label: "Entender y auditar", hint: "clasifica, extrae señales y verifica lo que aplique", primary: true },
+          { label: "Comparar precios", hint: "contra presupuesto, histórico o proveedor" },
+          { label: "Calcular incidencias", hint: "rubros, partidas y peso relativo" },
+          { label: "Preparar compra", hint: "usar como referencia para cotización" },
         ],
       };
     }
@@ -51,6 +54,9 @@ function getConfig(file: ProcessedFile) {
         Icon: FileText,
         iconBg: "bg-destructive/10",
         iconColor: "text-destructive",
+        headline: file.isScanned ? "PDF escaneado" : "Documento con texto",
+        purpose: "Puede ser lista de precios, contrato, memoria, certificado, legajo o presupuesto. Se analiza por intención, no por plantilla fija.",
+        signals: file.isScanned ? ["OCR disponible", "lectura visual", "validación manual"] : ["texto extraído", "búsqueda interna", "datos citables"],
         meta: `${file.pageCount} páginas · ${tipo}`,
         stats: [
           { label: "Páginas", value: String(file.pageCount) },
@@ -59,10 +65,10 @@ function getConfig(file: ProcessedFile) {
           { label: "Estado", value: "listo" },
         ],
         actions: [
-          { label: "Analizá el documento", hint: "identificá tipo y extraé todos los datos", primary: true },
-          { label: "Extraé datos de costos", hint: "ítems, cantidades, precios" },
-          { label: "Identificá especificaciones", hint: "materiales, normas, memorias descriptivas" },
-          { label: "Generá un resumen técnico", hint: "ejecutivo, apto para cliente" },
+          { label: "Interpretar documento", hint: "tipo, propósito y datos útiles", primary: true },
+          { label: "Extraer precios o costos", hint: "proveedor, moneda, unidades, importes" },
+          { label: "Buscar riesgos", hint: "faltantes, vencimientos o contradicciones" },
+          { label: "Resumir para obra", hint: "qué decisión habilita y próximos pasos" },
         ],
       };
     }
@@ -72,6 +78,9 @@ function getConfig(file: ProcessedFile) {
         Icon: FileCode2,
         iconBg: "bg-blue-500/10",
         iconColor: "text-blue-500",
+        headline: "Plano CAD medible",
+        purpose: "Sirve para leer geometría, capas, superficies y cotas; también para cruzar cantidades contra cómputos o presupuestos.",
+        signals: ["capas", "entidades CAD", "cómputo geométrico"],
         meta: `${file.layers.length} capas · ${totalEntities} entidades · ${file.dimensions.length} cotas`,
         stats: [
           { label: "Capas", value: String(file.layers.length) },
@@ -92,6 +101,9 @@ function getConfig(file: ProcessedFile) {
         Icon: FileType2,
         iconBg: "bg-indigo-500/10",
         iconColor: "text-indigo-500",
+        headline: "Documento técnico editable",
+        purpose: "Puede contener memoria, pliego, contrato, especificaciones o minuta. La lectura prioriza obligaciones, materiales y restricciones.",
+        signals: ["texto editable", "especificaciones", "responsables/fechas"],
         meta: `${file.wordCount.toLocaleString("es-AR")} palabras`,
         stats: [
           { label: "Palabras", value: file.wordCount.toLocaleString("es-AR") },
@@ -112,6 +124,9 @@ function getConfig(file: ProcessedFile) {
         Icon: Image,
         iconBg: "bg-orange-500/10",
         iconColor: "text-orange-500",
+        headline: "Imagen para lectura visual",
+        purpose: "Puede ser foto de obra, plano, captura de planilla o remito. Se interpreta visualmente y se extraen señales visibles.",
+        signals: ["visión multimodal", "contexto visual", "extracción manual"],
         meta: file.mimeType,
         stats: [
           { label: "Tipo", value: "imagen" },
@@ -149,7 +164,7 @@ export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRe
 
   return (
     <div className="py-10">
-      <div className="mx-auto max-w-[680px] space-y-6 px-6">
+      <div className="mx-auto max-w-[760px] space-y-6 px-6">
 
         {piiScan?.hasMatches && <PiiWarningBanner scan={piiScan} />}
         {contextScan?.hasFindings && <ContextWarningBanner scan={contextScan} />}
@@ -161,13 +176,18 @@ export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRe
           transition={{ duration: 0.35 }}
         >
           <SectionLabel>Archivo en revisión</SectionLabel>
-          <div className="mt-3 overflow-hidden rounded-[12px] border border-border bg-card">
+          <div className="mt-3 overflow-hidden rounded-[8px] border border-border bg-card shadow-sm">
             {/* Name row */}
-            <div className="flex items-stretch border-b border-border">
-              <div className={`flex w-16 shrink-0 items-center justify-center border-r border-border ${iconBg}`}>
-                <Icon className={`h-6 w-6 ${iconColor}`} strokeWidth={1.5} />
+            <div className="flex items-stretch border-b border-border bg-card">
+              <div className={`flex w-[72px] shrink-0 items-center justify-center border-r border-border ${iconBg}`}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-border/60 bg-card/70">
+                  <Icon className={`h-5 w-5 ${iconColor}`} strokeWidth={1.5} />
+                </div>
               </div>
-              <div className="flex-1 px-4 py-3.5">
+              <div className="min-w-0 flex-1 px-4 py-3.5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-muted-foreground">
+                  {cfg.headline}
+                </p>
                 <p className="font-display text-[15px] font-semibold leading-tight text-foreground">
                   {file.fileName}
                 </p>
@@ -184,12 +204,39 @@ export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRe
               </button>
             </div>
 
+            {/* Interpretation row */}
+            <div className="grid gap-0 border-b border-border bg-background/35 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Lectura inicial
+                </p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-foreground/85">
+                  {cfg.purpose}
+                </p>
+              </div>
+              <div className="border-t border-border px-4 py-3 md:border-l md:border-t-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Señales disponibles
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {cfg.signals.map((signal) => (
+                    <span
+                      key={signal}
+                      className="rounded-[5px] border border-border bg-card px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
+                    >
+                      {signal}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {/* Stats grid */}
-            <div className="grid grid-cols-4">
+            <div className="grid grid-cols-2 md:grid-cols-4">
               {stats.map((s, i) => (
                 <div
                   key={s.label}
-                  className={`px-4 py-3 ${i < stats.length - 1 ? "border-r border-border" : ""}`}
+                  className={`border-border px-4 py-3 ${i % 2 === 0 ? "border-r" : ""} ${i < 2 ? "border-b md:border-b-0" : ""} ${i < stats.length - 1 ? "md:border-r" : ""}`}
                 >
                   <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
                     {s.label}
