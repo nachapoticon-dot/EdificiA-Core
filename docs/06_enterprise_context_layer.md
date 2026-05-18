@@ -19,8 +19,32 @@ La primera versión debe admitir ingesta manual, pero la arquitectura debe prepa
 - Bases SQL o exports periódicos: PostgreSQL, MySQL, SQL Server, CSV/SFTP.
 - Herramientas de obra: cronogramas, partes diarios, órdenes de compra, remitos, subcontratos, HSE.
 - Email y comunicaciones, solo si el cliente lo autoriza explícitamente.
+- Archivos subidos al agente durante conversaciones: deben entrar al mismo inventario empresarial, con trazabilidad de sesión/expediente, no quedar como adjuntos aislados.
 
 Regla de lanzamiento: empezar con conectores acotados y de bajo riesgo, no con acceso amplio indiscriminado.
+
+## 2.1 Formas reales de presentación de datos
+
+La empresa no va a entregar siempre "documentos". EdificIA debe estar preparada para encontrar información en formatos heterogéneos y decidir si están listos para lectura, si requieren normalización o si solo sirven como referencia parcial.
+
+Fuentes esperadas:
+
+- Carpetas con PDFs, Excels, Word, DWG/DXF, imágenes, ZIPs y versiones duplicadas.
+- Exports de sistemas en CSV/XLSX con nombres de columnas propios de la empresa.
+- Tablas SQL o vistas de ERP/contabilidad/compras/certificaciones.
+- Backups o dumps parciales provistos por el cliente.
+- Listas de precios de proveedores, catálogos, remitos, órdenes de compra y presupuestos no estandarizados.
+- Datos cargados manualmente durante una conversación con el agente.
+
+Cada fuente debe pasar por un estado de preparación:
+
+- `descubierta`: existe en una fuente conectada, todavía no se leyó.
+- `inventariada`: se conocen metadatos, ubicación, tamaño, owner, fechas y permisos.
+- `clasificada`: se estimó tipo documental/entidad y vínculo probable con obra/empresa.
+- `normalizada`: se mapearon campos relevantes a entidades internas cuando aplica.
+- `indexada`: está disponible para búsqueda semántica y contextual.
+- `operativa`: puede alimentar agente, reportes, perfiles, riesgos o expedientes.
+- `observada`: requiere revisión humana por ambigüedad, permisos, PII, corrupción o baja confianza.
 
 ## 3. Principios de seguridad
 
@@ -45,6 +69,17 @@ La capa no solo indexa texto. Debe construir una lectura estructurada de la empr
 - Historial de decisiones, versiones y contradicciones.
 - Patrones internos: estructura de presupuestos, rubros frecuentes, criterios de redondeo, proveedores habituales, desvíos típicos.
 - Riesgos: documentos faltantes, vencimientos, inconsistencias, presupuestos fuera de patrón, obras sin trazabilidad.
+
+Además debe construir un **perfil empresarial vivo** por organización:
+
+- Cómo nombra obras, rubros, proveedores, centros de costo y versiones.
+- Qué formatos usa para presupuestos, compras, certificados, HSE y partes diarios.
+- Qué fuentes son más confiables para cada tipo de dato.
+- Qué proveedores/subcontratistas aparecen con frecuencia y en qué rubros.
+- Qué obras están activas aunque no hayan sido cargadas manualmente.
+- Qué campos y convenciones internas deben recordarse para futuras auditorías.
+
+Este perfil no reemplaza la base de datos transaccional: es una lectura auditada de cómo opera la empresa, con evidencia y confianza por inferencia.
 
 ## 5. Modelo mental del producto
 
@@ -86,6 +121,14 @@ Antes de vectorizar, EdificIA debe construir inventario:
 
 Este inventario es auditable y permite explicar de dónde salió cada dato.
 
+El inventario debe incluir tanto fuentes conectadas como archivos subidos por chat. Un archivo subido al agente debe poder:
+
+- vincularse a `organization_id`, `project_id` y `work_case_id` cuando existan;
+- enriquecer el perfil de empresa si aporta patrones o entidades nuevas;
+- quedar disponible para la lupa contextual;
+- generar evidencia para expedientes y futuros reportes;
+- mantener su origen conversacional para trazabilidad.
+
 ### 6.3 Normalización
 
 Los datos externos deben mapearse a entidades internas:
@@ -112,6 +155,30 @@ El RAG actual debe evolucionar hacia un grafo:
 - remito respalda compra
 
 El grafo permite preguntas que una búsqueda semántica sola no resuelve.
+
+### 6.5 Lupa contextual
+
+La búsqueda de EdificIA debe evolucionar a una "lupa" empresarial: una entrada única para buscar cualquier cosa dentro de la constructora.
+
+Debe buscar por:
+
+- nombre de archivo, carpeta, tabla o fuente;
+- texto y embeddings;
+- entidad detectada (obra, proveedor, subcontratista, rubro, trabajador, contrato, remito);
+- contexto operativo ("la lista de precios de sanitarios que usamos en Rosario", "el contrato que reemplazó al anterior", "ART vencidas de subcontratistas");
+- relaciones del grafo;
+- evidencia vinculada a expedientes.
+
+La respuesta de la lupa no debe ser solo una lista de documentos. Debe devolver resultados agrupados por intención:
+
+- documentos o tablas relevantes;
+- entidades encontradas;
+- obras relacionadas;
+- expedientes/evidencias asociados;
+- nivel de confianza;
+- por qué apareció cada resultado.
+
+La búsqueda debe respetar `organization_id`, permisos por fuente y sensibilidad de datos.
 
 ## 7. UX de lanzamiento
 
@@ -140,6 +207,8 @@ Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una 
 - Mantener subida manual de archivos.
 - Mejorar clasificación documental.
 - Detectar obra asociada automáticamente.
+- Agregar al inventario los archivos subidos al agente y vincularlos con expedientes.
+- Crear una primera lupa semántica sobre documentos, reportes y evidencia.
 
 ### Etapa 2: Conectores seguros
 
@@ -147,6 +216,7 @@ Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una 
 - Inventario de archivos antes de ingestarlos.
 - Selección explícita de carpetas permitidas.
 - Sync incremental.
+- Estados de preparación (`descubierta` → `operativa`/`observada`) visibles para admins.
 
 ### Etapa 3: Extracción empresarial
 
@@ -154,6 +224,8 @@ Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una 
 - Mapa obra-documentos-proveedores.
 - Cobertura documental automática.
 - Riesgos por obra.
+- Perfil vivo por empresa con patrones de nombres, rubros, proveedores y formatos.
+- Normalización de exports CSV/XLSX/SQL hacia entidades internas.
 
 ### Etapa 4: Auditoría transversal
 
@@ -161,6 +233,7 @@ Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una 
 - Ranking de obras con mayor riesgo.
 - Contradicciones entre fuentes.
 - Patrones financieros/documentales por constructora.
+- Lupa contextual a nivel empresa con búsqueda por contexto, entidad, evidencia y relaciones.
 
 ## 9. Regla de producto
 
