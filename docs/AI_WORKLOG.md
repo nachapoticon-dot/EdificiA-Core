@@ -23,6 +23,19 @@ Formato:
 
 ---
 
+## 2026-05-18 - Codex - Vista global de expedientes
+
+- Objetivo: exponer una vista operativa central de expedientes de toda la organización, agrupable por estado o veredicto.
+- Cambios:
+  - Nueva ruta `/dashboard/expedientes` con métricas de activos/observados/terminales, búsqueda, filtro de estado y agrupación por `status` o `verdict`.
+  - Navegación lateral suma "Expedientes".
+  - `useWorkCases()` acepta `limit` para que la vista global consulte más filas sin cambiar el uso por obra.
+  - La vista permite abrir detalle cuando el expediente tiene `projectId` y abrir chat cuando tiene sesión asociada.
+  - Roadmap y arquitectura actualizados.
+- Archivos: `src/app/dashboard/expedientes/page.tsx`, `src/app/dashboard/layout.tsx`, `src/hooks/useWorkCases.ts`, `docs/04_architecture_map.md`, `docs/08_agent_core_redesign.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `node --env-file=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register-ts-loader.mjs --test tests/**/*.test.mjs` OK (58/58); `npm run lint` OK; `npm run build` OK.
+- Pendiente: detalle global para expedientes sin `projectId` si se quieren operar expedientes empresariales no asociados a obra.
+
 ## 2026-05-18 - Codex - Cierre agéntico de expediente
 
 - Objetivo: permitir que el agente proponga el cierre de un expediente operativo con veredicto, resumen y evidencia citable cuando ya completó la auditoría.

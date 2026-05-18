@@ -107,6 +107,7 @@ Diagnóstico 2026-05-17: el agente ya tiene capacidades fuertes, pero el product
 - ✅ 2026-05-18 — **Document intelligence reports**. Migración `20260518104406_document-intelligence-reports.sql` crea `document_intelligence_reports` con RLS por `organization_id` para persistir clasificación, extracción, riesgos, hallazgos, veredicto y confianza por archivo. `/api/upload` escribe un reporte `upload_scan` best-effort usando el procesamiento existente, PII scan y context scan. `work_case_evidence` suma `document_report`; cuando el upload o la creación posterior de sesión pueden resolver expediente, el reporte queda vinculado como evidencia documental.
 - ✅ 2026-05-18 — **Cierre de expediente con veredicto + reportes documentales en UI**. Migración `20260518190721_work-case-verdict-closure.sql` agrega `work_cases.verdict` (CHECK ∈ {`approved`,`flagged`,`inconclusive`,`rejected`,`superseded`}) y `work_cases.closed_by_user_id`. `GET /api/work-cases/[id]` ahora devuelve los `document_intelligence_reports` del expediente con `fileName` resuelto desde `uploaded_files`. `PATCH /api/work-cases/[id]` acepta `verdict` y `summary`, marca `closed_by_user_id` cuando entra a estado terminal y lo limpia al reabrir; el evento `work_case.status_changed` queda con `previousVerdict`/`verdict`/`summary`/`closedByUserId` en el payload. `/dashboard/obras/[id]/expedientes/[workCaseId]` renderiza una sección "Reportes documentales" con clasificación, riesgos, hallazgos expandibles y veredicto/confianza por reporte; las acciones `Resolver`/`Cerrar` abren un modal con selector de veredicto y textarea de resumen editable antes del estado terminal.
 - ✅ 2026-05-18 — **Cierre agéntico de expediente**. Tool `proponer_cierre_expediente` permite que el agente marque el expediente activo como `resolved` con `verdict`, `summary` y evidencia citable cuando ya completó la auditoría. El prompt recibe `workCaseId` solo desde sesión validada, `createBoundTools()` inyecta `organization_id`/actor server-side y `closeWorkCaseFromAgent()` rechaza expedientes de otra organización o ya terminales antes de escribir estado, evento y evidencia opcional.
+- ✅ 2026-05-18 — **Vista global de expedientes**. Nueva ruta `/dashboard/expedientes` y navegación lateral para ver expedientes de toda la organización, agrupar por `status` o `verdict`, buscar por título/resumen/obra/tipo, filtrar por estado y abrir detalle/chat cuando existe obra/sesión asociada. `useWorkCases()` acepta `limit` para la vista global.
 
 #### Evaluación de pendientes existentes contra Agent Core
 
@@ -134,8 +135,9 @@ Orden actualizado para el foco Agent Core:
 11. ✅ Crear `document_intelligence_reports` y vincular reportes documentales a expedientes/evidencia.
 12. ✅ Exponer reportes documentales en `GET /api/work-cases/[id]` y en la vista de expediente; cerrar expedientes con `verdict` + `summary` editables (migración `20260518190721_work-case-verdict-closure.sql`).
 13. ✅ Agregar cierre agéntico con `proponer_cierre_expediente`, limitado al `workCaseId` validado y con evidencia citable opcional.
+14. ✅ Exponer listado global de expedientes agrupable por estado/veredicto.
 
-Plan de migración Agent Core cerrado para esta etapa. Próxima línea de producto sugerida: exponer el listado/agrupación de expedientes por estado y veredicto en la UI principal, o avanzar con Contexto Empresarial.
+Plan de migración Agent Core cerrado para esta etapa. Próxima línea de producto sugerida: avanzar con Contexto Empresarial o agregar detalle global para expedientes sin obra asociada.
 
 ---
 

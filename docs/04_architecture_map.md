@@ -129,6 +129,7 @@ src/
 │   ├── dashboard/
 │   │   ├── layout.tsx              → Dashboard layout (sidebar + providers)
 │   │   ├── chat/page.tsx           → Chat principal con el agente
+│   │   ├── expedientes/page.tsx    → Vista global de expedientes por estado/veredicto
 │   │   ├── obras/[id]/page.tsx     → Detalle de obra
 │   │   ├── obras/[id]/expedientes/[workCaseId]/page.tsx → Trazabilidad de expediente
 │   │   ├── obras/[id]/today/page.tsx → Día en la obra
@@ -453,4 +454,5 @@ Flujo actual:
 | 2026-05-18 | Document Intelligence | Migración `20260518104406_document-intelligence-reports.sql` agrega `document_intelligence_reports`; `/api/upload` persiste reportes `upload_scan` best-effort y los vincula a `work_case_evidence.document_report` cuando hay expediente. |
 | 2026-05-18 | Agent Core / Cierre con veredicto | Migración `20260518190721_work-case-verdict-closure.sql` agrega `verdict` y `closed_by_user_id` a `work_cases`. `GET /api/work-cases/[id]` devuelve `documentReports[]` con `fileName` resuelto; `PATCH` acepta `verdict`+`summary` y los registra en `work_case_events.work_case.status_changed`. `/dashboard/obras/[id]/expedientes/[workCaseId]` renderiza reportes documentales expandibles y abre modal de cierre con selector de veredicto y resumen editable. |
 | 2026-05-18 | Agent Core / Cierre agéntico | Agregada tool bound `proponer_cierre_expediente`: el agente puede proponer cierre `resolved` con `verdict`, `summary` y evidencia citable solo para el `workCaseId` validado por sesión/org. `closeWorkCaseFromAgent()` escribe estado, evento y evidencia opcional sin exponer `organization_id` al modelo. |
+| 2026-05-18 | Agent Core / Vista global | Agregada `/dashboard/expedientes`, navegación lateral y soporte `limit` en `useWorkCases()` para listar expedientes de toda la organización agrupados por estado o veredicto, con búsqueda, filtro de estado y accesos a detalle/chat cuando existen vínculos de obra/sesión. |
 | 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |

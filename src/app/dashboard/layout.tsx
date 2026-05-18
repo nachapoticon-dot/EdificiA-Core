@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { MessageSquare, Database, Building2 } from "lucide-react";
+import { BriefcaseBusiness, MessageSquare, Database, Building2 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
@@ -44,6 +44,7 @@ function SidebarContent() {
       <nav className="space-y-1 p-2">
         <NavLink href="/dashboard/chat" icon={<MessageSquare className="h-3.5 w-3.5" />} label="Asistente de Obra" />
         <NavLink href="/dashboard/obras" icon={<Building2 className="h-3.5 w-3.5" />} label="Mis Obras" />
+        <NavLink href="/dashboard/expedientes" icon={<BriefcaseBusiness className="h-3.5 w-3.5" />} label="Expedientes" />
         <NavLink href="/dashboard/documents" icon={<Database className="h-3.5 w-3.5" />} label="Base Documental" />
         <AdminNavLink />
       </nav>

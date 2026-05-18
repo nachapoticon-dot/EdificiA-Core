@@ -13,15 +13,17 @@ import {
 export type WorkCaseEntry = WorkCaseEntryResponse;
 export type WorkCaseDetail = WorkCaseDetailResponse;
 
-export function useWorkCases(projectId?: string | null) {
+export function useWorkCases(projectId?: string | null, limit = 20) {
   return useQuery<WorkCaseEntry[]>({
-    queryKey: ["work-cases", projectId ?? "all"],
+    queryKey: ["work-cases", projectId ?? "all", limit],
     enabled: projectId !== undefined,
     staleTime: 60_000,
     queryFn: async () => {
       const headers = await getAuthHeaders();
       if (!headers.Authorization) return [];
-      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (projectId) params.set("projectId", projectId);
+      const query = `?${params.toString()}`;
       const res = await fetch(`/api/work-cases${query}`, { headers });
       if (!res.ok) return [];
       const parsed = workCasesResponseSchema.safeParse(await res.json());
