@@ -23,6 +23,16 @@ Formato:
 
 ---
 
+## 2026-05-18 - Codex - Ampliación Contexto Empresarial
+
+- Objetivo: consolidar la próxima línea de producto: sistema de indexación empresarial que no dependa solo de archivos subidos.
+- Cambios:
+  - `docs/06_enterprise_context_layer.md`: ampliado con formatos reales de presentación de datos, estados de preparación de fuentes, perfil vivo por empresa, inclusión de archivos subidos al agente en el inventario y definición de una lupa contextual.
+  - `ROADMAP.md`: el pendiente de Capa de Contexto Empresarial ahora explicita conectores, SQL/exports, perfil empresarial e indexación semántica por contexto/evidencia/relaciones.
+- Archivos: `docs/06_enterprise_context_layer.md`, `ROADMAP.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: no ejecutada; cambio documental/producto.
+- Pendiente: definir primer slice técnico antes de implementar: schema de `enterprise_sources`/`enterprise_documents`/`enterprise_sync_runs`, o primera UI de lupa contextual sobre datos ya existentes.
+
 ## 2026-05-18 - Codex - UX de archivo, historial y estado del agente
 
 - Objetivo: corregir fricciones detectadas en prueba manual: tarjeta de archivo plana, respuesta demasiado rígida ante documentos no-presupuesto, historial sin navegación y copy "auditando" poco natural.
