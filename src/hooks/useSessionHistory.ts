@@ -15,13 +15,14 @@ export interface SessionEntry {
 const STORAGE_KEY  = "edificia_sessions";
 const MAX_SESSIONS = 30;
 const UPDATE_EVENT = "edificia-session-updated";
+const EMPTY_SESSIONS: SessionEntry[] = [];
 let cachedRawSessions: string | null = null;
 let cachedSessions: SessionEntry[] = [];
 
 // ── localStorage helpers ────────────────────────────────────────────���─────────
 
 function loadSessions(): SessionEntry[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return EMPTY_SESSIONS;
   const raw = localStorage.getItem(STORAGE_KEY) ?? "[]";
   if (raw === cachedRawSessions) return cachedSessions;
 
@@ -106,7 +107,7 @@ export function saveSession(entry: SessionEntry): void {
 }
 
 export function useSessionHistory() {
-  const sessions = useSyncExternalStore(subscribeToSessionUpdates, loadSessions, () => []);
+  const sessions = useSyncExternalStore(subscribeToSessionUpdates, loadSessions, () => EMPTY_SESSIONS);
 
   useEffect(() => {
     // Merge remote sessions into localStorage (provides cross-device access)
