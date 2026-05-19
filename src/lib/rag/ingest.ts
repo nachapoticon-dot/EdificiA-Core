@@ -11,6 +11,8 @@ interface IngestOptions {
   accessToken?: string;
 }
 
+type IndexingStatus = "pending" | "indexed" | "degraded" | "failed";
+
 /**
  * Infers a construction-specific document type from the file name and content.
  * Uses keyword matching — intentionally avoids LLM calls (fast, deterministic).
@@ -50,31 +52,65 @@ function detectConstructionDocType(file: ProcessedFile): string {
   return "documento";
 }
 
+async function markIndexingStatus(
+  client: ReturnType<typeof getInsForgeAdminClient>,
+  fileId: string | null,
+  status: IndexingStatus,
+  errorMessage?: string,
+): Promise<void> {
+  if (!fileId) return;
+  try {
+    const patch: Record<string, unknown> = { indexing_status: status };
+    if (status === "indexed" || status === "degraded") {
+      patch.indexed_at = new Date().toISOString();
+    }
+    if (errorMessage) {
+      patch.indexing_error = errorMessage.slice(0, 500);
+    } else if (status === "indexed") {
+      patch.indexing_error = null;
+    }
+    await client.database.from("uploaded_files").update(patch).eq("id", fileId);
+  } catch (err) {
+    console.warn("[rag] markIndexingStatus failed", { fileId, status, err });
+  }
+}
+
 /**
  * Full ingestion pipeline:
  *   1. Delete stale chunks for the same file
  *   2. Detect construction document type (keyword-based, never LLM)
- *   3. Chunk the document with type-aware strategy (rubro groups, section headers)
+ *   3. Chunk the document with type-aware strategy
  *   4. Batch-embed all chunks in parallel
- *   5. Upsert to Qdrant with enriched payload (construction_doc_type, rubro, section_title)
+ *   5. Upsert to Qdrant with enriched payload
  *   6. Persist rows to document_chunks (PostgreSQL fallback)
+ *   7. Stamp uploaded_files.indexing_status with the final state
  *
- * Always non-fatal — never throws, never blocks the upload response.
+ * Never throws — pero ahora deja rastro estructurado del resultado en la fila
+ * de uploaded_files. Estados posibles: 'indexed' | 'degraded' | 'failed'.
  */
 export async function ingestDocument(
   file: ProcessedFile,
   opts: IngestOptions,
 ): Promise<void> {
+  const client = getInsForgeAdminClient();
+  let lastError: string | undefined;
+
   try {
     const constructionDocType = detectConstructionDocType(file);
     const chunks = chunkDocument(file);
-    if (chunks.length === 0) return;
+    if (chunks.length === 0) {
+      await markIndexingStatus(client, opts.fileId, "failed", "no chunks produced");
+      return;
+    }
 
     const documentType    = file.type === "dwg_unsupported" ? "other" : file.type;
-    const client          = getInsForgeAdminClient();
     const qdrantAvailable = isQdrantConfigured();
 
-    if (qdrantAvailable) await ensureCollection().catch(() => null);
+    if (qdrantAvailable) {
+      await ensureCollection().catch((err: unknown) => {
+        console.warn("[rag] ensureCollection failed", { err });
+      });
+    }
 
     // Purge previous version of this file
     const { data: stale } = await client.database
@@ -89,7 +125,9 @@ export async function ingestDocument(
         .map((c) => c.qdrant_id)
         .filter((id): id is string => id !== null);
       if (ids.length > 0 && qdrantAvailable) {
-        await getQdrantClient().delete(COLLECTION_NAME, { points: ids }).catch(() => null);
+        await getQdrantClient().delete(COLLECTION_NAME, { points: ids }).catch((err: unknown) => {
+          console.warn("[rag] purge stale vectors failed", { fileName: file.fileName, err });
+        });
       }
     }
 
@@ -104,6 +142,7 @@ export async function ingestDocument(
     const embeddings = await Promise.all(chunks.map((c) => embedText(c.text)));
 
     const qdrantSucceeded = new Array<boolean>(chunks.length).fill(false);
+    let qdrantUpsertFailed = false;
 
     if (qdrantAvailable) {
       const points = chunks
@@ -137,7 +176,14 @@ export async function ingestDocument(
         try {
           await getQdrantClient().upsert(COLLECTION_NAME, { points });
           chunks.forEach((_, i) => { if (embeddings[i]) qdrantSucceeded[i] = true; });
-        } catch { /* fallback to PostgreSQL */ }
+        } catch (err) {
+          qdrantUpsertFailed = true;
+          lastError = err instanceof Error ? err.message : String(err);
+          console.warn("[rag] qdrant upsert failed, fallback to Postgres", {
+            fileName: file.fileName,
+            err: lastError,
+          });
+        }
       }
     }
 
@@ -153,8 +199,25 @@ export async function ingestDocument(
       qdrant_id:       qdrantSucceeded[i] ? qdrantIds[i] : null,
     }));
 
-    if (rows.length > 0) {
-      await client.database.from("document_chunks").insert(rows);
+    if (rows.length === 0) {
+      await markIndexingStatus(client, opts.fileId, "failed", "no rows to persist");
+      return;
     }
-  } catch { /* non-fatal */ }
+
+    await client.database.from("document_chunks").insert(rows);
+
+    const degraded = !qdrantAvailable || qdrantUpsertFailed || qdrantSucceeded.every((ok) => !ok);
+    await markIndexingStatus(
+      client,
+      opts.fileId,
+      degraded ? "degraded" : "indexed",
+      degraded
+        ? lastError ?? (!qdrantAvailable ? "qdrant not configured" : "no vectors persisted")
+        : undefined,
+    );
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err);
+    console.warn("[rag] ingestDocument fatal", { fileId: opts.fileId, err: lastError });
+    await markIndexingStatus(client, opts.fileId, "failed", lastError);
+  }
 }

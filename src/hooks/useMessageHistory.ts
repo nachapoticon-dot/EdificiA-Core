@@ -1,10 +1,16 @@
 import type { UIMessage } from "ai";
+import { safeValidateUIMessages } from "ai";
+import { z } from "zod";
 import { getAuthToken } from "@/lib/insforge/client";
 
 const PREFIX   = "edificia_msgs_";
 const MAX_MSGS = 100;
 
-// ── localStorage helpers ─────────────────────────────────────────────────────��
+const remoteMessagesWrapperSchema = z.object({
+  messages: z.array(z.unknown()),
+});
+
+// ── localStorage helpers ──────────────────────────────────────────────────────
 
 export function saveMessages(sessionId: string, messages: UIMessage[]): void {
   if (typeof window === "undefined") return;
@@ -37,12 +43,17 @@ async function getApiHeaders(): Promise<Record<string, string>> {
 
 async function syncMessagesToDb(sessionId: string, messages: UIMessage[]): Promise<void> {
   try {
-    await fetch(`/api/sessions/${sessionId}/messages`, {
+    const res = await fetch(`/api/sessions/${sessionId}/messages`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...(await getApiHeaders()) },
       body: JSON.stringify({ messages }),
     });
-  } catch { /* non-blocking */ }
+    if (!res.ok) {
+      console.warn("[chat] syncMessagesToDb non-ok", { sessionId, status: res.status });
+    }
+  } catch (err) {
+    console.warn("[chat] syncMessagesToDb failed", { sessionId, err });
+  }
 }
 
 /** Fetches messages from DB when localStorage has none (cross-device access). */
@@ -51,10 +62,36 @@ export async function fetchRemoteMessages(sessionId: string): Promise<UIMessage[
     const res = await fetch(`/api/sessions/${sessionId}/messages`, {
       headers: await getApiHeaders(),
     });
-    if (!res.ok) return [];
-    const json = (await res.json()) as { messages: UIMessage[] };
-    return json.messages ?? [];
-  } catch {
+    if (!res.ok) {
+      console.warn("[chat] fetchRemoteMessages non-ok", { sessionId, status: res.status });
+      return [];
+    }
+
+    // Validar el wrapper antes de tocar el contenido — defiende contra cambios
+    // del endpoint que rompen el shape sin que TS se entere.
+    const wrapper = remoteMessagesWrapperSchema.safeParse(await res.json());
+    if (!wrapper.success) {
+      console.warn("[chat] fetchRemoteMessages: invalid wrapper", {
+        sessionId,
+        issues: wrapper.error.flatten(),
+      });
+      return [];
+    }
+
+    // Validar el array de UIMessage usando el helper oficial del AI SDK.
+    // Si llegan parts desconocidas (p. ej. reasoning de un modelo nuevo),
+    // safeValidateUIMessages las acepta como parts genéricas.
+    const validated = await safeValidateUIMessages({ messages: wrapper.data.messages });
+    if (!validated.success) {
+      console.warn("[chat] fetchRemoteMessages: invalid UI messages", {
+        sessionId,
+        error: validated.error?.message,
+      });
+      return [];
+    }
+    return validated.data as UIMessage[];
+  } catch (err) {
+    console.warn("[chat] fetchRemoteMessages threw", { sessionId, err });
     return [];
   }
 }

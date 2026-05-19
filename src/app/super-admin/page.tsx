@@ -5,7 +5,7 @@ import {
   Loader2, Plus, Trash2, RefreshCw, ShieldCheck, Building2,
   CheckCircle2, Clock, AlertTriangle, Users, FolderOpen,
   HardDrive, ToggleLeft, ToggleRight, CreditCard, BarChart3, Copy, KeyRound,
-  UserPlus, RotateCcw, X, Ban, Link2,
+  UserPlus, RotateCcw, X, Ban, Link2, Eraser,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -18,6 +18,7 @@ import {
   type SuperAdminCompanyStats,
   type SuperAdminFounderInvitation,
 } from "@/lib/validators/api-responses";
+import { ResetConfirmModal } from "@/components/super-admin/ResetConfirmModal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -105,6 +106,12 @@ export default function SuperAdminPage() {
   // Founders state — reactivation
   const [reactivating, setReactivating] = useState<string | null>(null);
 
+  // Reset modals state
+  const [resetAllModalOpen, setResetAllModalOpen] = useState(false);
+  const [resetOrgTarget, setResetOrgTarget] = useState<CompanyStats | null>(null);
+  const [resetOrgLog, setResetOrgLog] = useState<string[] | null>(null);
+  const [resetOrgBusy, setResetOrgBusy] = useState(false);
+
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
     Authorization: `Bearer ${key}`,
@@ -168,15 +175,44 @@ export default function SuperAdminPage() {
     setCreating(false);
   };
 
-  const handleReset = async () => {
-    if (!confirm("⚠️ Esto borra TODOS los datos de la DB y Qdrant. ¿Continuar?")) return;
+  const handleResetAll = async () => {
     setResetting(true);
     setResetLog(null);
-    const res = await fetch("/api/super-admin/reset", { method: "POST", headers: authHeaders() });
+    const res = await fetch("/api/super-admin/reset", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ scope: "all", confirmation: "BORRAR TODO" }),
+    });
     const parsed = superAdminResetResponseSchema.safeParse(await res.json());
-    setResetLog(parsed.success ? parsed.data.log : []);
-    setInvitations([]);
+    setResetLog(parsed.success ? parsed.data.log : ["✗ Error en la respuesta del servidor"]);
+    if (parsed.success) setInvitations([]);
     setResetting(false);
+    setTimeout(() => setResetAllModalOpen(false), 1500);
+  };
+
+  const handleResetOrg = async (org: CompanyStats) => {
+    setResetOrgBusy(true);
+    setResetOrgLog(null);
+    const res = await fetch("/api/super-admin/reset", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        scope: "organization",
+        organizationId: org.id,
+        confirmation: org.name,
+      }),
+    });
+    const data: unknown = await res.json();
+    const parsed = superAdminResetResponseSchema.safeParse(data);
+    if (parsed.success) {
+      setResetOrgLog(parsed.data.log);
+      // Refresh companies list to reflect zeroed counters
+      void fetchCompanies();
+    } else {
+      const err = apiErrorResponseSchema.safeParse(data);
+      setResetOrgLog([err.success ? `✗ ${err.data.error}` : "✗ Error en la respuesta del servidor"]);
+    }
+    setResetOrgBusy(false);
   };
 
   const handleRevoke = async (id: string) => {
@@ -415,7 +451,7 @@ export default function SuperAdminPage() {
           onCreate={handleCreate}
           onRevoke={handleRevoke}
           onReactivate={handleReactivate}
-          onReset={handleReset}
+          onOpenResetAll={() => { setResetLog(null); setResetAllModalOpen(true); }}
         />
       )}
 
@@ -439,6 +475,7 @@ export default function SuperAdminPage() {
           onAdminEmailChange={setAdminEmail}
           onAdminRoleChange={setAdminRole}
           onAddAdmin={handleAddAdmin}
+          onOpenResetOrg={(company) => { setResetOrgTarget(company); setResetOrgLog(null); }}
         />
       )}
 
@@ -453,6 +490,34 @@ export default function SuperAdminPage() {
         />
       )}
       </div>
+
+      {/* ── Reset modal: TOTAL ── */}
+      <ResetConfirmModal
+        open={resetAllModalOpen}
+        title="Reset total — todas las empresas"
+        description="Borra todas las tablas globales y la colección Qdrant completa. Acción irreversible. Solo usar en entornos de desarrollo o staging."
+        expected="BORRAR TODO"
+        expectedHint="Sensible a mayúsculas y espacios"
+        destructiveLabel="Borrar todo"
+        busy={resetting}
+        log={resetLog}
+        onConfirm={handleResetAll}
+        onClose={() => setResetAllModalOpen(false)}
+      />
+
+      {/* ── Reset modal: ORG ── */}
+      <ResetConfirmModal
+        open={resetOrgTarget !== null}
+        title={`Resetear datos de ${resetOrgTarget?.name ?? ""}`}
+        description="Borra proyectos, sesiones, mensajes, snapshots, archivos, chunks y vectores de esta empresa. La empresa, sus miembros y las invitaciones se preservan."
+        expected={resetOrgTarget?.name ?? ""}
+        expectedHint="Escribí el nombre exacto de la empresa"
+        destructiveLabel="Resetear datos"
+        busy={resetOrgBusy}
+        log={resetOrgLog}
+        onConfirm={() => resetOrgTarget ? handleResetOrg(resetOrgTarget) : Promise.resolve()}
+        onClose={() => { setResetOrgTarget(null); setResetOrgLog(null); }}
+      />
     </div>
   );
 }
@@ -465,7 +530,7 @@ function FoundersTab({
   invitations, email, setEmail, companyName, setCompanyName,
   notes, setNotes, creating, createError, lastCreated, lastCreatedToken,
   revoking, reactivating, resetting, resetLog,
-  onCreate, onRevoke, onReactivate, onReset,
+  onCreate, onRevoke, onReactivate, onOpenResetAll,
 }: {
   invitations: FounderInvitation[];
   email: string; setEmail: (v: string) => void;
@@ -478,7 +543,7 @@ function FoundersTab({
   onCreate: (e: React.FormEvent) => Promise<void>;
   onRevoke: (id: string) => Promise<void>;
   onReactivate: (id: string) => Promise<void>;
-  onReset: () => Promise<void>;
+  onOpenResetAll: () => void;
 }) {
   const pending = invitations.filter((i) => i.status === "pending");
   const rest    = invitations.filter((i) => i.status !== "pending");
@@ -585,18 +650,22 @@ function FoundersTab({
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
             <div>
-              <p className="text-sm font-medium text-destructive">Reset completo</p>
-              <p className="text-xs text-muted-foreground">Borra todas las tablas y la colección Qdrant. Irreversible.</p>
+              <p className="text-sm font-medium text-destructive">Reset total (todas las empresas)</p>
+              <p className="text-xs text-muted-foreground">
+                Borra todas las tablas globales y la colección Qdrant. Requiere confirmación tipada. Solo dev/staging.
+              </p>
             </div>
           </div>
-          <button onClick={() => { void onReset(); }} disabled={resetting}
+          <button
+            onClick={onOpenResetAll}
+            disabled={resetting}
             className="flex shrink-0 items-center gap-2 rounded-[8px] border border-destructive/50 px-3 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
           >
             {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            {resetting ? "Borrando…" : "Resetear todo"}
+            {resetting ? "Borrando…" : "Reset total…"}
           </button>
         </div>
-        {resetLog && (
+        {resetLog && !resetting && (
           <pre className="mt-3 max-h-40 overflow-y-auto rounded-[8px] bg-background p-3 text-xs text-muted-foreground">
             {resetLog.join("\n")}
           </pre>
@@ -615,6 +684,7 @@ function CompaniesTab({
   addingAdminFor, adminEmail, adminRole, adminSubmitting, adminError, adminSuccess,
   onToggle, onSubStatus, onRefresh,
   onOpenAddAdmin, onCloseAddAdmin, onAdminEmailChange, onAdminRoleChange, onAddAdmin,
+  onOpenResetOrg,
 }: {
   companies: CompanyStats[];
   loading: boolean;
@@ -633,6 +703,7 @@ function CompaniesTab({
   onAdminEmailChange: (v: string) => void;
   onAdminRoleChange: (v: "admin" | "engineer" | "viewer") => void;
   onAddAdmin: (orgId: string) => Promise<void>;
+  onOpenResetOrg: (company: CompanyStats) => void;
 }) {
   if (loading && companies.length === 0) {
     return (
@@ -700,6 +771,16 @@ function CompaniesTab({
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   Agregar
+                </button>
+
+                {/* Reset datos */}
+                <button
+                  onClick={() => onOpenResetOrg(company)}
+                  title="Resetear todos los datos operativos (preserva empresa y miembros)"
+                  className="flex items-center gap-1 rounded-[6px] border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                >
+                  <Eraser className="h-3.5 w-3.5" />
+                  Resetear datos
                 </button>
 
                 {/* Enable/disable toggle */}

@@ -158,6 +158,9 @@ export interface DocumentFile {
   file_type: string;
   file_size_bytes: number;
   processing_status: string;
+  indexing_status?: "pending" | "indexed" | "degraded" | "failed";
+  indexing_error?: string | null;
+  indexed_at?: string | null;
   created_at: string;
   chunkCount: number;
   project_id?: string | null;

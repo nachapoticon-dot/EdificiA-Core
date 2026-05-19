@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { routeModel } from "@/lib/ai/model-router";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -17,7 +17,13 @@ export const runtime = "nodejs";
 const MAX_MESSAGES = 60;
 const MAX_LAST_MSG_CHARS = 200_000;
 
-const deepseek = createOpenAI({
+// Uso openai-compatible (no createOpenAI) porque extrae el campo
+// `reasoning_content` de DeepSeek tanto en respuestas como en deltas streaming,
+// y lo reinyecta en el body de la siguiente request cuando el mensaje del
+// assistant en el historial trae una ReasoningUIPart. Sin esto, DeepSeek tira
+// "The `reasoning_content` in the thinking mode must be passed back to the API."
+const deepseek = createOpenAICompatible({
+  name: "deepseek",
   baseURL: "https://api.deepseek.com",
   apiKey: process.env.DEEPSEEK_API_KEY ?? "",
 });
@@ -69,7 +75,7 @@ export async function POST(req: Request) {
   const startedAt = new Date(t0);
   try {
     const result = streamText({
-      model: deepseek.chat(route.model),
+      model: deepseek.chatModel(route.model),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       tools,

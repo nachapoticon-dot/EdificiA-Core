@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
     const filesResult = await client.database
       .from("uploaded_files")
-      .select("id, file_name, file_type, file_size_bytes, processing_status, storage_path, created_at, project_id")
+      .select("id, file_name, file_type, file_size_bytes, processing_status, indexing_status, indexing_error, indexed_at, storage_path, created_at, project_id")
       .eq("organization_id", auth.orgId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
@@ -27,6 +27,9 @@ export async function GET(req: Request) {
       file_type: string;
       file_size_bytes: number;
       processing_status: string;
+      indexing_status: string | null;
+      indexing_error: string | null;
+      indexed_at: string | null;
       storage_path: string;
       created_at: string;
       project_id: string | null;

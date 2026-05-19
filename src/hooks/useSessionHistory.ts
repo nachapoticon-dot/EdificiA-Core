@@ -59,30 +59,45 @@ async function getApiHeaders(): Promise<Record<string, string>> {
 
 async function syncSessionToDb(entry: SessionEntry): Promise<void> {
   try {
-    await fetch("/api/sessions", {
+    const res = await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await getApiHeaders()) },
       body: JSON.stringify(entry),
     });
-  } catch { /* non-blocking */ }
+    if (!res.ok) {
+      console.warn("[sessions] syncSessionToDb non-ok", { id: entry.id, status: res.status });
+    }
+  } catch (err) {
+    console.warn("[sessions] syncSessionToDb failed", { id: entry.id, err });
+  }
 }
 
 async function deleteSessionFromDb(id: string): Promise<void> {
   try {
-    await fetch(`/api/sessions?id=${id}`, {
+    const res = await fetch(`/api/sessions?id=${id}`, {
       method: "DELETE",
       headers: await getApiHeaders(),
     });
-  } catch { /* non-blocking */ }
+    if (!res.ok) {
+      console.warn("[sessions] deleteSessionFromDb non-ok", { id, status: res.status });
+    }
+  } catch (err) {
+    console.warn("[sessions] deleteSessionFromDb failed", { id, err });
+  }
 }
 
 async function clearAllSessionsFromDb(): Promise<void> {
   try {
-    await fetch("/api/sessions?clearAll=true", {
+    const res = await fetch("/api/sessions?clearAll=true", {
       method: "DELETE",
       headers: await getApiHeaders(),
     });
-  } catch { /* non-blocking */ }
+    if (!res.ok) {
+      console.warn("[sessions] clearAllSessionsFromDb non-ok", { status: res.status });
+    }
+  } catch (err) {
+    console.warn("[sessions] clearAllSessionsFromDb failed", { err });
+  }
 }
 
 async function fetchRemoteSessions(): Promise<SessionEntry[]> {

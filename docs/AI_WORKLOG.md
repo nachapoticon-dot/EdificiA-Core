@@ -23,7 +23,85 @@ Formato:
 
 ---
 
-## 2026-05-18 - Codex - Ampliación Contexto Empresarial
+## 2026-05-18 - Claude - Migración provider DeepSeek a @ai-sdk/openai-compatible
+
+- Objetivo: resolver el error runtime de DeepSeek `"The 'reasoning_content' in the thinking mode must be passed back to the API"` que apareció en multi-turn cuando el modelo respondió en thinking mode.
+- Diagnóstico: el provider `@ai-sdk/openai` no extrae el campo no-OpenAI-estándar `reasoning_content` de las respuestas de DeepSeek, así que tampoco lo reinyecta en el `messages[]` de la siguiente request. El SDK `openai-compatible` sí lo hace (verificado en `node_modules/@ai-sdk/openai-compatible/dist/index.js` líneas 595, 730 y 260).
+- Cambios:
+  - `src/app/api/chat/route.ts`: import + `createOpenAI` → `createOpenAICompatible({ name: "deepseek", baseURL, apiKey })`. `.chat(model)` → `.chatModel(model)`.
+  - `package.json`: removido `next-themes` (no usado tras el sistema de temas propio).
+- Archivos: `src/app/api/chat/route.ts`, `package.json`, `package-lock.json`.
+- Verificacion: `npm run type-check` OK; smoke test posterior (`npm run smoke:chat`, agregado en otro hito del día) corre 3 turnos sin error de reasoning_content.
+- Pendiente: ninguno directo. El smoke test es la red de seguridad contra regresiones de este patrón.
+
+## 2026-05-18 - Claude - Sistema de temas propio + super-admin reset operativo + UX polishing
+
+- Objetivo: (a) reemplazar el toggle binario light/dark de `next-themes` por un sistema de temas multi-paleta seleccionable por usuario; (b) convertir el reset del super-admin de herramienta de testing a operación útil scopeable por empresa; (c) ajustes finos de UX detectados en demo.
+- Cambios:
+  - **Sistema de temas.** Inicialmente 4 temas, recortado a 3 (`editorial` default, `plano`, `oscuro`) tras feedback. Tokens OKLCH en `globals.css` bajo `[data-theme="..."]` + aliases shadcn. Script crítico `ThemeInitScript.tsx` setea el atributo antes del paint (anti-FOUC). Selector en la rueda de configuración con sub-panel expandible "Temas" (`TopBarActions.tsx`). Para temas oscuros (`plano`/`oscuro`) además se setea `.dark` para mantener compatibilidad con las 62 variantes `dark:` de Tailwind que ya existían.
+  - **Super-admin reset útil.** `/api/super-admin/reset` ahora acepta `{ scope: "all" | "organization", confirmation: ..., organizationId? }`. El scope `all` exige el literal `"BORRAR TODO"`. El scope `organization` exige nombre o slug exacto de la empresa (validado server-side contra DB) y borra solo contenido operativo (proyectos, sesiones, mensajes, snapshots, archivos, chunks, audit, learned_patterns, price_indices) + vectores Qdrant filtrados por `org_id`. Preserva la empresa, miembros y founder_invitations. UI: nuevo botón "Resetear datos" por empresa en `CompaniesTab`, modal genérico `ResetConfirmModal` con confirmación tipada + log post-ejecución.
+  - **Dropdown stacking fix.** El header del chat tiene `backdrop-blur`, que crea un stacking context — el `z-50` del dropdown quedaba atrapado y el banner "Cargar índices" lo tapaba. Header pasó a `relative z-40`, dropdown a `z-[60]` con border y shadow inline más fuertes.
+  - **Banner "Cargar datos" reescrito.** Tono de aviso de sistema, no de agente: "Todavía no cargaste la base de datos de tu empresa". CTA "Cargar índices" → "Cargar datos".
+  - **Login**: placeholder del password `••••••••` (8) → `••••••••••••` (12).
+- Archivos:
+  - `src/app/globals.css` (bloques de tema + aliases + file-accent)
+  - `src/lib/theme.ts`, `src/hooks/useTheme.ts`, `src/components/theme/ThemeInitScript.tsx`
+  - `src/components/chat/sidebar/TopBarActions.tsx`
+  - `src/app/layout.tsx` (inyección de ThemeInitScript en `<head>`)
+  - `src/app/dashboard/layout.tsx` (sacado `ThemeToggle` del footer)
+  - `src/components/providers.tsx` (sacado `ThemeProvider` de next-themes)
+  - `src/app/api/super-admin/reset/route.ts` (refactor completo con scope)
+  - `src/lib/validators/api-responses.ts` (`superAdminResetRequestSchema` discriminated union + response con scope/organizationId)
+  - `src/components/super-admin/ResetConfirmModal.tsx`
+  - `src/app/super-admin/page.tsx` (botón por empresa + modal global + integración)
+  - `src/app/dashboard/chat/page.tsx` (header `relative z-40` + banner reescrito)
+  - `src/app/(auth)/login/page.tsx`
+  - `handoff/` (carpeta borrada — `COLORS.md`, `swatches.html`, `themes.css` ya no se necesitan tras integrar el sistema)
+- Verificacion: `npm run type-check` OK; UI verificada en `localhost:3000` (rueda → Temas → switch entre los 3; modal de reset con typed confirmation; banner nuevo visible).
+- Pendiente:
+  - El usuario aportará temas adicionales más adelante — agregar siguiendo el patrón `[data-theme="<nombre>"]` en `globals.css` + entrada en `THEMES`/`THEME_LABELS`/`THEME_DESCRIPTIONS` de `src/lib/theme.ts` + whitelist en `ThemeInitScript.tsx`.
+  - Falta una pestaña dedicada en `/super-admin` para acciones de mantenimiento ampliadas (limpieza por antigüedad, reindex Qdrant, huérfanos), si crece el catálogo de operaciones útiles.
+
+- Objetivo: cerrar 4 caminos de falla silenciosa detectados en auditoría tras un bug runtime de DeepSeek que pasó type-check y solo se descubrió por screenshot del usuario. El patrón común era boundaries de datos sin validación y errores tragados.
+- Cambios:
+  - **Fix #1 — `fetchRemoteMessages` validado.** Reemplazado el cast `as { messages: UIMessage[] }` por validación en dos pasos: wrapper con Zod + `safeValidateUIMessages` del AI SDK. Si la respuesta no matchea, devuelve `[]` y loguea `console.warn` con sessionId + issues, en vez de pasar datos malformados a `useChat`.
+  - **Fix #2 — Respuesta NVIDIA embeddings validada.** Schema Zod explícito para `{ data: [{ embedding: number[] }] }` en `src/lib/embeddings/index.ts`. Si NVIDIA cambia el shape, `embedText` devuelve `null` con un warning estructurado en lugar de fallar como TypeError dentro de RAG.
+  - **Fix #3 — Sync de sesiones con logs.** 5 `catch { /* non-blocking */ }` en `useMessageHistory.ts` y `useSessionHistory.ts` ahora capturan el error y loguean via `console.warn`. Además se chequea `res.ok` para detectar respuestas no-2xx (antes pasaban como éxito).
+  - **Fix #4 — `indexing_status` en `uploaded_files`.** Migración `20260518230000_uploaded-files-indexing-status.sql` que agrega 3 columnas (`indexing_status`, `indexing_error`, `indexed_at`) con CHECK constraint en `pending|indexed|degraded|failed` y un índice parcial para listar rápido los archivos degradados/failed. `ingest.ts` actualiza la fila al cerrar el pipeline en lugar del antiguo `catch { /* non-fatal */ }`. Estados: `indexed` cuando Qdrant + Postgres OK, `degraded` cuando Qdrant cae y solo queda FTS, `failed` cuando ni siquiera se persisten chunks.
+- Archivos:
+  - `src/hooks/useMessageHistory.ts`
+  - `src/hooks/useSessionHistory.ts`
+  - `src/lib/embeddings/index.ts`
+  - `src/lib/rag/ingest.ts`
+  - `migrations/20260518230000_uploaded-files-indexing-status.sql`
+  - `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK.
+- Pendiente:
+  - Cuando aparezca una segunda boundary que se rompa silenciosamente, considerar mover los `console.warn` del cliente a un endpoint `/api/client-events` para tener historial central.
+
+## 2026-05-18 - Claude - Cierre de pendientes del hardening
+
+- Objetivo: ejecutar los 3 follow-ups del hardening anterior (migración, UI badge, smoke test) para cerrar el loop completo.
+- Cambios:
+  - **Migración aplicada.** `npm run migrate` corrió `20260518230000_uploaded-files-indexing-status.sql` contra la DB activa — las columnas `indexing_status`, `indexing_error`, `indexed_at` existen ahora en `uploaded_files`.
+  - **Badge UI de indexing_status.** `/dashboard/documents` ahora muestra badges visuales para archivos `pending` (gris), `degraded` (ámbar) y `failed` (rojo). Tooltip con `indexing_error` cuando existe. Banda superior agrupa cuántos archivos están degradados/fallidos cuando hay alguno. El estado `indexed` (sano) no muestra badge — el chip "fragmentos" ya comunica salud. Schema de `/api/documents` ampliado para devolver los 3 campos nuevos.
+  - **Smoke test E2E.** `scripts/smoke-chat.mjs` corre 3 turnos contra DeepSeek real, valida shape de respuesta y reinyecta `reasoning_content` en el historial — exactamente el ciclo que rompió antes. Detecta y reporta como regresión específica si el provider tira el error de "reasoning_content must be passed back to the API". Ejecutable vía `npm run smoke:chat` (usa `--env-file=.env.local`).
+- Archivos:
+  - `migrations/20260518230000_uploaded-files-indexing-status.sql` (aplicada)
+  - `src/app/api/documents/route.ts`
+  - `src/lib/validators/api-responses.ts`
+  - `src/types/index.ts`
+  - `src/app/dashboard/documents/page.tsx`
+  - `scripts/smoke-chat.mjs`
+  - `package.json`
+  - `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK; `npm run smoke:chat` OK (3 turnos completos contra `deepseek-v4-flash`, los 3 turnos incluyen reasoning_content de 434/538/654 chars y se reinyectan limpios).
+- Pendiente:
+  - Agregar `smoke:chat` a un hook de pre-push (o CI cuando exista) para que cualquier toque a `/api/chat`, `model-router.ts` o `agent-prompt.ts` lo dispare automáticamente.
+  - CTA "Reindexar" en el badge de `failed` (hoy el badge solo informa; reindexar requiere endpoint nuevo `/api/documents/:id/reindex`).
+  - El registro central de errores del cliente sigue siendo opcional — abrirlo si volvemos a depender de screenshots.
+
+
 
 - Objetivo: consolidar la próxima línea de producto: sistema de indexación empresarial que no dependa solo de archivos subidos.
 - Cambios:
@@ -628,3 +706,11 @@ Formato:
 - Archivos: `README.md`, `docs/AI_WORKLOG.md`
 - Verificacion: `git remote -v` apunta a `EdificiA-Core`; búsqueda de referencias al repo viejo sin resultados activos.
 - Pendiente: borrar el repositorio anterior desde GitHub cuando confirmes que `EdificiA-Core` quedó completo.
+
+## 2026-05-18 - Codex - Contrato de uso de bloques visuales
+
+- Objetivo: responder si los bloques de Claude Design estaban realmente integrados o solo como demo, y dejar definido su uso operativo.
+- Cambios: confirmado el flujo tools -> schemas Zod -> `MessageBubble` -> `ResponseBlock`; reforzado el prompt para definir cuándo usar/no usar `proyectar_metricas`, `proyectar_legajo_grafico`, `proyectar_comparativa`, `proyectar_cronograma` y `comparar_presupuestos`; documentado el contrato en lectura agéntica y mapa de arquitectura.
+- Archivos: `src/lib/ai/agent-prompt.ts`, `docs/07_agentic_document_reading.md`, `docs/04_architecture_map.md`, `docs/AI_WORKLOG.md`
+- Verificacion: `npm run type-check` OK.
+- Pendiente: si el modelo sigue sin elegirlos bien en conversaciones reales, agregar tests/prompt evals con fixtures de mensajes y tool calls esperadas.
