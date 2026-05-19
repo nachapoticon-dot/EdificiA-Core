@@ -3,6 +3,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited } from "@/lib/api/errors";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getRequestLogger, dbLogger } from "@/lib/logger";
+import { captureAppError } from "@/lib/observability/error-events";
 import { proactivityFindingsResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
@@ -108,6 +109,15 @@ export async function GET(req: Request) {
     return Response.json(proactivityFindingsResponseSchema.parse(response));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/proactivity/findings failed");
+    await captureAppError({
+      err,
+      req,
+      organizationId: auth.orgId,
+      actorUserId: auth.userId,
+      route: "/api/proactivity/findings",
+      severity: "error",
+      context: { projectIdFilter },
+    });
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

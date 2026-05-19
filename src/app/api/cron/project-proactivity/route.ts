@@ -1,5 +1,6 @@
 import { runDailyProjectScan } from "@/lib/proactivity/daily-scan";
 import { getRequestLogger, httpLogger } from "@/lib/logger";
+import { captureAppError } from "@/lib/observability/error-events";
 import { dailyProjectScanResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
@@ -19,6 +20,12 @@ export async function POST(req: Request) {
     return Response.json(dailyProjectScanResponseSchema.parse(result));
   } catch (err) {
     log.error({ err }, "project proactivity cron failed");
+    await captureAppError({
+      err,
+      req,
+      route: "/api/cron/project-proactivity",
+      severity: "critical",
+    });
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

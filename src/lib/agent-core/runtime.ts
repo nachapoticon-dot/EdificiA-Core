@@ -1,5 +1,6 @@
 import { buildSystemPrompt, createBoundTools } from "@/lib/ai/agent";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
+import { loadEnterpriseProfileForAgent } from "@/lib/enterprise-context/profile-reader";
 import type { AuthResult } from "@/lib/auth/require-auth";
 import { buildAgentCoreScope } from "./context-builder";
 import { getCapabilitiesForScope } from "./capability-registry";
@@ -44,7 +45,7 @@ export async function resolveAgentRuntimeContext(
   try {
     const client = getInsForgeAdminClient();
 
-    const [patternsResult, recentSessionsResult, projectCheckResult, orgResult, chatSessionResult] = await Promise.all([
+    const [patternsResult, recentSessionsResult, projectCheckResult, orgResult, chatSessionResult, enterpriseProfile] = await Promise.all([
       client.database
         .from("company_learned_patterns")
         .select("document_type, pattern_key, pattern_value")
@@ -87,6 +88,8 @@ export async function resolveAgentRuntimeContext(
             .limit(1)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+
+      loadEnterpriseProfileForAgent(orgId),
     ]);
 
     const org = orgResult.data as {
@@ -135,9 +138,16 @@ export async function resolveAgentRuntimeContext(
       projectId: validatedProjectId,
       workCaseId,
       recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
+      enterpriseProfile: enterpriseProfile ?? undefined,
     });
 
-    return { systemPrompt, tools: createBoundTools(orgId, userId), auditProjectId: validatedProjectId, agentScope, capabilityIds };
+    return {
+      systemPrompt,
+      tools: createBoundTools(orgId, userId, { projectId: validatedProjectId, workCaseId }),
+      auditProjectId: validatedProjectId,
+      agentScope,
+      capabilityIds,
+    };
   } catch {
     return fallback;
   }

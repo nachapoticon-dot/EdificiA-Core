@@ -57,7 +57,7 @@ export function DocumentProposalCard({ proposal, onDecision }: DocumentProposalC
         <CheckCircle2 className="h-4 w-4 text-[var(--ok)] shrink-0" />
         <span className="text-sm text-foreground">
           <span className="font-semibold">{name}</span>{" "}
-          <span className="text-muted-foreground">guardado en la base documental.</span>
+          <span className="text-muted-foreground">guardado como fuente empresarial.</span>
         </span>
       </motion.div>
     );

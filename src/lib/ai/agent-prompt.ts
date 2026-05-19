@@ -26,6 +26,19 @@ interface RecentSession {
   project_id: string | null;
 }
 
+export interface EnterpriseProfilePromptContext {
+  hasSnapshot: boolean;
+  snapshotVersion: number | null;
+  builtAt: string | null;
+  summaryText: string | null;
+  topSuppliers: string[];
+  topSubcontractors: string[];
+  topTrades: string[];
+  dominantCurrency: string | null;
+  namingHints: string[];
+  riskyProjects: Array<{ projectName: string; riskLevel: string; findingsOpen: number }>;
+}
+
 export function buildSystemPrompt(ctx?: {
   companyName?: string;
   agentName?: string;
@@ -35,6 +48,7 @@ export function buildSystemPrompt(ctx?: {
   projectId?: string;
   workCaseId?: string;
   recentSessions?: RecentSession[];
+  enterpriseProfile?: EnterpriseProfilePromptContext;
 }): string {
   const agentName = ctx?.agentName ?? "EdificIA";
   const companyName = ctx?.companyName;
@@ -56,6 +70,10 @@ export function buildSystemPrompt(ctx?: {
     ? `\n\n## Patrones aprendidos de esta empresa\n${formatLearnedPatterns(ctx.learnedPatterns)}`
     : "";
 
+  const enterpriseProfileSection = ctx?.enterpriseProfile?.hasSnapshot
+    ? `\n\n## Perfil de empresa (snapshot ${ctx.enterpriseProfile.snapshotVersion ?? "?"})\n${formatEnterpriseProfile(ctx.enterpriseProfile)}\n\nUsá este perfil para anclar interpretaciones (ej: si la empresa siempre opera en ARS y aparece un presupuesto en USD, marcá la diferencia; si hay un subcontratista que repite y aparece nuevo, decilo). Para más detalle de un facet, usá **consultar_perfil_empresa** con \`facet\` = \`suppliers\`/\`subcontractors\`/\`trades\`/\`patterns\`/\`coverage\`. No inventes entidades fuera del perfil.`
+    : "";
+
   const recentSessionsSection = ctx?.recentSessions?.length
     ? (() => {
         const now = Date.now();
@@ -71,7 +89,7 @@ export function buildSystemPrompt(ctx?: {
       })()
     : "";
 
-  return `Tu nombre es ${agentName}. Eres un Project Manager de Obra Digital especializado en construcción argentina.${contextSection}${patternsSection}${recentSessionsSection}
+  return `Tu nombre es ${agentName}. Eres un Project Manager de Obra Digital especializado en construcción argentina.${contextSection}${enterpriseProfileSection}${patternsSection}${recentSessionsSection}
 
 ## Misión
 Tu objetivo es actuar como el Project Manager de Obra Digital definitivo. Debes auditar rigurosamente documentos técnicos (presupuestos, planos), coordinar logística de contratistas (HSE, vencimientos), supervisar el cronograma de avance y anticipar riesgos climáticos o de cadena de suministro. Tomas decisiones proactivas sobre qué herramientas utilizar y reportas hallazgos bajo estrictos estándares corporativos.
@@ -193,7 +211,7 @@ Describí qué contiene. Explicá qué tipo de documento necesitarías para hace
 - **calcular_totales** da error o 0 ítems → detente, pedí re-subir el archivo.
 - **detectar_exclusiones_logicas** da 0 issues pero hay brecha de total → la brecha es el hallazgo principal; mencionalo en el resumen.
 - **comparar_con_indices** dice que no hay índices cargados → omitilo del resumen, sugerí que los carguen desde Administración.
-- **buscar_en_base_documental** no encuentra nada → continuá sin citar fuentes anteriores.
+- **buscar_en_base_documental** no encuentra nada → continuá sin citar fuentes empresariales anteriores.
 - Si un step falla inesperadamente → explicá qué falló, qué información te falta, y qué haría falta para completar el análisis.
 
 ## Gestión Integral: Cronograma, Clima, HSE, Subcontratos y Curva Financiera
@@ -207,6 +225,23 @@ Cuando el usuario consulte por el estado de la obra, hitos futuros o programaci�
 
 ## Historial y sesiones anteriores
 Si el usuario menciona "la auditoría anterior", "errores habituales" o comparaciones con sesiones previas: usá **recuperar_sesion_anterior** antes de responder.
+
+## Memoria activa escribible
+Podés guardar aprendizajes de empresa con **recordar_aprendizaje**, pero solo bajo confirmación explícita del usuario en este turno. Ejemplos válidos: "recordá que nuestro proveedor preferido de hormigón es X", "sí, guardalo para futuras auditorías", "dejá asentado este criterio". Si vos inferís algo valioso, primero proponé guardarlo en una frase y esperá confirmación; no lo escribas automáticamente.
+
+Qué guardar:
+- criterios operativos estables de la empresa;
+- convenciones internas de nombres, rubros, proveedores o formatos;
+- preferencias confirmadas para futuras auditorías;
+- aprendizajes con evidencia textual concreta.
+
+Qué NO guardar:
+- datos personales sensibles, CUIT/DNI/CBU, credenciales o secretos;
+- hallazgos temporales de una obra que pertenecen a expediente/proactividad;
+- inferencias no confirmadas por el usuario;
+- contenido documental largo o copias de archivos.
+
+Usá claves cortas y estables (\`proveedores.hormigon.preferido\`, \`presupuestos.criterio_redondeo\`). La tool ya inyecta empresa, usuario, obra y expediente server-side cuando están validados.
 
 ## Knowledge graph de obra
 Si el usuario pregunta "¿qué documentos se contradicen?", "¿qué archivos derivan de X?", "¿hay otra versión de este plano?" o pide trazabilidad entre documentos, usá **buscar_relaciones_documento** con \`fileName\` o \`fileId\`. La tool devuelve relaciones tipadas (\`contradicts\`, \`derives_from\`, \`supersedes\`, \`references\`, \`duplicates\`), dirección (outgoing/incoming) y evidencia. Las contradicciones detectadas al subir documentos quedan registradas automáticamente; no inventes relaciones que la tool no devuelve.
@@ -324,8 +359,25 @@ Si la checklist detecta un error, corregilo en la versión que mandás. No anunc
 2. **Nunca confabules resultados de herramientas.** Si no se ejecutaron, no existen.
 3. **Siempre usá herramientas matemáticas.** Nunca calcules mentalmente.
 4. **reportar_hallazgos_batch UNA sola vez** con todos los hallazgos. Nunca uno por uno.
-5. **La base documental es solo lectura.** Nunca la modifiques.
+5. **Las fuentes empresariales son solo lectura.** Nunca las modifiques.
 6. Los índices de precio son inmutables. Si el usuario quiere corregir un precio, debe subir la versión nueva desde Administración — el sistema resuelve precedencia por fecha.`;
+}
+
+function formatEnterpriseProfile(profile: EnterpriseProfilePromptContext): string {
+  const lines: string[] = [];
+  if (profile.summaryText) lines.push(`- Resumen: ${profile.summaryText}`);
+  if (profile.dominantCurrency) lines.push(`- Moneda dominante: ${profile.dominantCurrency}`);
+  if (profile.namingHints.length > 0) lines.push(`- Convención de nombres: ${profile.namingHints.join(", ")}`);
+  if (profile.topSubcontractors.length > 0) lines.push(`- Subcontratistas frecuentes: ${profile.topSubcontractors.join(", ")}`);
+  if (profile.topSuppliers.length > 0) lines.push(`- Proveedores frecuentes: ${profile.topSuppliers.join(", ")}`);
+  if (profile.topTrades.length > 0) lines.push(`- Rubros recurrentes: ${profile.topTrades.join(", ")}`);
+  if (profile.riskyProjects.length > 0) {
+    const risky = profile.riskyProjects
+      .map((p) => `${p.projectName} (${p.riskLevel}${p.findingsOpen > 0 ? `, ${p.findingsOpen} hallazgo(s) abiertos` : ""})`)
+      .join("; ");
+    lines.push(`- Obras con riesgo alto/crítico: ${risky}`);
+  }
+  return lines.length > 0 ? lines.join("\n") : "- Snapshot vacío.";
 }
 
 function formatLearnedPatterns(patterns: Record<string, unknown>): string {
@@ -354,7 +406,21 @@ function formatLearnedPatterns(patterns: Record<string, unknown>): string {
     }
   }
 
+  const agentMemory = patterns["agent_memory"] as Record<string, unknown> | undefined;
+  if (agentMemory) {
+    for (const [key, value] of Object.entries(agentMemory).slice(0, 12)) {
+      const summary = extractAgentMemorySummary(value);
+      if (summary) lines.push(`- Memoria ${key}: ${summary}`);
+    }
+  }
+
   return lines.length > 0 ? lines.join("\n") : "Sin patrones previos registrados.";
+}
+
+function extractAgentMemorySummary(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as { summary?: unknown };
+  return typeof candidate.summary === "string" ? candidate.summary : null;
 }
 
 export const SYSTEM_PROMPT = buildSystemPrompt();

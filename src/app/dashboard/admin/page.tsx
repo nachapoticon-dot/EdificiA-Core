@@ -333,6 +333,13 @@ export default function AdminMembersPage() {
           Lo que EdificIA aprendió
         </button>
         <button
+          onClick={() => router.push("/dashboard/admin/errors" as never)}
+          className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          Alertas del sistema
+        </button>
+        <button
           onClick={() => router.push("/dashboard/admin/settings")}
           className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >

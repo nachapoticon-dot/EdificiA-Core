@@ -12,7 +12,11 @@ import { agentTools } from "./agent-tools";
  * Optionally accepts `actorUserId` for tools that record actor identity in
  * the audit log (e.g. enviar_email_stakeholder).
  */
-export function createBoundTools(orgId: string, actorUserId?: string | null) {
+export function createBoundTools(
+  orgId: string,
+  actorUserId?: string | null,
+  scope?: { projectId?: string; workCaseId?: string },
+) {
   return {
     // ── Pure computation — no org context, pass through unchanged ──────────
     calcular_totales:               agentTools.calcular_totales,
@@ -48,7 +52,7 @@ export function createBoundTools(orgId: string, actorUserId?: string | null) {
           projectId: input.projectId,
           topK: input.topK ?? 5,
         });
-        if (results.length === 0) return { found: false, message: "No se encontraron documentos relevantes en la base documental.", results: [] };
+        if (results.length === 0) return { found: false, message: "No se encontraron fuentes empresariales relevantes.", results: [] };
         return {
           found: true,
           count: results.length,
@@ -454,6 +458,50 @@ export function createBoundTools(orgId: string, actorUserId?: string | null) {
       execute: async (input) => {
         const { resolveObraRelation } = await import("@/lib/project-operations/agent-writers/operational-writers");
         return resolveObraRelation({ ...input, organizationId: orgId });
+      },
+    }),
+
+    consultar_perfil_empresa: tool({
+      description: agentTools.consultar_perfil_empresa.description,
+      inputSchema: z.object({
+        facet: z.enum(["summary", "suppliers", "subcontractors", "trades", "patterns", "coverage"]).optional(),
+      }),
+      execute: async (input) => {
+        const { queryEnterpriseProfileFacet } = await import("@/lib/enterprise-context/profile-reader");
+        return queryEnterpriseProfileFacet({ organizationId: orgId, facet: input.facet });
+      },
+    }),
+
+    recordar_aprendizaje: tool({
+      description: agentTools.recordar_aprendizaje.description,
+      inputSchema: z.object({
+        key:             z.string().min(3).max(100).describe("Clave estable y corta, ej: 'proveedores.hormigon.preferido'"),
+        summary:         z.string().min(12).max(700).describe("Aprendizaje operativo confirmado, escrito como hecho reusable"),
+        evidence:        z.array(z.string().min(3).max(360)).min(1).max(8).describe("Evidencia textual concreta o frase del usuario que justifica guardarlo"),
+        confidence:      z.number().min(0.1).max(1).optional(),
+        tags:            z.array(z.string().min(2).max(40)).max(8).optional(),
+        confirmedByUser: z.literal(true).describe("Debe ser true solo si hubo confirmación explícita del usuario en este turno"),
+      }),
+      execute: async (input) => {
+        if (!actorUserId) {
+          return {
+            ok: false,
+            reason: "missing_actor",
+            message: "No se pudo identificar al usuario; no se guarda memoria activa.",
+          };
+        }
+        const { recordAgentLearning } = await import("@/lib/ai/active-memory");
+        return recordAgentLearning({
+          organizationId: orgId,
+          actorUserId,
+          projectId: scope?.projectId ?? null,
+          workCaseId: scope?.workCaseId ?? null,
+          key: input.key,
+          summary: input.summary,
+          evidence: input.evidence,
+          confidence: input.confidence,
+          tags: input.tags,
+        });
       },
     }),
 

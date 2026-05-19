@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -18,24 +18,30 @@ export function TopBarActions() {
   const menuRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
 
+  const closeMenu = useCallback(() => {
+    setOpen(false);
+    setThemesOpen(false);
+  }, []);
+
+  const toggleMenu = useCallback(() => {
+    setOpen((prev) => {
+      if (prev) setThemesOpen(false);
+      return !prev;
+    });
+  }, []);
+
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setThemesOpen(false);
+        closeMenu();
       }
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
-
-  // Reset nested panel when the parent closes
-  useEffect(() => {
-    if (!open) setThemesOpen(false);
-  }, [open]);
+  }, [closeMenu]);
 
   async function handleLogout() {
-    setOpen(false);
+    closeMenu();
     try { await getInsForgeClient().auth.signOut(); } catch { /* ignore */ }
     await fetch("/api/auth/logout", { method: "POST" });
     clearPersistedToken();
@@ -51,7 +57,7 @@ export function TopBarActions() {
           title="Configuración"
           aria-label="Configuración"
           aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleMenu}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Settings className="h-3.5 w-3.5" />
@@ -68,7 +74,7 @@ export function TopBarActions() {
           >
             <Link
               href={"/dashboard/admin/settings" as Route}
-              onClick={() => setOpen(false)}
+              onClick={closeMenu}
               className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />

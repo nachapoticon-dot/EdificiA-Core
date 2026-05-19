@@ -17,6 +17,12 @@ interface JwtClaims {
 const _verifyCache = new Map<string, { userId: string | null; expiresAt: number }>();
 const CACHE_TTL_MS = 60_000;
 
+export function isAuthStrictMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.AUTH_STRICT_MODE === "true") return true;
+  if (env.AUTH_STRICT_MODE === "false") return false;
+  return env.NODE_ENV === "production";
+}
+
 /**
  * Decodes and validates a JWT's `sub` claim.
  * Does NOT verify the signature — use verifyUserId for server-side auth.
@@ -45,7 +51,8 @@ export function decodeClaims(jwt: string): { sub: string; email: string | null; 
 /**
  * Verifies a JWT by calling the InsForge auth endpoint server-side.
  * Results are cached for 60 s to avoid per-request latency.
- * Falls back to decode-only (exp check only) if InsForge is unreachable.
+ * Development can fall back to decode-only if InsForge is unreachable.
+ * Production is strict by default; set AUTH_STRICT_MODE=false only for emergency break-glass.
  */
 export async function verifyUserId(token: string): Promise<string | null> {
   // Fast path: check structure + exp locally first
@@ -81,7 +88,7 @@ export async function verifyUserId(token: string): Promise<string | null> {
   }
 
   // In strict mode (production), reject tokens we can't verify against InsForge.
-  if (process.env.AUTH_STRICT_MODE === "true") return null;
+  if (isAuthStrictMode()) return null;
 
   // Fallback: trust local decode (exp already verified above)
   return claims.sub;

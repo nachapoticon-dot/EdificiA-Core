@@ -106,9 +106,9 @@ Cada fuente externa debe representarse como un conector con:
 - último resultado
 - errores recientes
 
-### 6.2 Inventario empresarial
+### 6.2 Catálogo de fuentes empresariales
 
-Antes de vectorizar, EdificIA debe construir inventario:
+Antes de vectorizar, EdificIA debe construir un catálogo auditable:
 
 - archivos encontrados
 - tablas o entidades disponibles
@@ -119,9 +119,9 @@ Antes de vectorizar, EdificIA debe construir inventario:
 - permisos
 - vínculo probable con obra
 
-Este inventario es auditable y permite explicar de dónde salió cada dato.
+Este catálogo permite explicar de dónde salió cada dato.
 
-El inventario debe incluir tanto fuentes conectadas como archivos subidos por chat. Un archivo subido al agente debe poder:
+El catálogo debe incluir tanto fuentes conectadas como archivos subidos por chat. Un archivo subido al agente debe poder:
 
 - vincularse a `organization_id`, `project_id` y `work_case_id` cuando existan;
 - enriquecer el perfil de empresa si aporta patrones o entidades nuevas;
@@ -156,9 +156,9 @@ El RAG actual debe evolucionar hacia un grafo:
 
 El grafo permite preguntas que una búsqueda semántica sola no resuelve.
 
-### 6.5 Lupa contextual
+### 6.5 Radar de Evidencia
 
-La búsqueda de EdificIA debe evolucionar a una "lupa" empresarial: una entrada única para buscar cualquier cosa dentro de la constructora.
+La búsqueda de EdificIA debe evolucionar a un **Radar de Evidencia** empresarial: una entrada única para detectar señales, relaciones y riesgos dentro de la constructora.
 
 Debe buscar por:
 
@@ -182,15 +182,15 @@ La búsqueda debe respetar `organization_id`, permisos por fuente y sensibilidad
 
 ## 7. UX de lanzamiento
 
-La UI no debería decir solo "Base Documental". Nombres más cercanos al valor real:
+La UI no debería decir "Base Documental" como sección principal. El nombre de navegación vigente es **Inteligencia Empresarial**. Sus modos internos son:
 
-- **Contexto de Empresa**
-- **Fuentes de Datos**
-- **Mapa de Obras**
-- **Inteligencia Documental**
-- **Conectores**
+- **Radar** — lectura cruzada de evidencia, obras, expedientes y relaciones.
+- **Fuentes** — ingreso, preparación y estado de lectura de archivos, exports, carpetas y conectores.
+- **Mapa Vivo** — entidades, patrones, cobertura y riesgo por obra.
 
-Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una sección superior llamada **Contexto de Empresa** que muestre:
+Decisión vigente 2026-05-19: **Base Documental queda integrada dentro de Inteligencia Empresarial**. No debe aparecer como un bloque de navegación paralelo ni como producto separado. La vista de carga y preparación de datos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto con **Radar** y **Mapa Vivo**.
+
+La sección **Inteligencia Empresarial** debe mostrar:
 
 - fuentes conectadas
 - estado de sincronización
@@ -201,31 +201,33 @@ Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una 
 
 ## 8. Roadmap por etapas
 
-### Etapa 1: Base actual mejorada
+### Etapa 1: Base actual integrada
 
-- Renombrar conceptualmente la sección a "Contexto de Empresa".
+- Renombrar conceptualmente la sección a "Inteligencia Empresarial".
 - Mantener subida manual de archivos.
+- Integrar fuentes empresariales, radar y mapa vivo en una sola navegación de Inteligencia Empresarial.
 - Mejorar clasificación documental.
 - Detectar obra asociada automáticamente.
 - Agregar al inventario los archivos subidos al agente y vincularlos con expedientes.
-- Crear una primera lupa semántica sobre documentos, reportes y evidencia.
+- Crear un primer radar semántico sobre documentos, reportes y evidencia.
 
 ### Etapa 2: Conectores seguros
 
 - Google Drive / SharePoint en solo lectura.
-- Inventario de archivos antes de ingestarlos.
+- Catálogo de archivos antes de ingestarlos.
 - Selección explícita de carpetas permitidas.
 - Sync incremental.
 - Estados de preparación (`descubierta` → `operativa`/`observada`) visibles para admins.
 
 ### Etapa 3: Extracción empresarial
 
-- Detección de obras activas.
-- Mapa obra-documentos-proveedores.
-- Cobertura documental automática.
-- Riesgos por obra.
-- Perfil vivo por empresa con patrones de nombres, rubros, proveedores y formatos.
-- Normalización de exports CSV/XLSX/SQL hacia entidades internas.
+- Detección de obras activas. _(parcial 2026-05-19: las obras se leen desde `projects` y entran al perfil; falta detección automática desde fuentes externas)._
+- Mapa obra-documentos-proveedores. _(parcial 2026-05-19: cobertura por obra y entidades top en `/dashboard/contexto/perfil`; falta vista de mapa visual)._
+- Cobertura documental automática. _(✅ 2026-05-19 — `enterprise_project_coverage` recalculable vía `POST /api/enterprise-context/profile/refresh`)._
+- Riesgos por obra. _(✅ 2026-05-19 — `risk_level` en `enterprise_project_coverage` se deriva de `findings_open` + ratio de documentos `observada`)._
+- Perfil vivo por empresa con patrones de nombres, rubros, proveedores y formatos. _(✅ 2026-05-19 — `enterprise_entities` + `enterprise_patterns` + `enterprise_profile_snapshots`; ver "Pipeline del perfil" en `docs/04_architecture_map.md`)._
+- Memoria activa confirmada por usuario para preferencias y criterios empresariales reutilizables. _(✅ 2026-05-19 — tool `recordar_aprendizaje` escribe `company_learned_patterns.document_type='agent_memory'` con evidencia y audit log)._
+- Normalización de exports CSV/XLSX/SQL hacia entidades internas. _(pendiente; depende de Etapa 2 — conectores reales)._
 
 ### Etapa 4: Auditoría transversal
 
@@ -233,7 +235,7 @@ Propuesta: mantener "Base Documental" para la vista de archivos, pero crear una 
 - Ranking de obras con mayor riesgo.
 - Contradicciones entre fuentes.
 - Patrones financieros/documentales por constructora.
-- Lupa contextual a nivel empresa con búsqueda por contexto, entidad, evidencia y relaciones.
+- Radar de Evidencia a nivel empresa con búsqueda por contexto, entidad, evidencia y relaciones.
 
 ## 9. Regla de producto
 

@@ -13,7 +13,8 @@ import { uploadResponseSchema } from "@/lib/validators/api-responses";
 import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 import { scanDocumentContext } from "@/lib/document-intelligence/context-scan";
 import { writeDocumentIntelligenceReport } from "@/lib/document-intelligence/report-writer";
-import { writeRelationsFromContextScan } from "@/lib/knowledge-graph/relations";
+import { writeRelationsFromContextScan, writeSemanticRelationsForUpload } from "@/lib/knowledge-graph/relations";
+import { captureAppError } from "@/lib/observability/error-events";
 
 export const runtime = "nodejs";
 
@@ -141,6 +142,16 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     dbLogger.warn({ err }, "upload: storage/DB persist failed (non-fatal)");
+    void captureAppError({
+      err,
+      req,
+      organizationId: orgId,
+      projectId,
+      actorUserId: userId,
+      route: "/api/upload",
+      severity: "warning",
+      context: { stage: "storage_or_db_persist", fileName: file.name },
+    });
   }
 
   void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
@@ -189,6 +200,15 @@ export async function POST(req: Request) {
     }
   }
 
+  if (fileId) {
+    void writeSemanticRelationsForUpload({
+      organizationId: orgId,
+      projectId: projectId ?? null,
+      fileId,
+      processed,
+    });
+  }
+
   void writeDocumentIntelligenceReport({
     organizationId: orgId,
     projectId,
@@ -206,6 +226,16 @@ export async function POST(req: Request) {
       { err: response.error.flatten(), fileName: file.name, processedType: processed.type },
       "upload: response schema mismatch",
     );
+    void captureAppError({
+      err: response.error,
+      req,
+      organizationId: orgId,
+      projectId,
+      actorUserId: userId,
+      route: "/api/upload",
+      severity: "critical",
+      context: { stage: "response_schema", fileName: file.name, processedType: processed.type },
+    });
     return apiInternal("upload response schema mismatch");
   }
 
@@ -367,5 +397,14 @@ async function persistPatternsAndIngest(
     }
   } catch (err) {
     ragLogger.warn({ err }, "upload: pattern/ingest background task failed (non-fatal)");
+    void captureAppError({
+      err,
+      organizationId: orgId,
+      projectId,
+      actorUserId: userId,
+      route: "/api/upload",
+      severity: "warning",
+      context: { stage: "pattern_or_ingest_background", fileId },
+    });
   }
 }

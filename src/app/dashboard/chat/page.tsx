@@ -361,7 +361,7 @@ Volvé a llamar la herramienta de generación correspondiente con el payload mod
 ${payloadJson}
 \`\`\`
 
-No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios solicitados y regenerá el archivo.`;
+No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios solicitados y regenerá el archivo.`;
     sendMessage({ text });
   }
 

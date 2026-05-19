@@ -72,6 +72,28 @@ interface DocumentIntelligenceReportRow {
   updated_at: string;
 }
 
+interface AgentRunRow {
+  id: string;
+  status: "completed" | "failed" | "cancelled";
+  model_provider: string;
+  model: string;
+  tier: "fast" | "deep";
+  route_reason: string | null;
+  capability_ids: string[] | null;
+  step_budget: number;
+  steps: number;
+  usage: Record<string, unknown> | null;
+  tool_telemetry: unknown;
+  tool_calls_total: number;
+  tool_errors_total: number;
+  tool_retries_total: number;
+  latency_ms: number;
+  request_id: string | null;
+  started_at: string;
+  finished_at: string;
+  created_at: string;
+}
+
 interface UploadedFileRow {
   id: string;
   file_name: string;
@@ -108,7 +130,7 @@ export async function GET(
   const workCase = workCaseResult.data as WorkCaseRow | null;
   if (!workCase) return Response.json({ error: "Expediente no encontrado" }, { status: 404 });
 
-  const [sessionResult, eventsResult, evidenceResult, reportsResult] = await Promise.all([
+  const [sessionResult, eventsResult, evidenceResult, reportsResult, agentRunsResult] = await Promise.all([
     client.database
       .from("chat_sessions")
       .select("id, title, file_type, started_at, work_case_id")
@@ -145,11 +167,22 @@ export async function GET(
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(50),
+
+    client.database
+      .from("agent_runs")
+      .select(
+        "id, status, model_provider, model, tier, route_reason, capability_ids, step_budget, steps, usage, tool_telemetry, tool_calls_total, tool_errors_total, tool_retries_total, latency_ms, request_id, started_at, finished_at, created_at",
+      )
+      .eq("organization_id", auth.orgId)
+      .eq("work_case_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (eventsResult.error) log.warn({ err: eventsResult.error, workCaseId: id }, "work case events query failed");
   if (evidenceResult.error) log.warn({ err: evidenceResult.error, workCaseId: id }, "work case evidence query failed");
   if (reportsResult.error) log.warn({ err: reportsResult.error, workCaseId: id }, "work case reports query failed");
+  if (agentRunsResult.error) log.warn({ err: agentRunsResult.error, workCaseId: id }, "work case agent runs query failed");
 
   const reports = (reportsResult.data ?? []) as DocumentIntelligenceReportRow[];
   const fileIds = Array.from(
@@ -232,6 +265,27 @@ export async function GET(
       metadata: (report.metadata ?? {}) as Record<string, unknown>,
       createdAt: report.created_at,
       updatedAt: report.updated_at,
+    })),
+    agentRuns: ((agentRunsResult.data ?? []) as AgentRunRow[]).map((run) => ({
+      id: run.id,
+      status: run.status,
+      modelProvider: run.model_provider,
+      model: run.model,
+      tier: run.tier,
+      routeReason: run.route_reason,
+      capabilityIds: run.capability_ids ?? [],
+      stepBudget: run.step_budget,
+      steps: run.steps,
+      usage: run.usage ?? {},
+      toolTelemetry: Array.isArray(run.tool_telemetry) ? (run.tool_telemetry as Record<string, unknown>[]) : [],
+      toolCallsTotal: run.tool_calls_total,
+      toolErrorsTotal: run.tool_errors_total,
+      toolRetriesTotal: run.tool_retries_total,
+      latencyMs: run.latency_ms,
+      requestId: run.request_id,
+      startedAt: run.started_at,
+      finishedAt: run.finished_at,
+      createdAt: run.created_at,
     })),
   };
 
