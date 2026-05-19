@@ -90,7 +90,7 @@ export function FileCard({ file, onRemove, onPreview }: FileCardProps) {
 const STAGES = [
   { label: "Subiendo archivo",          detail: "Transfiriendo al servidor…"                   },
   { label: "Procesando contenido",      detail: "Extrayendo texto, tablas y geometrías…"       },
-  { label: "Indexando en base documental", detail: "Almacenando vectores para búsqueda RAG…" },
+  { label: "Preparando fuente empresarial", detail: "Dejando la evidencia disponible para búsqueda y perfil…" },
 ];
 
 export function UploadProgressCard() {

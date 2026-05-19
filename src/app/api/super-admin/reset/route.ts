@@ -22,7 +22,23 @@ const ALL_TABLES = [
   "audit_results",
   "chat_messages",
   "chat_snapshots",
+  "app_error_events",
+  "enterprise_sync_runs",
+  "enterprise_documents",
+  "enterprise_sources",
+  "work_case_evidence",
+  "work_case_events",
+  "agent_runs",
+  "document_intelligence_reports",
+  "work_cases",
+  "operational_findings",
+  "obra_relations",
   "document_chunks",
+  "project_schedule_tasks",
+  "project_financial_snapshots",
+  "project_subcontracts",
+  "project_hse_records",
+  "project_supply_items",
   "project_phase_docs",
   "company_learned_patterns",
   "price_indices",
@@ -115,7 +131,23 @@ async function resetOrganization(db: DbClient, organizationId: string, log: stri
   await deleteByIn(db, "project_phase_docs", "project_id", projectIds, log);
 
   // 3. Borrar tablas con organization_id directo (preservando org/members/founder_invitations)
+  await deleteByOrg(db, "enterprise_sync_runs", organizationId, log);
+  await deleteByOrg(db, "app_error_events", organizationId, log);
+  await deleteByOrg(db, "enterprise_documents", organizationId, log);
+  await deleteByOrg(db, "enterprise_sources", organizationId, log);
+  await deleteByOrg(db, "work_case_evidence", organizationId, log);
+  await deleteByOrg(db, "work_case_events", organizationId, log);
+  await deleteByOrg(db, "agent_runs", organizationId, log);
+  await deleteByOrg(db, "document_intelligence_reports", organizationId, log);
+  await deleteByOrg(db, "work_cases", organizationId, log);
+  await deleteByOrg(db, "operational_findings", organizationId, log);
+  await deleteByOrg(db, "obra_relations", organizationId, log);
   await deleteByOrg(db, "document_chunks", organizationId, log);
+  await deleteByOrg(db, "project_schedule_tasks", organizationId, log);
+  await deleteByOrg(db, "project_financial_snapshots", organizationId, log);
+  await deleteByOrg(db, "project_subcontracts", organizationId, log);
+  await deleteByOrg(db, "project_hse_records", organizationId, log);
+  await deleteByOrg(db, "project_supply_items", organizationId, log);
   await deleteByOrg(db, "company_learned_patterns", organizationId, log);
   await deleteByOrg(db, "price_indices", organizationId, log);
   await deleteByOrg(db, "uploaded_files", organizationId, log);

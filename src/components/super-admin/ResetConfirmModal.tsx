@@ -19,8 +19,12 @@ interface ResetConfirmModalProps {
 const FIELD = "w-full rounded-[8px] border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/60 outline-none transition focus:border-destructive/60 focus:ring-2 focus:ring-destructive/20";
 const LABEL = "font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground";
 
-export function ResetConfirmModal({
-  open,
+export function ResetConfirmModal(props: ResetConfirmModalProps) {
+  if (!props.open) return null;
+  return <ResetConfirmModalInner {...props} />;
+}
+
+function ResetConfirmModalInner({
   title,
   description,
   expected,
@@ -30,26 +34,22 @@ export function ResetConfirmModal({
   log = null,
   onConfirm,
   onClose,
-}: ResetConfirmModalProps) {
+}: Omit<ResetConfirmModalProps, "open">) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setValue("");
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open]);
+    const handle = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(handle);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && open && !busy) onClose();
+      if (e.key === "Escape" && !busy) onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, busy, onClose]);
-
-  if (!open) return null;
+  }, [busy, onClose]);
 
   const matches = value.trim() === expected.trim();
 

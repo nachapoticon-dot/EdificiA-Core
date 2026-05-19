@@ -150,6 +150,7 @@ const TOOL_LABELS: Record<string, string> = {
   registrar_acopio:                "Registrando acopio de obra",
   resolver_relacion_documental:    "Resolviendo relación del knowledge graph",
   resumen_diario_obra:             "Armando brief diario de obra",
+  consultar_perfil_empresa:        "Consultando perfil de empresa",
   generar_orden_compra:            "Armando orden de compra",
   generar_acta_obra:               "Generando parte diario de obra",
   enviar_email_stakeholder:        "Enviando email a stakeholders",

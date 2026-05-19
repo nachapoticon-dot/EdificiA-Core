@@ -11,6 +11,7 @@ import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 import { summarizeToolUsage, toTelemetryRows, type StepLike } from "@/lib/ai/observability/tool-telemetry";
 import { resolveAgentRuntimeContext } from "@/lib/agent-core/runtime";
 import { writeAgentRun } from "@/lib/agent-core/agent-run-writer";
+import { captureAppError } from "@/lib/observability/error-events";
 
 export const runtime = "nodejs";
 
@@ -183,7 +184,18 @@ export async function POST(req: Request) {
     return result.toUIMessageStreamResponse();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    log.error({ err: msg, latencyMs: Date.now() - t0 }, "chat error");
+    const latencyMs = Date.now() - t0;
+    log.error({ err: msg, latencyMs }, "chat error");
+    await captureAppError({
+      err,
+      req,
+      organizationId: auth.orgId,
+      projectId: auditProjectId ?? null,
+      actorUserId: auth.userId,
+      route: "/api/chat",
+      severity: "critical",
+      context: { latencyMs, model: route.model, tier: route.tier, chatSessionId: chatSessionId ?? null },
+    });
     if (msg.includes("429") || msg.toLowerCase().includes("rate limit")) {
       return Response.json({ error: "Cuota NVIDIA agotada. Intentá en unos minutos." }, { status: 429 });
     }

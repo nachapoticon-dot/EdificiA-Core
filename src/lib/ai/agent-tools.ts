@@ -232,7 +232,7 @@ export const agentTools = {
 
   buscar_en_base_documental: tool({
     description:
-      "Busca información en la base documental de la empresa (planos, presupuestos, remitos, memorias, etc.). Úsala antes de responder preguntas sobre proyectos anteriores, formatos que usa la empresa, o cualquier dato que pueda estar en documentos subidos. La búsqueda es semántica cuando hay embeddings disponibles, o por texto si no.",
+      "Busca información en las fuentes empresariales de la organización (planos, presupuestos, remitos, memorias, etc.). Úsala antes de responder preguntas sobre proyectos anteriores, formatos que usa la empresa, o cualquier dato que pueda estar en documentos subidos. La búsqueda es semántica cuando hay embeddings disponibles, o por texto si no.",
     inputSchema: z.object({
       query:          z.string().describe("Consulta de búsqueda en lenguaje natural"),
       organizationId: z.string().describe("ID de la organización activa"),
@@ -250,7 +250,7 @@ export const agentTools = {
       if (results.length === 0) {
         return {
           found: false,
-          message: "No se encontraron documentos relevantes en la base documental para esa consulta.",
+          message: "No se encontraron fuentes empresariales relevantes para esa consulta.",
           results: [],
         };
       }
@@ -288,7 +288,7 @@ export const agentTools = {
 
   generar_archivo: tool({
     description:
-      "Propone guardar un archivo generado por el agente en la base documental de la empresa. IMPORTANTE: esto NO guarda el archivo directamente — el usuario debe revisar y confirmar. Usá esta herramienta cuando hayas generado un cómputo, remito, tabla o cualquier documento listo para guardar.",
+      "Propone guardar un archivo generado por el agente como fuente empresarial. IMPORTANTE: esto NO guarda el archivo directamente — el usuario debe revisar y confirmar. Usá esta herramienta cuando hayas generado un cómputo, remito, tabla o cualquier documento listo para guardar.",
     inputSchema: z.object({
       fileName:       z.string().describe("Nombre del archivo propuesto (con extensión, ej. 'computo_yeso_planta_baja.txt')"),
       content:        z.string().describe("Contenido del archivo en texto plano"),
@@ -898,6 +898,48 @@ export const agentTools = {
     },
   }),
 
+  consultar_perfil_empresa: tool({
+    description:
+      "Consulta el perfil empresarial vivo: el snapshot agregado del Contexto Empresarial (entidades detectadas, patrones internos, cobertura por obra). El system prompt ya incluye el top compacto; usá esta tool cuando necesites lista completa de proveedores/subcontratistas/rubros, patrones detallados con confianza o cobertura por obra con score y nivel de riesgo. No la uses para datos transaccionales (subcontratos vivos, snapshots financieros, HSE): para eso están las tools específicas.",
+    inputSchema: z.object({
+      facet:          z.enum(["summary", "suppliers", "subcontractors", "trades", "patterns", "coverage"]).optional().describe("Qué facet del perfil traer. Default: summary."),
+      organizationId: z.string().describe("ID de la organización activa"),
+    }),
+    execute: async (input) => {
+      const { queryEnterpriseProfileFacet } = await import("@/lib/enterprise-context/profile-reader");
+      return queryEnterpriseProfileFacet({ organizationId: input.organizationId, facet: input.facet });
+    },
+  }),
+
+  recordar_aprendizaje: tool({
+    description:
+      "Guarda un aprendizaje confirmado por el usuario en la memoria activa de la empresa para futuras sesiones. Usala SOLO cuando el usuario pida explícitamente recordar/guardar o confirme una propuesta de memoria. No guardes inferencias no confirmadas, datos sensibles personales ni secretos.",
+    inputSchema: z.object({
+      key:             z.string().min(3).max(100).describe("Clave estable y corta, ej: 'proveedores.hormigon.preferido'"),
+      summary:         z.string().min(12).max(700).describe("Aprendizaje operativo confirmado, escrito como hecho reusable"),
+      evidence:        z.array(z.string().min(3).max(360)).min(1).max(8).describe("Evidencia textual concreta o frase del usuario que justifica guardarlo"),
+      confidence:      z.number().min(0.1).max(1).optional().describe("Confianza 0.1-1. Default 0.85"),
+      tags:            z.array(z.string().min(2).max(40)).max(8).optional().describe("Tags de búsqueda, ej: proveedor, hse, presupuesto"),
+      organizationId:  z.string().describe("ID de la organización activa"),
+      projectId:       z.string().uuid().optional().describe("Obra asociada, si aplica"),
+      workCaseId:      z.string().uuid().optional().describe("Expediente asociado, si aplica"),
+      confirmedByUser: z.literal(true).describe("Debe ser true solo si hubo confirmación explícita del usuario en este turno"),
+    }),
+    execute: async (input) => {
+      const { recordAgentLearning } = await import("@/lib/ai/active-memory");
+      return recordAgentLearning({
+        organizationId: input.organizationId,
+        projectId: input.projectId ?? null,
+        workCaseId: input.workCaseId ?? null,
+        key: input.key,
+        summary: input.summary,
+        evidence: input.evidence,
+        confidence: input.confidence,
+        tags: input.tags,
+      });
+    },
+  }),
+
   resumen_diario_obra: tool({
     description:
       "Brief diario consolidado de la obra: tareas vencidas/del día/próximas, HSE expirando, acopios demorados o requeridos pronto, último snapshot financiero con desvío, alertas top y opcionalmente clima del día. Úsala cuando el usuario pide 'cómo va la obra', 'qué tengo hoy', 'estado general' o al inicio del día.",
@@ -1095,7 +1137,7 @@ export const agentTools = {
 
   proyectar_legajo_grafico: tool({
     description:
-      "Proyecta un Bloque de Legajo Gráfico con planos, renders e inspecciones de obra. Úsala cuando el usuario pide 'mostrame los planos', 'ver fotos', 'legajo gráfico', 'qué documentos visuales hay'. Busca en la base documental y presenta en grilla con miniaturas.",
+      "Proyecta un Bloque de Legajo Gráfico con planos, renders e inspecciones de obra. Úsala cuando el usuario pide 'mostrame los planos', 'ver fotos', 'legajo gráfico', 'qué documentos visuales hay'. Busca en las fuentes empresariales y presenta en grilla con miniaturas.",
     inputSchema: z.object({
       query: z.string().describe("Consulta de búsqueda para encontrar documentos visuales (ej: 'planos arquitectura', 'fotos inspección subsuelo')"),
       organizationId: z.string().describe("ID de la organización activa"),

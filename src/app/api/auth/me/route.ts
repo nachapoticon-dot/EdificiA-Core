@@ -19,7 +19,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!claims) return Response.json({ error: "Invalid token" }, { status: 401 });
   const userId = await verifyUserId(token);
   if (!userId) return Response.json({ error: "Invalid token" }, { status: 401 });
-  const { email, name } = claims;
+  const { email, name: jwtName } = claims;
 
   // Respect the active org selection from the client (org switcher stores this)
   const requestedOrgId = req.headers.get("x-org-id") ?? null;
@@ -59,6 +59,8 @@ export async function GET(req: Request): Promise<Response> {
 
     const orgId = resolvedMember.organization_id;
 
+    const profileName = await resolveProfileName(client, userId, jwtName);
+
     const [orgResult, projectsResult, membersResult] = await Promise.all([
       client.database
         .from("organizations")
@@ -88,7 +90,7 @@ export async function GET(req: Request): Promise<Response> {
     const body = {
       userId,
       email,
-      displayName: cleanDisplayName(name),
+      displayName: cleanDisplayName(profileName),
       orgId,
       role: resolvedMember.role,
       orgName: org?.name ?? "",
@@ -113,4 +115,21 @@ function cleanDisplayName(name: string | null): string | null {
   const trimmed = name?.replace(/\s+/g, " ").trim();
   if (!trimmed || trimmed.includes("@") || trimmed.length < 2) return null;
   return trimmed.slice(0, 80);
+}
+
+async function resolveProfileName(
+  client: ReturnType<typeof getInsForgeAdminClient>,
+  userId: string,
+  jwtName: string | null,
+): Promise<string | null> {
+  const cleanedJwt = jwtName?.trim();
+  if (cleanedJwt && cleanedJwt.length >= 2) return cleanedJwt;
+  try {
+    const result = await client.auth.getProfile(userId);
+    const candidate = result.data?.profile?.name;
+    if (typeof candidate === "string" && candidate.trim().length >= 2) return candidate.trim();
+  } catch {
+    // Profile fetch is best-effort; fall back to whatever the JWT had.
+  }
+  return jwtName;
 }

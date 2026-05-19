@@ -430,11 +430,34 @@ export const documentReportEntrySchema = z.object({
   updatedAt: z.string(),
 });
 
+export const agentRunEntrySchema = z.object({
+  id: z.string(),
+  status: z.enum(["completed", "failed", "cancelled"]),
+  modelProvider: z.string(),
+  model: z.string(),
+  tier: z.enum(["fast", "deep"]),
+  routeReason: z.string().nullable(),
+  capabilityIds: z.array(z.string()),
+  stepBudget: z.number().int().nonnegative(),
+  steps: z.number().int().nonnegative(),
+  usage: z.record(z.unknown()),
+  toolTelemetry: z.array(z.record(z.unknown())),
+  toolCallsTotal: z.number().int().nonnegative(),
+  toolErrorsTotal: z.number().int().nonnegative(),
+  toolRetriesTotal: z.number().int().nonnegative(),
+  latencyMs: z.number().int().nonnegative(),
+  requestId: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string(),
+  createdAt: z.string(),
+});
+
 export const workCaseDetailResponseSchema = z.object({
   workCase: workCaseEntryResponseSchema,
   events: z.array(workCaseEventResponseSchema),
   evidence: z.array(workCaseEvidenceResponseSchema),
   documentReports: z.array(documentReportEntrySchema),
+  agentRuns: z.array(agentRunEntrySchema),
 });
 
 export type WorkCaseEntryResponse = z.infer<typeof workCaseEntryResponseSchema>;
@@ -444,6 +467,204 @@ export type WorkCaseEventResponse = z.infer<typeof workCaseEventResponseSchema>;
 export type WorkCaseEvidenceResponse = z.infer<typeof workCaseEvidenceResponseSchema>;
 export type WorkCaseDetailResponse = z.infer<typeof workCaseDetailResponseSchema>;
 export type DocumentReportEntry = z.infer<typeof documentReportEntrySchema>;
+export type AgentRunEntry = z.infer<typeof agentRunEntrySchema>;
+
+export const enterpriseReadinessStatusSchema = z.enum([
+  "descubierta",
+  "inventariada",
+  "clasificada",
+  "normalizada",
+  "indexada",
+  "operativa",
+  "observada",
+]);
+
+export const enterpriseContextResponseSchema = z.object({
+  meta: z.object({
+    query: z.string(),
+    generatedAt: z.string(),
+    totalResults: z.number().int().nonnegative(),
+  }),
+  summary: z.object({
+    sources: z.number().int().nonnegative(),
+    documents: z.number().int().nonnegative(),
+    indexed: z.number().int().nonnegative(),
+    observed: z.number().int().nonnegative(),
+    projects: z.number().int().nonnegative(),
+    workCases: z.number().int().nonnegative(),
+  }),
+  documents: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    documentType: z.string(),
+    readinessStatus: enterpriseReadinessStatusSchema,
+    sensitivity: z.string(),
+    confidence: z.number().nullable(),
+    sourceName: z.string().nullable(),
+    sourceType: z.string().nullable(),
+    sourcePath: z.string().nullable(),
+    uploadedFileId: z.string().nullable(),
+    projectId: z.string().nullable(),
+    projectName: z.string().nullable(),
+    workCaseId: z.string().nullable(),
+    workCaseTitle: z.string().nullable(),
+    reportVerdict: documentReportVerdictSchema.nullable(),
+    findingsCount: z.number().int().nonnegative(),
+    risksCount: z.number().int().nonnegative(),
+    why: z.string(),
+    updatedAt: z.string(),
+  })),
+  projects: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    status: z.string(),
+    location: z.string().nullable(),
+    documentCount: z.number().int().nonnegative(),
+    observedCount: z.number().int().nonnegative(),
+    why: z.string(),
+  })),
+  workCases: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+    kind: z.string(),
+    verdict: workCaseVerdictSchema.nullable(),
+    projectId: z.string().nullable(),
+    projectName: z.string().nullable(),
+    why: z.string(),
+    updatedAt: z.string(),
+  })),
+  relations: z.array(z.object({
+    id: z.string(),
+    relationType: z.string(),
+    confidence: z.number(),
+    sourceFileName: z.string().nullable(),
+    targetFileName: z.string().nullable(),
+    why: z.string(),
+    updatedAt: z.string(),
+  })),
+});
+
+export type EnterpriseContextResponse = z.infer<typeof enterpriseContextResponseSchema>;
+
+export const enterpriseProfileEntityTypeSchema = z.enum([
+  "supplier",
+  "subcontractor",
+  "trade",
+  "location",
+  "cost_center",
+  "document_type",
+  "currency",
+  "naming_convention",
+]);
+
+export const enterpriseProfilePatternKindSchema = z.enum([
+  "naming_convention",
+  "document_format",
+  "currency",
+  "trade_vocabulary",
+  "source_reliability",
+  "frequent_supplier",
+  "frequent_subcontractor",
+  "sensitivity_default",
+]);
+
+export const enterpriseProfileRiskLevelSchema = z.enum(["bajo", "medio", "alto", "critico"]);
+
+export const enterpriseProfileResponseSchema = z.object({
+  meta: z.object({
+    organizationId: z.string(),
+    generatedAt: z.string(),
+    latestSnapshotAt: z.string().nullable(),
+    latestSnapshotVersion: z.number().int().nullable(),
+    triggerSource: z.string().nullable(),
+  }),
+  summary: z.object({
+    text: z.string(),
+    projectsCount: z.number().int().nonnegative(),
+    entityCount: z.number().int().nonnegative(),
+    patternCount: z.number().int().nonnegative(),
+    coverageCount: z.number().int().nonnegative(),
+    riskyProjects: z.number().int().nonnegative(),
+    dominantCurrency: z.string().nullable(),
+  }),
+  entities: z.array(z.object({
+    id: z.string(),
+    entityType: enterpriseProfileEntityTypeSchema,
+    canonicalName: z.string(),
+    displayName: z.string(),
+    occurrenceCount: z.number().int().nonnegative(),
+    confidence: z.number().nullable(),
+    lastSeenAt: z.string().nullable(),
+    aliases: z.array(z.string()),
+  })),
+  patterns: z.array(z.object({
+    id: z.string(),
+    patternKind: enterpriseProfilePatternKindSchema,
+    patternKey: z.string(),
+    patternValue: z.record(z.string(), z.unknown()),
+    confidence: z.number(),
+    evidenceCount: z.number().int().nonnegative(),
+    lastObservedAt: z.string().nullable(),
+  })),
+  coverage: z.array(z.object({
+    projectId: z.string(),
+    projectName: z.string().nullable(),
+    projectStatus: z.string().nullable(),
+    documentsTotal: z.number().int().nonnegative(),
+    documentsIndexed: z.number().int().nonnegative(),
+    documentsObserved: z.number().int().nonnegative(),
+    subcontractsCount: z.number().int().nonnegative(),
+    suppliesCount: z.number().int().nonnegative(),
+    hseRecordsCount: z.number().int().nonnegative(),
+    scheduleTasksCount: z.number().int().nonnegative(),
+    findingsOpen: z.number().int().nonnegative(),
+    reportsCount: z.number().int().nonnegative(),
+    coverageScore: z.number(),
+    riskLevel: enterpriseProfileRiskLevelSchema,
+    lastActivityAt: z.string().nullable(),
+    computedAt: z.string(),
+  })),
+});
+
+export type EnterpriseProfileResponse = z.infer<typeof enterpriseProfileResponseSchema>;
+
+export const enterpriseProfileRefreshResponseSchema = z.object({
+  ok: z.literal(true),
+  snapshotId: z.string(),
+  version: z.number().int(),
+  entityCount: z.number().int().nonnegative(),
+  patternCount: z.number().int().nonnegative(),
+  coverageCount: z.number().int().nonnegative(),
+  summary: z.string(),
+});
+
+export type EnterpriseProfileRefreshResponse = z.infer<typeof enterpriseProfileRefreshResponseSchema>;
+
+export const adminErrorEventsResponseSchema = z.object({
+  events: z.array(z.object({
+    id: z.string(),
+    organizationId: z.string().nullable(),
+    projectId: z.string().nullable(),
+    actorUserId: z.string().nullable(),
+    requestId: z.string().nullable(),
+    route: z.string(),
+    method: z.string().nullable(),
+    severity: z.enum(["warning", "error", "critical"]),
+    fingerprint: z.string(),
+    message: z.string(),
+    context: z.record(z.unknown()),
+    resolvedAt: z.string().nullable(),
+    createdAt: z.string(),
+  })),
+});
+
+export type AdminErrorEventsResponse = z.infer<typeof adminErrorEventsResponseSchema>;
+
+export const adminErrorEventPatchRequestSchema = z.object({
+  id: z.string().uuid(),
+  resolved: z.boolean().default(true),
+});
 
 export const orgOptionSchema = z.object({
   orgId: z.string(),
@@ -476,6 +697,13 @@ const documentFileSchema = z.object({
 
 export const documentsResponseSchema = z.object({
   files: z.array(documentFileSchema),
+});
+
+export const documentReindexResponseSchema = z.object({
+  ok: z.literal(true),
+  indexing_status: indexingStatusSchema,
+  indexing_error: z.string().nullable().optional(),
+  indexed_at: z.string().nullable().optional(),
 });
 
 const projectFileSchema = z.object({
@@ -698,6 +926,54 @@ export const superAdminResetResponseSchema = z.object({
 
 export type SuperAdminFounderInvitation = z.infer<typeof founderInvitationSchema>;
 export type SuperAdminCompanyStats = z.infer<typeof companyStatsSchema>;
+
+const obraRelationTypeSchema = z.enum([
+  "contradicts",
+  "derives_from",
+  "supersedes",
+  "references",
+  "duplicates",
+]);
+
+const obraRelationDetectorSchema = z.enum(["system", "agent", "user"]);
+
+const knowledgeGraphNodeSchema = z.object({
+  id: z.string().uuid(),
+  label: z.string(),
+  fileType: z.string(),
+  projectId: z.string().uuid().nullable(),
+  projectName: z.string().nullable(),
+  indexingStatus: z.string().nullable(),
+  processingStatus: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+const knowledgeGraphEdgeSchema = z.object({
+  id: z.string().uuid(),
+  source: z.string().uuid(),
+  target: z.string().uuid(),
+  relationType: obraRelationTypeSchema,
+  confidence: z.number().min(0).max(1),
+  detectedBy: obraRelationDetectorSchema,
+  evidence: z.record(z.string(), z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const knowledgeGraphResponseSchema = z.object({
+  meta: z.object({
+    organizationId: z.string().uuid(),
+    projectId: z.string().uuid().nullable(),
+    generatedAt: z.string(),
+    nodeCount: z.number().int().nonnegative(),
+    edgeCount: z.number().int().nonnegative(),
+  }),
+  nodes: z.array(knowledgeGraphNodeSchema),
+  edges: z.array(knowledgeGraphEdgeSchema),
+});
+
+export type KnowledgeGraphResponse = z.infer<typeof knowledgeGraphResponseSchema>;
 
 export const documentSaveResponseSchema = z.object({
   success: z.literal(true),
