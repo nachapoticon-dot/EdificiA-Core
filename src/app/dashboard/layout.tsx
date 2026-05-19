@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { BriefcaseBusiness, MessageSquare, Database, Building2 } from "lucide-react";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
@@ -70,7 +69,6 @@ function SidebarContent() {
         <UserMenu />
         <div className="flex items-center justify-between px-1">
           <p className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">EdificIA · v0.6</p>
-          <ThemeToggle />
         </div>
       </div>
     </>

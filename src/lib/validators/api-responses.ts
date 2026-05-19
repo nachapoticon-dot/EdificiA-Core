@@ -457,12 +457,18 @@ export const orgsResponseSchema = z.object({
 
 export type OrgOptionResponse = z.infer<typeof orgOptionSchema>;
 
+export const indexingStatusSchema = z.enum(["pending", "indexed", "degraded", "failed"]);
+export type IndexingStatus = z.infer<typeof indexingStatusSchema>;
+
 const documentFileSchema = z.object({
   id: z.string(),
   file_name: z.string(),
   file_type: z.string(),
   file_size_bytes: z.number().int().nonnegative(),
   processing_status: z.string(),
+  indexing_status: indexingStatusSchema.optional(),
+  indexing_error: z.string().nullable().optional(),
+  indexed_at: z.string().nullable().optional(),
   created_at: z.string(),
   chunkCount: z.number().int().nonnegative(),
   project_id: z.string().nullable().optional(),
@@ -668,8 +674,25 @@ export const superAdminMemberInviteResponseSchema = z.object({
   token: z.string(),
 });
 
+export const superAdminResetScopeSchema = z.enum(["all", "organization"]);
+export type SuperAdminResetScope = z.infer<typeof superAdminResetScopeSchema>;
+
+export const superAdminResetRequestSchema = z.discriminatedUnion("scope", [
+  z.object({
+    scope: z.literal("all"),
+    confirmation: z.literal("BORRAR TODO"),
+  }),
+  z.object({
+    scope: z.literal("organization"),
+    organizationId: z.string().uuid(),
+    confirmation: z.string().min(1),
+  }),
+]);
+
 export const superAdminResetResponseSchema = z.object({
   ok: z.literal(true),
+  scope: superAdminResetScopeSchema,
+  organizationId: z.string().uuid().nullable(),
   log: z.array(z.string()),
 });
 

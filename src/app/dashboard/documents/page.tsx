@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
   Database, Trash2, RefreshCw, FolderOpen, Layers, Filter, AlertTriangle,
+  AlertOctagon, AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/ProjectContext";
@@ -38,6 +39,34 @@ const TYPE_COLOR: Record<string, string> = {
   docx: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30",
   image: "text-orange-600 bg-orange-50 dark:bg-orange-950/30",
   other: "text-muted-foreground bg-muted",
+};
+
+const INDEXING_BADGE: Record<NonNullable<DocumentFile["indexing_status"]>, {
+  label: string;
+  classes: string;
+  icon: React.ElementType;
+  tooltip: string;
+} | null> = {
+  // No badge para los estados sanos — el chip "fragmentos" ya comunica salud
+  pending: {
+    label: "Pendiente",
+    classes: "bg-muted text-muted-foreground border-border",
+    icon: RefreshCw,
+    tooltip: "El archivo aún no se indexó para búsqueda semántica.",
+  },
+  indexed: null,
+  degraded: {
+    label: "Degradado",
+    classes: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    icon: AlertCircle,
+    tooltip: "Indexado solo en Postgres — Qdrant no respondió. La búsqueda funciona en modo texto pero pierde precisión semántica.",
+  },
+  failed: {
+    label: "Falló",
+    classes: "border-destructive/50 bg-destructive/10 text-destructive",
+    icon: AlertOctagon,
+    tooltip: "La indexación falló. El archivo no aparece en búsquedas — reintentá la subida.",
+  },
 };
 
 function formatSize(bytes: number): string {
@@ -110,6 +139,8 @@ export default function DocumentsPage() {
   };
 
   const totalChunks = visibleFiles.reduce((s, f) => s + f.chunkCount, 0);
+  const degradedCount = visibleFiles.filter((f) => f.indexing_status === "degraded").length;
+  const failedCount = visibleFiles.filter((f) => f.indexing_status === "failed").length;
 
   return (
     <div className="flex h-full flex-col">
@@ -152,6 +183,28 @@ export default function DocumentsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {error && (
           <p className="mb-4 text-sm text-destructive">{error}</p>
+        )}
+
+        {(degradedCount > 0 || failedCount > 0) && !loading && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[8px] border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[12px]">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="text-foreground">
+              {failedCount > 0 && (
+                <>
+                  <strong className="text-destructive">{failedCount}</strong> archivo{failedCount !== 1 ? "s" : ""} sin indexar
+                </>
+              )}
+              {failedCount > 0 && degradedCount > 0 && <span className="mx-2 text-muted-foreground">·</span>}
+              {degradedCount > 0 && (
+                <>
+                  <strong className="text-amber-700 dark:text-amber-400">{degradedCount}</strong> degradado{degradedCount !== 1 ? "s" : ""}
+                </>
+              )}
+            </span>
+            <span className="text-muted-foreground">
+              Pasá el mouse sobre el badge de cada archivo para ver el detalle.
+            </span>
+          </div>
         )}
 
         {loading ? (
@@ -230,6 +283,22 @@ function FileRow({
           {projectName}
         </div>
       )}
+
+      {/* Indexing status — degraded/failed/pending */}
+      {!confirming && file.indexing_status && INDEXING_BADGE[file.indexing_status] && (() => {
+        const badge = INDEXING_BADGE[file.indexing_status]!;
+        const tooltipBody = file.indexing_error ? `${badge.tooltip}\n\n${file.indexing_error}` : badge.tooltip;
+        const Icon = badge.icon;
+        return (
+          <div
+            className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${badge.classes}`}
+            title={tooltipBody}
+          >
+            <Icon className="h-3 w-3" />
+            {badge.label}
+          </div>
+        );
+      })()}
 
       {/* Chunk badge */}
       {file.chunkCount > 0 && !confirming && (

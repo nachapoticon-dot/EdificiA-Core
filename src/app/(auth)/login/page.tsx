@@ -164,7 +164,7 @@ function LoginForm() {
               autoComplete="current-password"
               value={form.password}
               onChange={handleChange}
-              placeholder="••••••••"
+              placeholder="••••••••••••"
               className="w-full rounded-[8px] border border-input bg-background/80 px-3 py-2.5 pl-10 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 aria-invalid:border-destructive"
               aria-invalid={!!errors.password}
             />

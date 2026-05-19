@@ -98,14 +98,13 @@ graph TD
 | zod | ^3.24.3 | Validación de schemas E2E |
 | @insforge/sdk | ^1.2.5 | BaaS client — auth, database, storage |
 | ai | ^6.0.168 | Vercel AI SDK — streaming + tools |
-| @ai-sdk/openai | ^3.0.62 | Provider OpenAI-compatible (DeepSeek) |
-| @ai-sdk/openai-compatible | ^2.0.46 | NVIDIA NIM embeddings |
+| @ai-sdk/openai | ^3.0.62 | Provider OpenAI estándar (no usado para DeepSeek desde 2026-05-18; queda disponible para futuros providers OpenAI nativos) |
+| @ai-sdk/openai-compatible | ^2.0.46 | Provider DeepSeek — extrae y reinyecta `reasoning_content` que `@ai-sdk/openai` ignora |
 | @ai-sdk/react | ^3.0.171 | React hooks (useChat) |
 | @qdrant/js-client-rest | ^1.17.0 | Qdrant vector DB client |
 | pino | ^10.3.1 | Logger estructurado |
 | framer-motion | ^12.38.0 | Animaciones |
 | lucide-react | ^1.12.0 | Iconos |
-| next-themes | ^0.4.6 | Dark/Light mode |
 | recharts | ^3.8.1 | Gráficos |
 | resend | ^6.12.2 | Email transaccional |
 | xlsx | ^0.18.5 | Excel parser |
@@ -178,7 +177,8 @@ src/
 │   │   ├── super-admin/
 │   │   │   ├── founders/route.ts   → GET/POST/DELETE invitaciones fundador
 │   │   │   ├── companies/route.ts  → GET/PATCH empresas
-│   │   │   └── reset/route.ts      → POST reset completo
+│   │   │   ├── members/route.ts    → POST invitar miembro a una org
+│   │   │   └── reset/route.ts      → POST reset con scope='all'|'organization' + confirmación tipada server-side
 │   │   ├── health/route.ts         → GET health check (público)
 │   │   └── seed-demo/route.ts      → POST seed datos demo
 │   ├── layout.tsx                  → Root layout (fonts, providers)
@@ -196,7 +196,11 @@ src/
 │   │   └── blocks/                 → Bloques visuales estructurados del agente
 │   ├── obras/
 │   │   └── ProjectCard.tsx         → Card de proyecto en listado
-│   ├── providers.tsx               → QueryClientProvider + ThemeProvider
+│   ├── theme/
+│   │   └── ThemeInitScript.tsx     → Script crítico en <head> que setea data-theme antes del paint (anti-FOUC)
+│   ├── super-admin/
+│   │   └── ResetConfirmModal.tsx   → Modal genérico con confirmación tipada para acciones destructivas del super admin
+│   ├── providers.tsx               → QueryClientProvider (sin ThemeProvider — el tema se maneja con vars CSS + data-theme)
 │   └── ui/                         → Componentes Shadcn (auto-generados)
 ├── contexts/
 │   ├── SessionContext.tsx          → Contexto de sesión de chat
@@ -211,9 +215,10 @@ src/
 │   ├── useProjectCoverage.ts       → Cobertura documental de obra
 │   ├── useProjectFiles.ts          → Archivos de un proyecto
 │   ├── usePriceIndices.ts          → Índices de precios
-│   ├── useSessionHistory.ts        → Historial de sesiones
+│   ├── useSessionHistory.ts        → Historial de sesiones (incluye `console.warn` estructurado en sync failures)
 │   ├── useWorkCases.ts             → Expedientes operativos por obra
-│   └── useMessageHistory.ts        → Mensajes de una sesión
+│   ├── useMessageHistory.ts        → Mensajes de una sesión (valida payload con `safeValidateUIMessages` del AI SDK)
+│   └── useTheme.ts                 → Selector de tema: editorial | plano | oscuro (sin next-themes)
 ├── lib/
 │   ├── auth/
 │   │   ├── jwt.ts                  → Verificación JWT con InsForge + fallback decode-only
@@ -276,6 +281,7 @@ src/
 │   ├── file-processor/             → Procesador multimodal de archivos
 │   ├── file-cache.ts               → Cache de items de Excel
 │   ├── logger.ts                   → Logger estructurado (Pino)
+│   ├── theme.ts                    → Definición de temas (constantes + applyTheme/persistTheme/readStoredTheme)
 │   ├── validators/
 │   │   ├── index.ts                → Schemas Zod compartidos (login, signUp, tenant)
 │   │   ├── api-responses.ts        → Contratos Zod de responses API consumidas por frontend
@@ -304,7 +310,15 @@ migrations/ (canónico, InsForge CLI)
     ├── 20260518001800_operational-findings.sql
     ├── 20260518002617_legacy-work-cases.sql
     ├── 20260518004152_agent-runs.sql
-    └── 20260518104406_document-intelligence-reports.sql
+    ├── 20260518104406_document-intelligence-reports.sql
+    ├── 20260518190721_work-case-verdict-closure.sql
+    └── 20260518230000_uploaded-files-indexing-status.sql
+
+scripts/ (operaciones manuales / smoke tests)
+    ├── migrate.js                  → Wrapper de migración legacy
+    ├── verify-wal.sh               → Verificación de WAL/replication
+    └── smoke-chat.mjs              → Smoke E2E del agente: 3 turnos multi-turn contra DeepSeek real,
+                                      valida ciclo reasoning_content. Ejecutable con `npm run smoke:chat`.
 
 docs/archive/db-migrations-legacy/
     └── 001..016_*.sql              → histórico raw SQL previo; read-only, no usar para cambios nuevos
@@ -414,6 +428,22 @@ Flujo actual:
 3. Si el upload ya puede resolver un `work_case_id`, se agrega `work_case_evidence.evidence_type = 'document_report'`.
 4. Si el expediente se crea después desde `POST /api/sessions`, `linkLatestDocumentReportToWorkCase()` vincula el último reporte del archivo por `organization_id + project_id + file_name` al expediente recién creado.
 
+## Bloques Visuales del Agente
+
+Los bloques de `src/components/chat/blocks/` están cableados como contrato de UI generativa:
+
+1. El agente llama una tool de presentación (`proyectar_metricas`, `proyectar_legajo_grafico`, `proyectar_comparativa`, `proyectar_cronograma`).
+2. La tool devuelve un objeto `kind` validable por `src/lib/validators/blocks.ts`.
+3. `src/components/chat/MessageBubble.tsx` detecta la tool, valida con `BlockSpec.safeParse()` y renderiza `ResponseBlock`.
+4. `/dashboard/blocks-demo` permite verificar los cuatro bloques en desarrollo sin depender de una conversación real.
+
+Invariantes:
+
+- Los bloques no deben inventar datos ni reemplazar verificación de dominio.
+- El texto del agente interpreta el bloque; no duplica la misma información en tablas Markdown.
+- Las tools bound deben resolver `organization_id` server-side cuando hay acceso a datos del tenant.
+- Ante salida inválida, el frontend muestra fallback de error en vez de renderizar datos parciales.
+
 ## Registro de Cambios Estructurales
 
 | Fecha | Sprint | Cambio |
@@ -455,4 +485,8 @@ Flujo actual:
 | 2026-05-18 | Agent Core / Cierre con veredicto | Migración `20260518190721_work-case-verdict-closure.sql` agrega `verdict` y `closed_by_user_id` a `work_cases`. `GET /api/work-cases/[id]` devuelve `documentReports[]` con `fileName` resuelto; `PATCH` acepta `verdict`+`summary` y los registra en `work_case_events.work_case.status_changed`. `/dashboard/obras/[id]/expedientes/[workCaseId]` renderiza reportes documentales expandibles y abre modal de cierre con selector de veredicto y resumen editable. |
 | 2026-05-18 | Agent Core / Cierre agéntico | Agregada tool bound `proponer_cierre_expediente`: el agente puede proponer cierre `resolved` con `verdict`, `summary` y evidencia citable solo para el `workCaseId` validado por sesión/org. `closeWorkCaseFromAgent()` escribe estado, evento y evidencia opcional sin exponer `organization_id` al modelo. |
 | 2026-05-18 | Agent Core / Vista global | Agregada `/dashboard/expedientes`, navegación lateral y soporte `limit` en `useWorkCases()` para listar expedientes de toda la organización agrupados por estado o veredicto, con búsqueda, filtro de estado y accesos a detalle/chat cuando existen vínculos de obra/sesión. |
+| 2026-05-18 | Provider DeepSeek | `/api/chat` migrado de `@ai-sdk/openai` (`createOpenAI`) a `@ai-sdk/openai-compatible` (`createOpenAICompatible`). El provider compatible extrae `reasoning_content` de DeepSeek (vía `delta.reasoning_content` y `message.reasoning_content`) y lo reinyecta en el body de la siguiente request, cerrando el error "must be passed back to the API". `next-themes` removido del package.json (no usado tras el sistema de temas propio). |
+| 2026-05-18 | Sistema de temas | Reemplazado `next-themes` por sistema propio basado en `data-theme` + tokens OKLCH. 3 temas seleccionables: `editorial` (default), `plano`, `oscuro`. Archivos nuevos: `src/lib/theme.ts`, `src/hooks/useTheme.ts`, `src/components/theme/ThemeInitScript.tsx` (script crítico anti-FOUC en `<head>`). `globals.css` agrega bloques `[data-theme="..."]` con aliases shadcn. UI: selector en la rueda de configuración (`TopBarActions.tsx`) con sub-panel expandible "Temas". |
+| 2026-05-18 | Super-admin reset operativo | `/api/super-admin/reset` deja de ser herramienta de testing y pasa a aceptar `scope: "all" | "organization"` con `confirmation` tipada validada server-side (nombre o slug de empresa para org-scope; literal `"BORRAR TODO"` para reset total). UI: nuevo botón "Resetear datos" por empresa en `CompaniesTab`, modal `ResetConfirmModal` con confirmación tipada. Per-org borra contenido operativo y vectores Qdrant filtrados por `org_id` pero preserva empresa, miembros y founder invitations. |
+| 2026-05-18 | Hardening de boundaries | 4 fixes contra fallas silenciosas en boundaries: (1) `fetchRemoteMessages` valida con `safeValidateUIMessages` del AI SDK; (2) respuesta NVIDIA NIM validada con Zod en `src/lib/embeddings/index.ts`; (3) `console.warn` estructurado en 5 syncs no-bloqueantes de `useMessageHistory`/`useSessionHistory`; (4) migración `20260518230000_uploaded-files-indexing-status.sql` agrega `indexing_status`, `indexing_error`, `indexed_at` a `uploaded_files`, `src/lib/rag/ingest.ts` marca estado real (`indexed`/`degraded`/`failed`), UI en `/dashboard/documents` muestra badges + banner agregado. Smoke test E2E (`scripts/smoke-chat.mjs`, `npm run smoke:chat`) corre 3 turnos contra DeepSeek y detecta la regresión `reasoning_content`. |
 | 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |

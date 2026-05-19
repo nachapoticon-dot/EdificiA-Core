@@ -384,7 +384,7 @@ No vuelvas a auditar ni a buscar en la base documental: aplicá los cambios soli
   return (
     <div className="flex h-full flex-col bg-background/55">
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-2 border-b bg-card/85 px-6 py-3 backdrop-blur">
+      <header className="relative z-40 flex shrink-0 items-center gap-2 border-b bg-card/85 px-6 py-3 backdrop-blur">
         <Compass className="h-3.5 w-3.5 text-primary" />
         <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
         {isStreaming && (
@@ -542,10 +542,10 @@ function PriceIndexOnboardingBanner() {
         <AlertTriangle className="h-4 w-4 shrink-0 text-[oklch(0.62_0.18_60)]" strokeWidth={1.75} />
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold text-foreground">
-            Faltan índices de precio para comparar presupuestos
+            Todavía no cargaste la base de datos de tu empresa
           </p>
           <p className="text-[11.5px] text-muted-foreground">
-            Sin listas cargadas, el agente no puede validar valores contra referencias reales de mercado.
+            Sin tus precios, contratos y referencias internas, EdificIA trabaja con contexto limitado y pierde precisión al comparar valores.
           </p>
         </div>
         <Link
@@ -553,7 +553,7 @@ function PriceIndexOnboardingBanner() {
           className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           <TrendingUp className="h-3.5 w-3.5" />
-          Cargar índices
+          Cargar datos
         </Link>
       </div>
     </div>

@@ -93,3 +93,28 @@ Eso comunica que EdificIA razona sobre la obra, no que corre una macro.
 ## 8. Regla de producto
 
 EdificIA debe poder auditar un documento aunque no sea perfecto, aunque venga incompleto y aunque no encaje en una plantilla. Cuando no pueda cerrar una conclusión, debe decir qué falta y por qué, no forzar un resultado.
+
+## 9. Bloques visuales como contrato de respuesta
+
+Los bloques creados en `src/components/chat/blocks/` no son una galería ni una demo aislada. Son una capa de UI generativa conectada al agente mediante:
+
+- tools de presentación en `src/lib/ai/agent-tools.ts`
+- schemas Zod en `src/lib/validators/blocks.ts`
+- render automático en `src/components/chat/MessageBubble.tsx`
+- demo de verificación visual en `/dashboard/blocks-demo` solo en desarrollo
+
+Uso esperado:
+
+- `proyectar_metricas`: auditorías con KPIs, incidencias por rubro, desvíos, curva financiera resumida o indicadores con confianza.
+- `proyectar_legajo_grafico`: planos, renders, fotos o documentos visuales reales encontrados en la base documental del tenant/obra.
+- `proyectar_comparativa`: ranking multi-opción de proveedores, materiales, ofertas o alternativas con criterios comunes.
+- `proyectar_cronograma`: cronogramas, hitos, fases, avance o reprogramaciones con fechas/fases suficientes.
+- `comparar_presupuestos`: comparación A/B de dos presupuestos Excel cuando se necesita detalle de filas, diferencias y totales.
+
+Reglas de uso:
+
+- No proyectar bloques si faltan datos mínimos. Pedir precisión antes de inventar métricas, fechas, scores o documentos.
+- No duplicar la visualización con una tabla Markdown. El bloque muestra; el texto posterior interpreta.
+- Después del bloque, agregar una lectura ejecutiva corta: excepción, impacto y próxima acción.
+- Citar fuente cuando exista y usar `confidence` en hallazgos o KPIs con evidencia parcial.
+- Si una búsqueda visual no encuentra documentos, comunicar ausencia de evidencia; no presentarlo como una comprobación positiva.
