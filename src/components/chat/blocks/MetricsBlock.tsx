@@ -33,7 +33,7 @@ export function MetricsBlock({
       footer={footer ? <MonoLabel>{footer}</MonoLabel> : null}
     >
       {/* KPI strip */}
-      <div className="grid grid-cols-4 gap-px overflow-hidden rounded-[8px] border border-border bg-border">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[8px] border border-border bg-border md:grid-cols-4">
         {kpis.map((k, i) => (
           <div key={i} className="flex flex-col gap-1 bg-card px-3 py-2.5">
             <MonoLabel className="text-[9px] tracking-[0.1em]">{k.label}</MonoLabel>
@@ -58,7 +58,8 @@ export function MetricsBlock({
       </div>
 
       {/* Horizontal bars */}
-      <div className="flex flex-col gap-1.5">
+      <div className="min-w-0 overflow-x-auto">
+        <div className="flex min-w-[460px] flex-col gap-1.5">
         <div className="flex justify-between border-b border-dashed border-border pb-1">
           <MonoLabel>RUBRO</MonoLabel>
           <MonoLabel>INCIDENCIA</MonoLabel>
@@ -70,22 +71,18 @@ export function MetricsBlock({
             return (
               <div
                 key={i}
-                className="grid items-center gap-2.5"
-                style={{ gridTemplateColumns: "130px 1fr 76px" }}
+                className="grid grid-cols-[minmax(90px,130px)_minmax(140px,1fr)_minmax(64px,80px)] items-center gap-2.5"
               >
                 <span className="truncate text-right text-[11.5px] text-muted-foreground" title={b.label}>
                   {b.label}
                 </span>
-                <div className="relative h-[20px] overflow-hidden rounded-[3px] bg-white/[0.05]">
+                <div className="relative h-[20px] overflow-hidden rounded-[3px] bg-muted/60">
                   <div
                     className="absolute inset-y-0 left-0 rounded-[3px] transition-[width] duration-500 ease-out"
                     style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.9 }}
                   />
                   {pct > 24 && (
-                    <span
-                      className="absolute inset-0 flex items-center pl-2 font-mono text-[10px] text-white"
-                      style={{ mixBlendMode: "difference" }}
-                    >
+                    <span className="absolute inset-0 flex items-center pl-2 font-mono text-[10px] text-primary-foreground">
                       {fmt$(b.value)}
                     </span>
                   )}
@@ -108,6 +105,7 @@ export function MetricsBlock({
         <div className="mt-1 flex items-baseline justify-between border-t border-border pt-2 font-mono text-[12.5px] font-semibold">
           <MonoLabel>{totalLabel}</MonoLabel>
           <span className="tabular-nums">{fmt$(bars.reduce((s, b) => s + b.value, 0))}</span>
+        </div>
         </div>
       </div>
     </BlockShell>

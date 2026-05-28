@@ -5,11 +5,15 @@ import { MetricsBlock } from "./MetricsBlock";
 import { MediaBlock } from "./MediaBlock";
 import { ComparisonBlock } from "./ComparisonBlock";
 import { TimelineBlock } from "./TimelineBlock";
+import { RiskRegisterBlock } from "./RiskRegisterBlock";
+import { EvidenceLedgerBlock } from "./EvidenceLedgerBlock";
 import {
   MetricsSkeleton,
   MediaSkeleton,
   ComparisonSkeleton,
   TimelineSkeleton,
+  RiskRegisterSkeleton,
+  EvidenceLedgerSkeleton,
 } from "./skeletons";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +32,8 @@ export function ResponseBlock(props: Props) {
       case "media":      return <MediaSkeleton />;
       case "comparison": return <ComparisonSkeleton />;
       case "timeline":   return <TimelineSkeleton />;
+      case "risk_register":   return <RiskRegisterSkeleton />;
+      case "evidence_ledger": return <EvidenceLedgerSkeleton />;
       default: return null;
     }
   }
@@ -38,11 +44,13 @@ export function ResponseBlock(props: Props) {
     case "media":      return <MediaBlock      spec={spec} accentVar={accentVar} />;
     case "comparison": return <ComparisonBlock spec={spec} accentVar={accentVar} />;
     case "timeline":   return <TimelineBlock   spec={spec} accentVar={accentVar} />;
+    case "risk_register":   return <RiskRegisterBlock   spec={spec} accentVar={accentVar} />;
+    case "evidence_ledger": return <EvidenceLedgerBlock spec={spec} accentVar={accentVar} />;
     default: return null;
   }
 }
 
 // Re-exports
-export { MetricsBlock, MediaBlock, ComparisonBlock, TimelineBlock };
-export { MetricsSkeleton, MediaSkeleton, ComparisonSkeleton, TimelineSkeleton };
+export { MetricsBlock, MediaBlock, ComparisonBlock, TimelineBlock, RiskRegisterBlock, EvidenceLedgerBlock };
+export { MetricsSkeleton, MediaSkeleton, ComparisonSkeleton, TimelineSkeleton, RiskRegisterSkeleton, EvidenceLedgerSkeleton };
 export { BlockShell } from "./BlockShell";

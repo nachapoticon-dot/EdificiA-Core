@@ -11,7 +11,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2 } from "lucide-react";
+import { AlertTriangle, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2 } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./cards/ChartBlock";
 import { DocumentProposalCard, type FileProposal } from "./cards/DocumentProposalCard";
 import { FindingCallout, type FindingSpec } from "./cards/FindingCallout";
@@ -49,12 +49,12 @@ const FILE_ICONS: Record<FileMeta["type"], React.ElementType> = {
 // Each file type gets a distinct accent tint. Both the icon tile background
 // and the icon foreground use the same hue so the card reads as a single
 // "chip" instead of an icon floating on a generic surface.
-const FILE_ACCENTS: Record<FileMeta["type"], { tile: string; icon: string; badge: string }> = {
-  excel: { tile: "bg-[oklch(0.62_0.13_145/0.18)]", icon: "text-[oklch(0.78_0.16_145)]", badge: "XLSX" },
-  pdf:   { tile: "bg-[oklch(0.62_0.18_25/0.18)]",  icon: "text-[oklch(0.78_0.16_25)]",  badge: "PDF"  },
-  dxf:   { tile: "bg-[oklch(0.62_0.14_240/0.18)]", icon: "text-[oklch(0.78_0.14_240)]", badge: "DXF"  },
-  docx:  { tile: "bg-[oklch(0.62_0.18_260/0.18)]", icon: "text-[oklch(0.80_0.14_260)]", badge: "DOCX" },
-  image: { tile: "bg-[oklch(0.62_0.16_310/0.18)]", icon: "text-[oklch(0.80_0.14_310)]", badge: "IMG"  },
+const FILE_ACCENTS: Record<FileMeta["type"], { badge: string }> = {
+  excel: { badge: "XLSX" },
+  pdf:   { badge: "PDF"  },
+  dxf:   { badge: "DXF"  },
+  docx:  { badge: "DOCX" },
+  image: { badge: "IMG"  },
 };
 
 function parseFileMeta(text: string): FileMeta | null {
@@ -90,21 +90,23 @@ function FileAttachmentCard({ meta }: { meta: FileMeta }) {
   if (meta.fileSize) chunks.push(formatBytes(meta.fileSize));
 
   return (
-    <div className="group flex items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.06] px-3.5 py-3 backdrop-blur-sm transition-colors hover:bg-white/[0.09] max-w-[340px]">
+    <div
+      className="file-accent group flex max-w-[340px] items-center gap-3 rounded-[10px] border border-border bg-[color-mix(in_oklch,var(--user-bg)_88%,var(--background))] px-3.5 py-3 text-[var(--user-fg)] shadow-sm backdrop-blur-sm transition-colors hover:bg-[var(--user-bg)]"
+      data-ftype={meta.type}
+    >
       {/* Icon tile */}
       <div className={cn(
-        "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-white/10",
-        accent.tile,
+        "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-border bg-[var(--file-tint)]",
       )}>
-        <Icon className={cn("h-5 w-5", accent.icon)} strokeWidth={1.5} />
+        <Icon className="h-5 w-5 text-[var(--file-color)]" strokeWidth={1.5} />
       </div>
 
       {/* Filename + metadata line */}
       <div className="flex min-w-0 flex-col gap-0.5">
-        <p className="truncate text-[13.5px] font-medium leading-tight text-background">
+        <p className="truncate text-[13.5px] font-medium leading-tight">
           {meta.fileName}
         </p>
-        <p className="truncate font-mono text-[10.5px] text-background/55 tracking-[0.01em]">
+        <p className="truncate font-mono text-[10.5px] tracking-[0.01em] text-[var(--user-meta)]">
           {chunks.join(" • ")}
         </p>
       </div>
@@ -154,6 +156,12 @@ const TOOL_LABELS: Record<string, string> = {
   generar_orden_compra:            "Armando orden de compra",
   generar_acta_obra:               "Generando parte diario de obra",
   enviar_email_stakeholder:        "Enviando email a stakeholders",
+  proyectar_metricas:              "Preparando métricas visuales",
+  proyectar_legajo_grafico:        "Armando legajo gráfico",
+  proyectar_comparativa:           "Construyendo comparativa operativa",
+  proyectar_cronograma:            "Proyectando cronograma",
+  proyectar_riesgos:               "Priorizando riesgos operativos",
+  proyectar_evidencia:             "Ordenando evidencia citable",
 };
 
 const SPECIAL_TOOLS = new Set([
@@ -171,6 +179,8 @@ const SPECIAL_TOOLS = new Set([
   "proyectar_legajo_grafico",
   "proyectar_comparativa",
   "proyectar_cronograma",
+  "proyectar_riesgos",
+  "proyectar_evidencia",
 ]);
 
 /* ── Segment types for the grouped renderer ── */
@@ -180,16 +190,42 @@ type BlockResultSegment = { kind: "block-result"; part: UIMessagePart<UIDataType
 
 type Segment = TextSegment | ToolTimelineSegment | BlockResultSegment;
 
-// AI SDK v6: tool data lives inside part.toolInvocation (nested), not on part directly
 type ToolInvocationData = {
   toolName?: string;
   state?: string;
   result?: unknown;
+  output?: unknown;
+  errorText?: string;
 };
 
 function getToolInvocation(part: UIMessagePart<UIDataTypes, UITools>): ToolInvocationData | null {
-  const p = part as unknown as { toolInvocation?: ToolInvocationData };
-  return p.toolInvocation ?? null;
+  const p = part as unknown as {
+    type?: string;
+    toolName?: string;
+    state?: string;
+    result?: unknown;
+    output?: unknown;
+    errorText?: string;
+    toolInvocation?: ToolInvocationData;
+  };
+
+  if (p.toolInvocation) return p.toolInvocation;
+
+  const toolName =
+    p.toolName ??
+    (typeof p.type === "string" && p.type.startsWith("tool-")
+      ? p.type.slice("tool-".length)
+      : undefined);
+
+  if (!toolName) return null;
+
+  return {
+    toolName,
+    state: p.state,
+    result: p.result ?? p.output,
+    output: p.output,
+    errorText: p.errorText,
+  };
 }
 
 /**
@@ -246,7 +282,7 @@ export function MessageBubble({ message, onFeedback, onAdjustDocument }: Message
 
   return (
     <div
-      className={cn("flex gap-3 px-6 py-3", isUser ? "justify-end" : "justify-start")}
+      className={cn("flex gap-3 px-3 py-3 md:px-6", isUser ? "justify-end" : "justify-start")}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -257,7 +293,7 @@ export function MessageBubble({ message, onFeedback, onAdjustDocument }: Message
         </div>
       )}
 
-      <div className={cn("flex max-w-[75%] flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
+      <div className={cn("flex min-w-0 flex-col gap-1.5", isUser ? "max-w-[88%] items-end sm:max-w-[640px]" : "w-full max-w-full items-start sm:max-w-[760px]")}>
         <span className="font-mono text-[10px] text-muted-foreground">
           {isUser ? "vos" : "EdificIA"} · {timestamp}
         </span>
@@ -342,7 +378,7 @@ function TextPart({
         if (cutIdx > 0) displayText = part.text.slice(0, cutIdx).trimEnd();
       }
       return (
-        <div className="px-4 py-2.5 text-sm leading-relaxed bg-foreground text-background rounded-[12px_12px_2px_12px] whitespace-pre-wrap">
+        <div className="rounded-[10px_10px_2px_10px] bg-[var(--user-bg)] px-4 py-2.5 text-sm leading-relaxed text-[var(--user-fg)] whitespace-pre-wrap">
           {displayText}
         </div>
       );
@@ -353,7 +389,7 @@ function TextPart({
       <div className="flex flex-col gap-2 items-end">
         {fileMeta && <FileAttachmentCard meta={fileMeta} />}
         {actionText && (
-          <div className="px-4 py-2.5 text-sm leading-relaxed bg-foreground text-background rounded-[12px_12px_2px_12px] whitespace-pre-wrap">
+          <div className="rounded-[10px_10px_2px_10px] bg-[var(--user-bg)] px-4 py-2.5 text-sm leading-relaxed text-[var(--user-fg)] whitespace-pre-wrap">
             {actionText}
           </div>
         )}
@@ -374,7 +410,7 @@ function TextPart({
       {plan && <PlanBlock spec={plan} />}
       {planPending && <PlanPendingPlaceholder />}
       {cleanText && (
-        <div className="px-4 py-2.5 text-sm leading-relaxed bg-card border border-border text-foreground rounded-[2px_12px_12px_12px] prose prose-sm prose-neutral dark:prose-invert max-w-none">
+        <div className="prose prose-sm prose-neutral max-w-none rounded-[2px_10px_10px_10px] border border-border bg-card px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)] dark:prose-invert">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -417,6 +453,8 @@ const BLOCK_TOOLS: Record<string, BlockKind> = {
   proyectar_legajo_grafico: "media",
   proyectar_comparativa:    "comparison",
   proyectar_cronograma:     "timeline",
+  proyectar_riesgos:        "risk_register",
+  proyectar_evidencia:      "evidence_ledger",
 };
 
 /**
@@ -434,8 +472,8 @@ function BlockResultPart({
   if (!isToolUIPart(part)) return null;
   const ti = getToolInvocation(part);
   const toolName = ti?.toolName ?? "";
-  const isPending = ti?.state === "call" || ti?.state === "partial-call";
-  const output = ti?.result;
+  const isPending = isToolPending(ti?.state);
+  const output = getToolOutput(ti);
 
   if (isPending || !output) return null;
 
@@ -518,28 +556,24 @@ function BlockResultPart({
  * When done: shows "✓ N pasos completados" — click to expand the per-step list.
  */
 function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] }) {
-  const [expanded, setExpanded] = useState(false);
   const relevant = parts.filter(isToolUIPart);
   if (relevant.length === 0) return null;
 
   const totals = relevant.reduce(
     (acc, p) => {
       const state = getToolInvocation(p)?.state;
-      if (state === "result") acc.done++;
-      else if (state === "call" || state === "partial-call") acc.running++;
+      if (isToolDone(state)) acc.done++;
+      else if (isToolPending(state)) acc.running++;
       return acc;
     },
     { done: 0, running: 0 },
   );
 
   const allDone = totals.running === 0;
+  if (allDone) return null;
+
   // While streaming: show the most recent pending tool's label
-  const currentPending = !allDone
-    ? relevant.find((p) => {
-        const s = getToolInvocation(p)?.state;
-        return s === "call" || s === "partial-call";
-      })
-    : null;
+  const currentPending = relevant.find((p) => isToolPending(getToolInvocation(p)?.state));
   const currentLabel = currentPending
     ? (TOOL_LABELS[getToolInvocation(currentPending)?.toolName ?? ""] ?? "Procesando")
     : null;
@@ -548,66 +582,39 @@ function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] 
     <div className="w-full overflow-hidden rounded-[10px] border border-border bg-card">
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
-        disabled={!allDone}
-        className={cn(
-          "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-xs transition-colors",
-          allDone ? "cursor-pointer hover:bg-accent/40" : "cursor-default",
-        )}
+        disabled
+        className="flex w-full cursor-default items-center gap-2.5 px-3.5 py-2.5 text-left text-xs transition-colors"
       >
         <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-          {allDone ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-[oklch(0.58_0.15_145)]" />
-          ) : (
-            <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
-          )}
+          <span className="eb-pulse h-2 w-2 rounded-full bg-primary" />
         </div>
-        <span className={cn("flex-1 text-[11.5px]", allDone ? "text-foreground" : "text-muted-foreground")}>
-          {allDone
-            ? `Auditoría completada · ${relevant.length} paso${relevant.length === 1 ? "" : "s"}`
-            : currentLabel ?? "Procesando…"}
+        <span className="flex-1 text-[11.5px] text-muted-foreground">
+          {currentLabel ?? "Procesando…"}
         </span>
         <span className="font-mono text-[10px] text-muted-foreground">
-          {allDone ? `${relevant.length}/${relevant.length}` : `${totals.done}/${relevant.length}`}
+          {totals.done}/{relevant.length}
         </span>
-        {allDone && (
-          <span className="font-mono text-[10px] text-muted-foreground/60">
-            {expanded ? "ocultar" : "ver pasos"}
-          </span>
-        )}
       </button>
-
-      {expanded && allDone && (
-        <div className="border-t border-border">
-          {relevant.map((p, i) => {
-            const ti = getToolInvocation(p);
-            const name = ti?.toolName ?? "herramienta";
-            return (
-              <div
-                key={i}
-                className={cn(
-                  "flex items-center gap-2.5 px-3.5 py-2 text-[11px]",
-                  i < relevant.length - 1 ? "border-b border-border" : "",
-                )}
-              >
-                <Wrench className="h-3 w-3 shrink-0 text-[oklch(0.58_0.15_145)]" />
-                <span className="flex-1 text-foreground/85">
-                  {TOOL_LABELS[name] ?? name}
-                </span>
-                <span className="font-mono text-[10px] text-[oklch(0.58_0.15_145)]">ok</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
+}
+
+function isToolPending(state?: string) {
+  return state === "call" || state === "partial-call" || state === "input-streaming" || state === "input-available";
+}
+
+function isToolDone(state?: string) {
+  return state === "result" || state === "output-available" || state === "output-error" || state === "output-denied";
+}
+
+function getToolOutput(ti: ToolInvocationData | null): unknown {
+  return ti?.result ?? ti?.output;
 }
 
 function FallbackErrorBlock({ toolName }: { toolName: string }) {
   return (
     <div className="flex items-center gap-2 rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-[12px] text-muted-foreground">
-      <span className="font-mono text-[10px] text-[var(--warn)]">⚠</span>
+      <AlertTriangle className="h-3.5 w-3.5 text-[var(--warn)]" />
       No se pudo renderizar el resultado de <span className="font-mono text-foreground">{toolName}</span>.
     </div>
   );

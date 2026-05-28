@@ -80,3 +80,93 @@ export const DEMO_TIMELINE: BlockSpec = {
     { label: "Recepción provisoria",   day: 220, note: "septiembre 2026" },
   ],
 };
+
+export const DEMO_RISK_REGISTER: BlockSpec = {
+  kind: "risk_register",
+  title: "Riesgos abiertos — Torre A",
+  scope: "Las Lomas · semana 20",
+  updatedAt: "20/05/2026 09:48",
+  risks: [
+    {
+      title: "Sanitarios supera CAC por cambios de especificacion",
+      category: "costos",
+      severity: "critical",
+      probability: 78,
+      impact: "Desvio proyectado +11% si se aprueba la orden R7 sin renegociar.",
+      owner: "Compras",
+      due: "22/05",
+      status: "open",
+      evidence: "Presupuesto R7 + indice CAC abr/2026",
+    },
+    {
+      title: "Certificacion intermedia sin respaldo fotografico completo",
+      category: "documentacion",
+      severity: "high",
+      probability: 64,
+      impact: "Puede demorar aprobacion del comitente y caja semanal.",
+      owner: "Jefe de obra",
+      due: "23/05",
+      status: "blocked",
+    },
+    {
+      title: "Acopio H21 llega con ventana ajustada",
+      category: "suministros",
+      severity: "medium",
+      probability: 42,
+      mitigation: "Confirmar cupo de mixer y alternativa B antes del viernes.",
+      owner: "Logistica",
+      due: "24/05",
+      status: "monitoring",
+    },
+  ],
+};
+
+export const DEMO_EVIDENCE_LEDGER: BlockSpec = {
+  kind: "evidence_ledger",
+  title: "Evidencia usada para el cierre preliminar",
+  summary: "trazabilidad · presupuesto R7 + cronograma + hallazgos vivos",
+  items: [
+    {
+      label: "Total de obra y desvio CAC",
+      source: "Presupuesto Torre A R7.xlsx",
+      type: "document",
+      status: "confirmed",
+      confidence: 94,
+      timestamp: "20/05 09:14",
+      note: "La suma por rubro coincide con el resumen ejecutivo y la planilla de computo.",
+    },
+    {
+      label: "Riesgo sanitario +11%",
+      source: "comparar_con_indices",
+      type: "tool",
+      status: "observed",
+      confidence: 87,
+      timestamp: "20/05 09:15",
+      note: "Contraste contra CAC abril/2026; falta aprobacion humana de renegociacion.",
+    },
+    {
+      label: "Fotos de subsuelo completas",
+      source: "Legajo fotografico 09/05",
+      type: "document",
+      status: "missing",
+      confidence: 55,
+      note: "Hay 12 fotos indexadas, pero no cubren el frente este del nivel -2.",
+    },
+    {
+      label: "Hito certificacion intermedia",
+      source: "Cronograma contractual",
+      type: "event",
+      status: "confirmed",
+      confidence: 91,
+      timestamp: "vence 23/05",
+    },
+    {
+      label: "Version vigente de planta tipo",
+      source: "R6 vs R7",
+      type: "finding",
+      status: "conflict",
+      confidence: 72,
+      note: "El expediente tiene R7, pero un adjunto historico sigue referenciando R6.",
+    },
+  ],
+};

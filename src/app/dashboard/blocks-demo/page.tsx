@@ -8,14 +8,15 @@ import {
   DEMO_MEDIA,
   DEMO_COMPARISON,
   DEMO_TIMELINE,
+  DEMO_RISK_REGISTER,
+  DEMO_EVIDENCE_LEDGER,
 } from "@/components/chat/blocks/demo-data";
 import type { BlockSpec } from "@/lib/validators/blocks";
 import { CheckCircle2, Dot, Wrench, Sparkles } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /dashboard/blocks-demo — reproduce la conversación scripteada que prueba
-// los 4 bloques con sus skeletons. Pensada para QA visual / Storybook backup.
-// Borrar antes de mergear a main si no la querés en producción.
+// /dashboard/blocks-demo — reproduce una conversación scripteada que prueba
+// todos los bloques visuales del agente con sus skeletons.
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Message = {
@@ -35,6 +36,8 @@ const TOOL_LABELS: Record<string, string> = {
   analizar_geometria_plano: "Analizando geometría del plano",
   comparar_presupuestos: "Cotejando proveedores",
   analizar_estado_obra: "Analizando estado de obra",
+  evaluar_riesgos_operativos: "Priorizando riesgos del expediente",
+  reconstruir_evidencia: "Reconstruyendo trazabilidad de evidencia",
 };
 
 const CONVERSATION: Message[] = [
@@ -65,6 +68,16 @@ const CONVERSATION: Message[] = [
     tools: ["analizar_estado_obra"],
     text: "Avance al **día 132 de 220** (60%). Estructura cerró 4d adelantada. Hito crítico: **certificación intermedia en 14 días**.",
     block: DEMO_TIMELINE },
+
+  { id: "u5", role: "user", time: "09:48",
+    text: "Priorizá lo que puede trabar la certificación y dejame evidencia citable." },
+  { id: "a5", role: "assistant", time: "09:48",
+    tools: ["evaluar_riesgos_operativos", "reconstruir_evidencia"],
+    text: "Hay **3 riesgos activos**; el desvío sanitario queda crítico y el respaldo fotográfico del subsuelo está incompleto. Abajo separo riesgo operativo y evidencia.",
+    block: DEMO_RISK_REGISTER },
+  { id: "a6", role: "assistant", time: "09:49",
+    text: "La trazabilidad marca **2 alertas**: fotos faltantes y conflicto R6/R7. No cerraría el expediente como aprobado hasta resolver esos puntos.",
+    block: DEMO_EVIDENCE_LEDGER },
 ];
 
 type BlockState = "tools" | "skeleton" | "ready";
@@ -113,16 +126,21 @@ export default function BlocksDemoPage() {
   }, [tick]);
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-border px-6 py-2.5">
-        <div className="text-[12.5px]">
-          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">DEMO ›</span>{" "}
-          <strong>Bloques de Respuesta · Las Lomas — Torre A</strong>
+    <div className="flex h-dvh flex-col bg-background text-foreground ed-blueprint-bg">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/92 px-4 py-3 backdrop-blur md:px-6">
+        <div className="min-w-0">
+          <div className="text-[12.5px]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">DEMO / AGENTE</span>{" "}
+            <strong>Bloques de Respuesta · Las Lomas — Torre A</strong>
+          </div>
+          <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+            metrics · media · comparison · timeline · risk_register · evidence_ledger
+          </p>
         </div>
         <button
           type="button"
           onClick={() => setTick((x) => x + 1)}
-          className="flex items-center gap-1.5 rounded-[8px] border border-border bg-card px-2.5 py-1 text-[11.5px] font-medium hover:bg-accent"
+          className="flex h-8 items-center gap-1.5 rounded-[8px] border border-border bg-background px-2.5 text-[11.5px] font-medium hover:bg-accent"
         >
           <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} /> Reproducir
         </button>
@@ -140,20 +158,20 @@ export default function BlocksDemoPage() {
 function Bubble({ msg, state }: { msg: Message; state?: BlockState }) {
   const isUser = msg.role === "user";
   return (
-    <div className={`flex animate-in fade-in slide-in-from-bottom-1 gap-3 px-6 py-2 duration-200 ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex animate-in fade-in slide-in-from-bottom-1 gap-3 px-3 py-2 duration-200 md:px-6 ${isUser ? "justify-end" : "justify-start"}`}>
       {!isUser && (
         <div className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-[8px] bg-primary font-serif text-[15px] italic text-primary-foreground">
           E
         </div>
       )}
-      <div className={`flex max-w-[78%] flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+      <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "max-w-[88%] items-end sm:max-w-[640px]" : "w-full max-w-[760px] items-start"}`}>
         <span className="font-mono text-[10px] text-muted-foreground">
           {isUser ? "vos" : "EdificIA"} · {msg.time}
         </span>
         {msg.text && (
           <div className={isUser
-            ? "rounded-[12px_12px_2px_12px] bg-foreground px-3.5 py-2 text-[13px] font-medium text-background"
-            : "rounded-[2px_12px_12px_12px] border border-border bg-card px-3.5 py-2 text-[13px] leading-relaxed text-foreground"}>
+            ? "rounded-[10px_10px_2px_10px] bg-[var(--user-bg)] px-3.5 py-2 text-[13px] font-medium text-[var(--user-fg)]"
+            : "rounded-[2px_10px_10px_10px] border border-border bg-card px-3.5 py-2 text-[13px] leading-relaxed text-foreground"}>
             {parseInline(msg.text)}
           </div>
         )}

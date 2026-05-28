@@ -42,14 +42,21 @@ export function MediaBlock({
         </MonoLabel>
       }
     >
-      <div className="grid grid-cols-[1.5fr_1fr] gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1.35fr_1fr]">
         <MediaTile item={hero} hero />
-        <div className="grid grid-rows-3 gap-2">
-          {rest.map((it, i) => (
+        <div className="grid gap-2 sm:grid-rows-3">
+          {rest.slice(0, 3).map((it, i) => (
             <MediaTile key={i} item={it} />
           ))}
         </div>
       </div>
+      {rest.length > 3 && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {rest.slice(3).map((it, i) => (
+            <MediaTile key={`${it.title}-${i}`} item={it} />
+          ))}
+        </div>
+      )}
     </BlockShell>
   );
 }
@@ -68,7 +75,7 @@ function MediaTile({ item, hero }: { item: MediaItem; hero?: boolean }) {
     >
       <div
         className={cn(
-          "relative overflow-hidden bg-[oklch(0.10_0.012_222)]",
+          "relative overflow-hidden bg-muted",
           hero ? "aspect-[4/3]" : "aspect-video min-h-[64px]"
         )}
         style={{ color: meta.color }}
@@ -127,7 +134,7 @@ function MediaTile({ item, hero }: { item: MediaItem; hero?: boolean }) {
       <button
         type="button"
         title="Ampliar"
-        className="absolute right-1.5 top-1.5 grid h-5.5 w-5.5 place-items-center rounded border border-white/15 bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-[6px] border border-border bg-background/85 text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100"
       >
         <Maximize2 className="h-3 w-3" strokeWidth={1.5} />
       </button>
