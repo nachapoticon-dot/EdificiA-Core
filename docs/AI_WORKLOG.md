@@ -8,12 +8,12 @@ Reglas:
 - Registrar solo cambios relevantes o handoffs con estado incompleto.
 - No duplicar el roadmap ni el mapa de arquitectura.
 - Incluir verificación ejecutada o explicar por qué no se ejecutó.
-- Cuando una entrada queda totalmente completada y reflejada en `ROADMAP.md` y `docs/04_architecture_map.md`, podarla de acá.
+- Este archivo es **solo el handoff reciente**, no la historia completa. Cuando una entrada queda totalmente completada y reflejada en `ROADMAP.md` y `docs/04_architecture_map.md`, podarla de acá.
 
 Dónde vive cada cosa:
 
-- **Pendientes y prioridades vigentes** → `ROADMAP.md`.
-- **Migraciones, rutas, tablas, scope, expedientes, contexto empresarial, alerting, proactividad, hitos por fecha** → `docs/04_architecture_map.md` (incluye sección "Cambios destacados" con timeline).
+- **Pendientes y prioridades vigentes** → `ROADMAP.md` (incluye §0 Pendientes externos).
+- **Migraciones, rutas, tablas, scope, expedientes, contexto empresarial, alerting, proactividad, hitos por fecha** → `docs/04_architecture_map.md` (sección "Registro de Cambios Estructurales").
 - **Modelo Empresa → Obra → Expediente → Evidencia y plan Agent Core** → `docs/08_agent_core_redesign.md`.
 - **Capa de Contexto Empresarial (visión y conectores)** → `docs/06_enterprise_context_layer.md`.
 - **Lectura agéntica de documentos** → `docs/07_agentic_document_reading.md`.
@@ -34,60 +34,61 @@ Formato:
 
 ---
 
-## 2026-05-19 - Codex - Contexto y documentos convergidos
+## 2026-05-28 - Claude Code - Auditoría de estado (Opus 4.8)
 
-- Objetivo: unificar Inteligencia Empresarial y Base Documental en un solo bloque de producto.
-- Cambios: sidebar deja de mostrar Base Documental como sección separada; `EnterpriseSourcesPanel` vive como pestaña `Fuentes` dentro de Inteligencia Empresarial (`/dashboard/contexto/fuentes`); `/dashboard/documents` y `/dashboard/contexto/documentos` quedan como redirects legacy; docs actualizadas para explicitar que Base Documental es ingreso/preparación de fuentes dentro de la capa de inteligencia, no producto paralelo. `Expedientes` queda nombrado como `Mesa de Expedientes`: lugar operativo de trabajo, mientras el Radar solo muestra expedientes vinculados como evidencia.
-- Archivos: `src/app/dashboard/layout.tsx`, `src/app/dashboard/contexto/layout.tsx`, `src/app/dashboard/contexto/fuentes/page.tsx`, `src/app/dashboard/contexto/documentos/page.tsx`, `src/app/dashboard/documents/page.tsx`, `src/components/enterprise-context/EnterpriseSourcesPanel.tsx`, `ROADMAP.md`, `docs/04_architecture_map.md`, `docs/06_enterprise_context_layer.md`.
-- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm run build` OK. Browser in-app no disponible porque el Node REPL requerido por el plugin no está expuesto; verificación HTTP sin sesión confirma protección de rutas por login.
-- Pendiente: QA visual autenticado manual para confirmar la pestaña Fuentes con datos reales y probar una carga de lote.
+- Objetivo: auditar el proyecto dejado por Opus 4.7 y registrar qué está mal y qué mejorar. Sin tocar código productivo.
+- Cambios: nuevo `docs/09_auditoria_2026-05.md`. Verificación base OK (type-check/lint/test 85). Hallazgos 🔴: trabajo terminado sin commitear (estado real ≠ último commit, ROADMAP marca ✅ cosas solo en working tree), race conditions en `claim-founder`/`claim-invitation` (check-then-insert sin transacción), JWT sin verificación de firma local (delega 100% a InsForge), "Inteligencia Empresarial" sigue siendo fachada (sin conectores reales). 🟡: sin validación central de env, tests no cubren auth/tenancy/API, suppressions exhaustive-deps en chat/page, motor de proactividad dormido. 🟢: comentarios "Claude" obsoletos en file-processor, ROADMAP convertido en historial.
+- Archivos: `docs/09_auditoria_2026-05.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` 85/85 OK.
+- Pendiente: ninguno del audit en sí; las acciones recomendadas están priorizadas en `docs/09_auditoria_2026-05.md`.
 
-## 2026-05-19 - Codex - Memoria activa escribible + deploy
+## 2026-05-20 - Codex - Replanteo UX de Inteligencia y Expedientes
 
-- Objetivo: agregar tool `recordar_aprendizaje` y desplegar la app con InsForge Deployments.
-- Cambios: migración `20260519170241_active-agent-memory.sql` expande `company_learned_patterns.document_type` para `audit_history`/`agent_memory`; `src/lib/ai/active-memory.ts` upsertea aprendizajes confirmados con evidencia y audit log `agent.memory_recorded`; `agent-tools`/`agent-tools-bound` exponen la tool con scope server-side; prompt exige confirmación explícita. Cierre adicional: `verifyUserId()` queda strict por defecto en producción y `AUTH_STRICT_MODE=false` se documenta como break-glass.
-- Archivos: `src/lib/ai/active-memory.ts`, `src/lib/ai/agent-tools.ts`, `src/lib/ai/agent-tools-bound.ts`, `src/lib/ai/agent-prompt.ts`, `src/lib/agent-core/runtime.ts`, `src/lib/auth/jwt.ts`, `src/components/enterprise-context/EnterpriseSourcesPanel.tsx`, `src/app/dashboard/contexto/fuentes/page.tsx`, `src/app/dashboard/contexto/documentos/page.tsx`, `src/app/dashboard/documents/page.tsx`, `src/app/dashboard/contexto/layout.tsx`, `src/app/dashboard/layout.tsx`, `migrations/20260519170241_active-agent-memory.sql`, `tests/agent/active-memory.test.mjs`, `tests/auth/jwt.test.mjs`, `.env.local.example`, `README.md`, `ROADMAP.md`, `docs/04_architecture_map.md`, `docs/06_enterprise_context_layer.md`.
-- Verificacion: `npm run migrate` OK; constraint remoto verificado; `npm test` OK (81/81); `npm run type-check` OK; `npm run lint` OK; `npm run build` OK.
-- Pendiente: deploy InsForge bloqueado por plataforma. `deployments env list` falla con `Failed to fetch Vercel credentials: Internal Server Error`; `deployments deploy . --json` creó deployment `cdd6bb6c-22a2-4a14-9c42-1a899ac77f9e` pero falló con `Failed to upload deployment file` y quedó sin URL/provider id. Diagnóstico InsForge: `GET https://api.insforge.dev/sites/v1/credentials/daw63k5s` devuelve 500 para proyecto `daw63k5s` (`us-east`).
+- Objetivo: mejorar el planteo y diseño de Inteligencia Empresarial y la Mesa de Expedientes sin cambiar contratos backend.
+- Cambios: `/dashboard/contexto` pasa de "Radar" a "Centro de decisión empresarial", con lectura operativa, métricas de estado y próximo paso recomendado; tabs de Contexto ajustadas a Centro/Fuentes/Mapa Vivo. `/dashboard/expedientes` pasa de listado administrativo a Mesa de expedientes, con agrupación por bandeja operativa (`Para decidir`, `En gestión`, `Bloqueados o en espera`, `Cerrados`), métricas de decisión/trabajo/cierre y copy orientado a acción.
+- Archivos: `src/app/dashboard/contexto/layout.tsx`, `src/app/dashboard/contexto/page.tsx`, `src/app/dashboard/expedientes/page.tsx`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK.
+- Pendiente: QA visual autenticado en navegador para validar densidad, contenido real y responsive.
 
-## Handoff vigente (2026-05-19) — ready-to-test
+## 2026-05-20 - Codex - QA visual de dashboard y bloques del agente
 
-Estado al cierre del bloque actual (Claude):
+- Objetivo: mejorar la UI operativa completa y consolidar los 6 bloques visuales que puede emitir el agente.
+- Cambios: headers y superficies ajustados en chat, obras, expedientes, contexto, fuentes, perfil, admin/errors y blocks-demo; bloques `metrics`, `media`, `comparison`, `timeline`, `risk_register` y `evidence_ledger` refinados para responsive/tokens; `MessageBubble` ahora renderiza `proyectar_riesgos` y `proyectar_evidencia` como bloques visuales especiales.
+- Archivos: `src/app/dashboard/*`, `src/components/chat/blocks/*`, `src/components/chat/cards/FileCard.tsx`, `src/components/chat/cards/GeneratedDocCard.tsx`, `src/components/chat/MessageBubble.tsx`, `src/components/enterprise-context/EnterpriseSourcesPanel.tsx`, `docs/design/shadcn-blocks/manifest.json`, `docs/04_architecture_map.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (85/85); `npm run build` OK; dev server `http://localhost:3001` OK. Browser in-app no disponible por falta del canal `node_repl`/`mcp__node_repl__js`; QA HTTP confirmó redirects auth (`/dashboard/blocks-demo`, `/dashboard/contexto`, `/dashboard/admin/errors` -> `200 /login?next=...`).
+- Pendiente: QA visual autenticado de `/dashboard/blocks-demo` y pantallas principales cuando haya sesión local en navegador.
 
-- **Slice 2 de Contexto Empresarial completo**, incluyendo integración al agente: perfil empresarial vivo + `loadEnterpriseProfileForAgent()` cableado en `runtime.ts` + sección "Perfil de empresa" en `buildSystemPrompt()` + tool bound `consultar_perfil_empresa({ facet? })`. Ver "Pipeline del perfil" en `docs/04_architecture_map.md`, Etapa 3 en `docs/06_enterprise_context_layer.md` y §2.2 en `ROADMAP.md`.
-- **`displayName` resuelto sin tabla nueva**. InsForge guarda el nombre en `auth.users.profile.name` (jsonb). `/api/auth/me` ahora llama a `client.auth.getProfile(userId)` cuando el JWT no trae nombre.
-- **Lint global limpio**: los 3 errores preexistentes `react-hooks/set-state-in-effect` fueron corregidos (event-driven en `TopBarActions`, inner component en `ResetConfirmModal`, `useSyncExternalStore` en `useTheme`).
-- Worklog histórico podado: las entradas previas están en ROADMAP + architecture map + `git log`.
+## 2026-05-20 - Codex - Shadcn CLI y bloques operativos
 
-### Listo para que vos lo testees
+- Objetivo: cerrar el pendiente de `docs/design/shadcn-blocks/` usando el CLI de shadcn sin meter bloques genéricos ni dependencias nuevas.
+- Cambios: evaluado `@shadcn/dashboard-01` con `npx shadcn search/view/add --dry-run`; instalados primitives locales (`card`, `badge`, `tabs`, `table`, `select`, `dropdown-menu`, `tooltip`, `separator`, `skeleton`, `input`, `label`, `checkbox`, `sheet`, `avatar`); agregados bloques productivos `RiskRegisterBlock` y `EvidenceLedgerBlock` al contrato `BlockSpec`/`ResponseBlock` y a `/dashboard/blocks-demo`; manifest y notas de `docs/design/shadcn-blocks/` actualizados.
+- Archivos: `src/components/ui/*`, `src/components/providers.tsx`, `src/lib/validators/blocks.ts`, `src/components/chat/blocks/RiskRegisterBlock.tsx`, `src/components/chat/blocks/EvidenceLedgerBlock.tsx`, `src/components/chat/blocks/index.tsx`, `src/components/chat/blocks/skeletons.tsx`, `src/components/chat/blocks/demo-data.ts`, `src/app/dashboard/blocks-demo/page.tsx`, `docs/design/shadcn-blocks/*`, `ROADMAP.md`, `docs/04_architecture_map.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (85/85); `npm run build` OK; dev server en `http://localhost:3001` OK, `/dashboard/blocks-demo` redirige a login por auth (`307`, final `200 /login?next=...`).
+- Pendiente: ver QA visual autenticado de `/dashboard/blocks-demo` en navegador cuando haya sesión local disponible.
 
-1. Logueate y entrá a `/dashboard/contexto/perfil` para ver el perfil. Tocá "Recalcular perfil" — la primera vez genera v1 desde los datos actuales.
-2. Después, en el chat con una obra activa, el agente debería conocer entidades, moneda dominante y obras de riesgo del perfil. Probá preguntas como "qué proveedores usamos más en estructura" o "qué obras tienen riesgo crítico" — debería responder con el perfil sin inventar.
-3. Si te falta evidencia, el agente puede llamar `consultar_perfil_empresa({ facet: "suppliers" })` para drill-down.
-4. `Inteligencia Empresarial` ahora concentra `Radar`, `Fuentes` y `Mapa Vivo`; `/dashboard/documents` redirige a `/dashboard/contexto/fuentes`.
+---
 
-### Pendientes diferidos (no bloquean testing)
+## 2026-05-20 - Claude Code - Limpieza documental (full clean)
 
-1. **Schedule InsForge de proactividad** _(en pausa)._ Requiere URL pública final y `CRON_SECRET`; no se registra automáticamente hasta que el usuario lo pida.
-2. **Tests de integración contra DB real** _(decidido como overkill)._ El builder tiene tests puros del aggregator (`profile-aggregator.test.mjs`, 6 casos) y del prompt rendering (`prompt-integration.test.mjs`, 5 casos). Tests full con DB requieren staging org y la combinación type-check + lint + build cubre el resto de regresiones del builder.
-3. **Conectores reales (Etapa 2 doc 06)**: Google Drive/SharePoint/SQL/exports. Es L y abre un frente nuevo de OAuth + secret management. Diferido a una próxima fase tras el testing del slice actual.
-4. **QA visual autenticado** _(depende de vos)._ Las vistas relevantes son `/dashboard/contexto/perfil`, `/dashboard/contexto`, replay de auditoría en expediente, modal "Por qué", `/dashboard/admin/errors`.
+- Objetivo: dejar una sola narrativa documental vigente, sin docs duplicados/contradictorios ni pendientes mal encuadrados. Sin tocar código productivo.
+- Cambios: archivados `docs/01_vision_and_stack.md` y `docs/02_phases_and_workflow.md` en `docs/archive/` (histórico); `docs/README.md` reescrito como índice canónico; `ROADMAP.md` suma §0 "Pendientes externos" (URL pública/schedule, conectores reales, credenciales) y el motor de proactividad pasa a ✅ con el schedule como pendiente externo; alineados `AGENTS.md`/`CLAUDE.md` (excepción `/api/seed-demo`, lectura de `docs/08`, Base Documental ahora vive dentro de Contexto Empresarial); neutralizadas menciones a Claude como proveedor (runtime = DeepSeek) en `ROADMAP.md`/`docs/04`/`docs/05`; `docs/05` re-encuadrado como visión no comprometida; fecha de `docs/04` actualizada y timeline reordenado.
+- Archivos: `README.md`, `AGENTS.md`, `CLAUDE.md`, `ROADMAP.md`, `docs/README.md`, `docs/04_architecture_map.md`, `docs/05_future_roadmap.md`, `docs/archive/01_vision_and_stack.md`, `docs/archive/02_phases_and_workflow.md`, `docs/AI_WORKLOG.md`.
+- Verificacion: `git diff --check` OK; sin cambios en código productivo.
+- Pendiente: los comentarios "Claude multimodal" en `src/lib/file-processor/*` (zona estable, no tocados) describen el modelo viejo; conviene actualizarlos a "modelo multimodal" en una pasada de código aparte.
 
-### Auditoría completa al cierre (2026-05-19)
+## 2026-05-20 - Codex - Indexación estructural enterprise
 
-- `npm run type-check` OK.
-- `npm run lint` OK (0 errores, 0 warnings).
-- `npm test` OK (**81/81**).
-- `npm run build` OK. Rutas Next nuevas/cambiadas cableadas: `/api/auth/me` (con profile fallback), `/api/enterprise-context/profile`, `/api/enterprise-context/profile/refresh`, `/dashboard/contexto/perfil`.
-- InsForge: migraciones aplicadas, incluyendo `20260519170241_active-agent-memory.sql`. Schedule público y deploy siguen bloqueados/pausados por URL/plataforma.
-- Dead code: borrado `src/components/ui/textarea.tsx` en la auditoría previa. Sin nuevos huérfanos.
-- Docs sincronizadas: `ROADMAP.md` §2.2 ✅ ambas líneas (slice 2 + integración al agente), `docs/04_architecture_map.md` sección "Perfil Empresarial Vivo" actualizada + 2 entradas nuevas en timeline (`Perfil empresarial integrado al agente` y `display_name via InsForge profile`), `docs/06_enterprise_context_layer.md` Etapa 3 marcada parcial item por item, este `AI_WORKLOG.md` cierra el handoff.
+- Objetivo: mejorar la indexación real y cerrar pendientes internos (excepto URL pública/schedule).
+- Cambios: nuevo `src/lib/rag/structure.ts` (resumen estructural de PDF/DOCX/Excel/DXF); chunks con `section_path`/`section_level`; `ingestDocument()` sincroniza cargas manuales con `enterprise_documents` y fuente `manual_upload`; el catálogo de Fuentes expone `documentStructure`.
+- Archivos: `src/lib/rag/structure.ts`, `src/lib/rag/chunker.ts`, `src/lib/rag/ingest.ts`, `src/lib/enterprise-context/document-sync.ts`, `src/lib/enterprise-context/sources-service.ts`, `src/components/enterprise-context/EnterpriseSourceRegistry.tsx`, `src/lib/validators/api-responses.ts`, `tests/rag/structure.test.mjs`, `ROADMAP.md`, `docs/04_architecture_map.md`, `docs/06_enterprise_context_layer.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (85/85); `npm run build` OK.
+- Pendiente: la bandeja `docs/design/shadcn-blocks/` queda lista para pegar bloques reales y registrarlos en `manifest.json`. Pendientes externos consolidados en `ROADMAP.md` §0.
 
 ---
 
 ## Antes de empezar una sesión nueva
 
-1. Leer `ROADMAP.md` para confirmar prioridades.
-2. Revisar esta sección "Handoff vigente" y los pendientes activos.
+1. Leer `ROADMAP.md` para confirmar prioridades (y §0 Pendientes externos).
+2. Revisar el handoff más reciente de arriba.
 3. Si una decisión arquitectónica cambió, actualizar `docs/04_architecture_map.md` y reflejarlo acá solo si afecta al próximo handoff.
 4. Al cerrar el bloque: si el item quedó completado y documentado en ROADMAP + architecture map, no agregar entrada nueva acá. Si quedó algo abierto, sumar entrada breve siguiendo el formato de arriba.

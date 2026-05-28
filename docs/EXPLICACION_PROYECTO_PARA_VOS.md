@@ -1292,10 +1292,9 @@ No todo está cerrado.
 
 Pendientes reales:
 
-- activar schedule diario de proactividad con URL pública;
-- conectores reales read-only para Contexto Empresarial;
+- activar schedule diario de proactividad con URL pública (pendiente externo);
+- conectores reales read-only para Contexto Empresarial (pendiente externo: requieren credenciales);
 - rol external auditor con links temporales;
-- memoria activa escribible;
 - rollback automatizado;
 - profiling bajo carga real;
 - voice input;

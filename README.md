@@ -4,7 +4,7 @@
 
 EdificIA es un **Sistema Integral de Gestión** de alta seguridad diseñado exclusivamente para constructoras. Supera el concepto tradicional de software de gestión al incorporar un **Project Manager Digital** nativo, capaz de anticipar y gestionar la realidad del terreno. Los equipos de ingeniería, arquitectura y administración pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas, ordenar expedientes operativos y recibir alertas de riesgos climáticos, documentales o logísticos, todo mediante lenguaje natural y vistas operativas por obra, expediente y empresa.
 
-Estado actual: el producto corre localmente y el deploy público está pausado hasta resolver la URL estable/credenciales de InsForge Deployments. La capa de Inteligencia Empresarial ya converge Radar, Fuentes y Mapa Vivo; los conectores read-only reales (Drive/SharePoint/SQL) quedan como siguiente etapa.
+Estado actual: el producto corre localmente. La URL pública y el schedule automático de InsForge quedan **fuera de alcance por ahora** (no hay deployment estable). La capa de Inteligencia Empresarial ya converge Radar, Fuentes y Mapa Vivo; los conectores read-only reales (Drive/SharePoint/SQL) son un **pendiente externo** porque requieren credenciales del cliente.
 
 ---
 

@@ -1,5 +1,7 @@
 # Visión del Producto y Stack Tecnológico
 
+> ⚠️ **DOCUMENTO HISTÓRICO / ARCHIVADO.** Refleja la visión y el stack de la etapa fundacional ("antes Gemini para la Construcción") y ya no describe el producto vigente. La narrativa actual vive en `README.md` (producto + stack real), `docs/06_enterprise_context_layer.md` (contexto empresarial) y `docs/08_agent_core_redesign.md` (modelo Empresa → Obra → Expediente). No usar como referencia operativa.
+
 ## Concepto y Filosofía del Producto
 **EdificIA** (antes "Gemini para la Construcción"): NO es un sistema rígido de botones disfrazado de chat. Es un **Asistente de Inteligencia Artificial Conversacional General** que tiene "superpoderes" multimodales para la construcción. 
 

@@ -1,8 +1,8 @@
 # Estado Actual del Proyecto — EdificIA
 
-> **Última actualización**: 2026-05-14
+> ⚠️ **DOCUMENTO HISTÓRICO / ARCHIVADO.** Snapshot de sprints de la etapa "hardening pre-deploy" (2026-05-14). El estado y los pendientes vigentes viven en `ROADMAP.md`; el timeline técnico, en `docs/04_architecture_map.md`. No usar como referencia de estado actual.
 >
-> Este documento reemplaza el roadmap de sprints original (Sprints 1-4) que ya fueron completados en su totalidad.
+> Este documento reemplazó al roadmap de sprints original (Sprints 1-4).
 
 ## Sprints completados ✅
 
