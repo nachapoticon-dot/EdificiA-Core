@@ -641,6 +641,127 @@ export const enterpriseProfileRefreshResponseSchema = z.object({
 
 export type EnterpriseProfileRefreshResponse = z.infer<typeof enterpriseProfileRefreshResponseSchema>;
 
+// --- Registro de fuentes empresariales (Contexto Empresarial Etapa 2) ---
+
+export const enterpriseSourceTypeSchema = z.enum([
+  "manual_upload",
+  "google_drive",
+  "onedrive",
+  "sharepoint",
+  "dropbox",
+  "sql",
+  "csv_export",
+  "erp",
+  "email",
+  "other",
+]);
+
+export const enterpriseSourceStatusSchema = z.enum([
+  "discovered",
+  "authorized",
+  "syncing",
+  "active",
+  "paused",
+  "error",
+  "revoked",
+]);
+
+export const enterpriseSyncTriggerSchema = z.enum(["manual", "scheduled", "upload", "system"]);
+export const enterpriseSyncRunStatusSchema = z.enum(["running", "completed", "failed", "cancelled"]);
+
+export const enterpriseSyncRunSchema = z.object({
+  id: z.string(),
+  sourceId: z.string().nullable(),
+  status: enterpriseSyncRunStatusSchema,
+  triggerType: enterpriseSyncTriggerSchema,
+  discoveredCount: z.number().int().nonnegative(),
+  inventoriedCount: z.number().int().nonnegative(),
+  classifiedCount: z.number().int().nonnegative(),
+  indexedCount: z.number().int().nonnegative(),
+  observedCount: z.number().int().nonnegative(),
+  errorMessage: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+});
+
+export const enterpriseReadinessCountSchema = z.object({
+  status: enterpriseReadinessStatusSchema,
+  count: z.number().int().nonnegative(),
+});
+
+export const enterpriseSourceSummarySchema = z.object({
+  id: z.string(),
+  sourceType: enterpriseSourceTypeSchema,
+  name: z.string(),
+  status: enterpriseSourceStatusSchema,
+  readOnly: z.boolean(),
+  scopes: z.array(z.string()),
+  lastSyncedAt: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  documentsTotal: z.number().int().nonnegative(),
+  documentsIndexed: z.number().int().nonnegative(),
+  documentsObserved: z.number().int().nonnegative(),
+  readiness: z.array(enterpriseReadinessCountSchema),
+  lastSyncRun: enterpriseSyncRunSchema.nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type EnterpriseSourceSummary = z.infer<typeof enterpriseSourceSummarySchema>;
+
+export const enterpriseSourcesResponseSchema = z.object({
+  meta: z.object({
+    organizationId: z.string(),
+    generatedAt: z.string(),
+    totalSources: z.number().int().nonnegative(),
+  }),
+  sources: z.array(enterpriseSourceSummarySchema),
+});
+
+export type EnterpriseSourcesResponse = z.infer<typeof enterpriseSourcesResponseSchema>;
+
+export const enterpriseSourceMutationResponseSchema = z.object({
+  ok: z.literal(true),
+  source: enterpriseSourceSummarySchema,
+});
+
+export const enterpriseSourceCatalogDocumentSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  documentType: z.string(),
+  readinessStatus: enterpriseReadinessStatusSchema,
+  sensitivity: z.string(),
+  confidence: z.number().nullable(),
+  sourcePath: z.string().nullable(),
+  externalId: z.string().nullable(),
+  uploadedFileId: z.string().nullable(),
+  projectId: z.string().nullable(),
+  projectName: z.string().nullable(),
+  documentStructure: z.object({
+    status: z.enum(["structured", "flat", "scanned", "unsupported"]),
+    sectionCount: z.number().int().nonnegative(),
+    maxDepth: z.number().int().nonnegative(),
+    topSections: z.array(z.string()),
+  }).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const enterpriseSourceDocumentsResponseSchema = z.object({
+  meta: z.object({
+    sourceId: z.string(),
+    sourceName: z.string(),
+    sourceType: enterpriseSourceTypeSchema,
+    generatedAt: z.string(),
+    totalDocuments: z.number().int().nonnegative(),
+  }),
+  readiness: z.array(enterpriseReadinessCountSchema),
+  documents: z.array(enterpriseSourceCatalogDocumentSchema),
+  syncRuns: z.array(enterpriseSyncRunSchema),
+});
+
+export type EnterpriseSourceDocumentsResponse = z.infer<typeof enterpriseSourceDocumentsResponseSchema>;
+
 export const adminErrorEventsResponseSchema = z.object({
   events: z.array(z.object({
     id: z.string(),
