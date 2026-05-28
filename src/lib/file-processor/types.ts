@@ -71,7 +71,7 @@ export interface DxfGeometrySummary {
 export interface ImageProcessedFile extends BaseFile {
   type: "image";
   mimeType: string;
-  /** Base64 data URL — passed directly to Claude multimodal */
+  /** Base64 data URL — passed directly to the multimodal model */
   dataUrl: string;
   widthHint?: number;
   heightHint?: number;
