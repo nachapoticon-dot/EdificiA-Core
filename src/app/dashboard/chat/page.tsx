@@ -384,16 +384,25 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
   return (
     <div className="flex h-full flex-col bg-background/55">
       {/* Header */}
-      <header className="relative z-40 flex shrink-0 items-center gap-2 border-b bg-card/85 px-6 py-3 backdrop-blur">
-        <Compass className="h-3.5 w-3.5 text-primary" />
-        <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
+      <header className="relative z-40 flex shrink-0 flex-wrap items-center gap-2 border-b bg-card/88 px-4 py-3 backdrop-blur md:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-border bg-background text-primary">
+            <Compass className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
+            <p className="hidden font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground sm:block">
+              {activeProject?.name ?? "Mesa empresarial"}
+            </p>
+          </div>
+        </div>
         {isStreaming && (
-          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
+          <div className="order-3 flex w-full items-center gap-1.5 rounded-[7px] border border-primary/20 bg-primary/5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-primary sm:order-none sm:w-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
             <span className="eb-pulse h-1.5 w-1.5 rounded-full bg-primary" />
             {streamingWord}…
           </div>
         )}
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex min-w-0 items-center gap-1.5">
           {messages.length > 0 && (
             <>
               <Button
@@ -420,7 +429,7 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
             </>
           )}
           <TopBarActions />
-          <span className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <span className="hidden rounded-[4px] border border-border bg-background px-2 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex">
             DeepSeek V4 Flash
           </span>
         </div>
@@ -496,7 +505,7 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
 
       {/* Input area */}
       <div className="shrink-0 border-t bg-background/85 py-4 backdrop-blur">
-        <div className="mx-auto max-w-[720px] px-6">
+          <div className="mx-auto max-w-[760px] px-4 md:px-6">
           {isUploading && <UploadProgressCard />}
 
           {(uploadError ?? streamError) && (
@@ -537,9 +546,9 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
 
 function PriceIndexOnboardingBanner() {
   return (
-    <div className="border-b border-[oklch(0.72_0.16_65)]/30 bg-[oklch(0.72_0.16_65)]/[0.07] px-6 py-3">
+    <div className="border-b border-[var(--warn)]/30 bg-[color-mix(in_oklch,var(--warn)_8%,transparent)] px-4 py-3 md:px-6">
       <div className="mx-auto flex max-w-[920px] items-center gap-3">
-        <AlertTriangle className="h-4 w-4 shrink-0 text-[oklch(0.62_0.18_60)]" strokeWidth={1.75} />
+        <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--warn)]" strokeWidth={1.75} />
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold text-foreground">
             Todavía no cargaste la base de datos de tu empresa

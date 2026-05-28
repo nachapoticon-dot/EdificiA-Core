@@ -27,9 +27,9 @@ export default function ObrasPage() {
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-background">
       {/* Page header */}
-      <div className="border-b border-border bg-card px-8 py-6">
+      <div className="border-b border-border bg-card/92 px-4 py-5 backdrop-blur md:px-8 md:py-6">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
                 <LayoutGrid className="h-4 w-4" strokeWidth={1.75} />
@@ -48,7 +48,7 @@ export default function ObrasPage() {
 
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              className="flex h-9 items-center gap-2 rounded-[8px] bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
             >
               <Plus className="h-4 w-4" />
               Nueva obra
@@ -69,7 +69,7 @@ export default function ObrasPage() {
                   {createError}
                 </p>
               )}
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 md:flex-row">
                 <div className="relative flex-1">
                   <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
                   <input
@@ -87,7 +87,7 @@ export default function ObrasPage() {
                 <button
                   onClick={handleCreate}
                   disabled={!newName.trim() || isCreating}
-                  className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity disabled:opacity-40 hover:opacity-90"
+                  className="flex h-10 items-center justify-center gap-2 rounded-[8px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity disabled:opacity-40 hover:opacity-90"
                 >
                   {isCreating
                     ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -97,7 +97,7 @@ export default function ObrasPage() {
                 </button>
                 <button
                   onClick={() => { setShowForm(false); setNewName(""); setCreateError(null); }}
-                  className="rounded-[10px] border border-border bg-card px-4 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent"
+                  className="h-10 rounded-[8px] border border-border bg-card px-4 text-[13px] text-muted-foreground transition-colors hover:bg-accent"
                 >
                   Cancelar
                 </button>
@@ -108,7 +108,7 @@ export default function ObrasPage() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto w-full max-w-5xl px-8 py-8">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-8">
 
         {/* Loading skeleton */}
         {isLoading && (
@@ -125,7 +125,7 @@ export default function ObrasPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="flex flex-col items-center justify-center py-24 text-center"
+              className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-border bg-card/70 px-4 py-20 text-center"
           >
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-[16px] border border-border bg-card text-muted-foreground">
               <Building2 className="h-7 w-7" strokeWidth={1.25} />

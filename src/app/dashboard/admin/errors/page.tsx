@@ -14,9 +14,9 @@ import {
 type ErrorEvent = AdminErrorEventsResponse["events"][number];
 
 const SEVERITY_STYLES: Record<ErrorEvent["severity"], string> = {
-  warning: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300",
-  error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
-  critical: "border-red-300 bg-red-100 text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200",
+  warning: "border-[var(--warn)]/40 bg-[color-mix(in_oklch,var(--warn)_10%,transparent)] text-[var(--warn)]",
+  error: "border-destructive/35 bg-destructive/10 text-destructive",
+  critical: "border-destructive/55 bg-destructive/18 text-destructive",
 };
 
 export default function AdminErrorsPage() {
@@ -91,8 +91,9 @@ export default function AdminErrorsPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex h-full w-full flex-col overflow-y-auto bg-background">
+      <header className="border-b border-border bg-card/92 px-4 py-5 backdrop-blur md:px-8 md:py-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/dashboard/admin")}
@@ -126,15 +127,23 @@ export default function AdminErrorsPage() {
             Actualizar
           </Button>
         </div>
+        </div>
       </header>
 
-      {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 md:px-8">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <SummaryCard label="Pendientes" value={events.filter((event) => !event.resolvedAt).length} />
+          <SummaryCard label="Críticas" value={events.filter((event) => event.severity === "critical").length} tone="danger" />
+          <SummaryCard label="Incluye resueltas" value={includeResolved ? "Sí" : "No"} />
         </div>
-      )}
 
-      <section className="overflow-hidden rounded-lg border bg-card">
+        {error && (
+          <div className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+      <section className="overflow-hidden rounded-[10px] border bg-card shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
         {events.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-muted-foreground">
             No hay alertas pendientes.
@@ -187,6 +196,18 @@ export default function AdminErrorsPage() {
           </div>
         )}
       </section>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, tone = "neutral" }: { label: string; value: number | string; tone?: "neutral" | "danger" }) {
+  return (
+    <div className="rounded-[10px] border border-border bg-card px-4 py-3">
+      <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+      <p className={tone === "danger" ? "mt-2 text-[20px] font-semibold text-destructive" : "mt-2 text-[20px] font-semibold text-foreground"}>
+        {value}
+      </p>
     </div>
   );
 }

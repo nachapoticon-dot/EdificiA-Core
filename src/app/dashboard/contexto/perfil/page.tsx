@@ -120,7 +120,7 @@ export default function EnterpriseProfilePage() {
 
   return (
     <div className="flex flex-col">
-      <div className="border-b border-border bg-card px-8 py-6">
+      <div className="border-b border-border bg-card/92 px-4 py-5 backdrop-blur md:px-8 md:py-6">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
             <Building2 className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -133,7 +133,7 @@ export default function EnterpriseProfilePage() {
               Entidades · patrones · cobertura · riesgo
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             {data?.meta.latestSnapshotAt && (
               <span className="hidden text-[11px] text-muted-foreground sm:inline">
                 Snapshot v{data.meta.latestSnapshotVersion} · {new Date(data.meta.latestSnapshotAt).toLocaleString("es-AR")}
@@ -171,7 +171,7 @@ export default function EnterpriseProfilePage() {
         )}
       </div>
 
-      <div className="mx-auto w-full max-w-6xl space-y-6 px-8 py-8">
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 md:px-8 md:py-8">
         {profileQuery.isLoading && <LoadingState />}
 
         {!profileQuery.isLoading && !data && (
@@ -182,7 +182,7 @@ export default function EnterpriseProfilePage() {
 
         {data && (
           <>
-            <section className="rounded-[10px] border border-border bg-card px-4 py-4">
+            <section className="rounded-[10px] border border-border bg-card px-4 py-4 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Resumen vivo</p>
               <p className="mt-2 text-[14px] leading-relaxed text-foreground">{data.summary.text}</p>
             </section>
@@ -276,7 +276,7 @@ export default function EnterpriseProfilePage() {
 
 function Metric({ label, value, tone = "neutral" }: { label: string; value: number | string; tone?: "neutral" | "warn" }) {
   return (
-    <div className="rounded-[8px] border border-border bg-card px-4 py-3">
+    <div className="rounded-[10px] border border-border bg-card px-4 py-3 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
       <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
       <p className={cn("mt-2 text-[16px] font-semibold", tone === "warn" ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>
         {value}
@@ -287,7 +287,7 @@ function Metric({ label, value, tone = "neutral" }: { label: string; value: numb
 
 function Section({ title, icon, count, children }: { title: string; icon: ReactNode; count: number; children: ReactNode }) {
   return (
-    <section className="rounded-[10px] border border-border bg-card">
+    <section className="overflow-hidden rounded-[10px] border border-border bg-card shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="text-primary">{icon}</span>
         <p className="text-[13px] font-semibold text-foreground">{title}</p>

@@ -107,10 +107,10 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.35 }}
-      className="group relative flex flex-col overflow-hidden rounded-[14px] border border-border bg-card transition-shadow hover:shadow-md"
+      className="group relative flex min-h-[270px] flex-col overflow-hidden rounded-[10px] border border-border bg-card shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)] transition-shadow hover:shadow-md"
     >
       {/* Header strip */}
-      <div className="flex items-start gap-4 p-5 pb-4">
+      <div className="flex items-start gap-4 p-4 pb-3">
         {/* Icon */}
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
           <Building2 className="h-4 w-4" strokeWidth={1.75} />
@@ -138,7 +138,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
       </div>
 
       {/* Phase dots */}
-      <div className="px-5 pb-3">
+      <div className="px-4 pb-3">
         {isLoading ? (
           <div className="flex gap-1.5">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -154,8 +154,8 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
                 className={`h-2 w-2 rounded-full transition-colors ${
                   phase.status === "complete"
                     ? "bg-[var(--ok)]"
-                    : phase.status === "partial"
-                    ? "bg-[oklch(0.72_0.16_65)]"
+                  : phase.status === "partial"
+                    ? "bg-[var(--warn)]"
                     : "bg-border"
                 }`}
               />
@@ -171,7 +171,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
 
       {/* Suggestion */}
       {!isLoading && coverage?.nextSuggestion && (
-        <div className="mx-5 mb-3 rounded-[8px] border border-primary/20 bg-primary/[0.04] px-3 py-2">
+        <div className="mx-4 mb-3 rounded-[8px] border border-primary/20 bg-primary/[0.04] px-3 py-2">
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             <span className="font-medium text-primary">Siguiente: </span>
             {coverage.nextSuggestion}
@@ -183,7 +183,7 @@ export function ProjectCard({ project, index }: ProjectCardProps) {
       <div className="flex-1" />
 
       {/* Footer action */}
-      <div className="border-t border-border px-5 py-3">
+      <div className="border-t border-border px-4 py-3">
         <button
           onClick={handleActivate}
           className="flex w-full items-center justify-between rounded-[8px] bg-primary/[0.06] px-3 py-2 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/[0.12]"
