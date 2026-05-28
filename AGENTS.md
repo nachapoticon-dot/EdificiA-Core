@@ -12,10 +12,11 @@ Este archivo es la guía operativa de Codex. `CLAUDE.md` sigue siendo la guía o
 2. Leer los archivos directamente involucrados antes de editar. No asumir contenido por nombre de archivo.
 3. Si el cambio toca arquitectura, leer `docs/04_architecture_map.md`.
 4. Si el cambio toca auditoría, presupuestos, documentos de obra o lógica de dominio, leer `docs/03_domain_knowledge.md`.
-5. Si el cambio toca Base Documental, conectores, RAG empresarial o auditoría transversal, leer `docs/06_enterprise_context_layer.md`.
+5. Si el cambio toca Contexto/Inteligencia Empresarial, Fuentes, conectores, RAG empresarial o auditoría transversal, leer `docs/06_enterprise_context_layer.md`.
 6. Si el cambio toca prompt, tools de documentos o UX de auditoría, leer `docs/07_agentic_document_reading.md`.
-7. Revisar `docs/AI_WORKLOG.md` para ver el último handoff entre agentes.
-8. Revisar `git status --short` antes de editar. No revertir cambios ajenos.
+7. Si el cambio toca chat, sesiones, expedientes o el scope del agente, leer `docs/08_agent_core_redesign.md` (modelo Empresa → Obra → Expediente).
+8. Revisar `docs/AI_WORKLOG.md` para ver el último handoff entre agentes.
+9. Revisar `git status --short` antes de editar. No revertir cambios ajenos.
 
 ---
 
@@ -108,9 +109,10 @@ Formato de handoff recomendado:
 
 ## 7.1. Decisiones de producto vigentes
 
-- **Base Documental evoluciona a Contexto Empresarial.** EdificIA no debe ser un repositorio de archivos subidos. Debe conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
+- **Base Documental ya no es un producto separado: vive dentro de Inteligencia / Contexto Empresarial.** EdificIA no debe ser un repositorio de archivos subidos. La carga y preparación de archivos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto a Radar y Mapa Vivo. El objetivo es conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
 - **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
 - **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
+- **Bloques Shadcn externos como referencia, no código productivo directo.** Los bloques exportados viven en `docs/design/shadcn-blocks/`: `raw/` para pegarlos tal cual, `adapted/` para versiones revisadas y `manifest.json` como índice. No importar desde `raw/`; adaptar primero a tokens, componentes e identidad de EdificIA antes de mover algo a `src/components/`.
 
 ---
 

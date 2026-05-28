@@ -213,11 +213,12 @@ La sección **Inteligencia Empresarial** debe mostrar:
 
 ### Etapa 2: Conectores seguros
 
-- Google Drive / SharePoint en solo lectura.
-- Catálogo de archivos antes de ingestarlos.
-- Selección explícita de carpetas permitidas.
-- Sync incremental.
-- Estados de preparación (`descubierta` → `operativa`/`observada`) visibles para admins.
+- Google Drive / SharePoint en solo lectura. _(pendiente: requiere OAuth + credenciales del cliente + dependencia de conector)._
+- Catálogo de archivos antes de ingestarlos. _(parcial 2026-05-20: `GET /api/enterprise-context/sources/[id]/documents` expone el catálogo por fuente con readiness y estructura documental; la carga manual ya lo puebla al indexar, falta que un conector real lo pueble antes de indexar)._
+- Selección explícita de carpetas permitidas. _(parcial 2026-05-19: al declarar una fuente externa se registran scopes/carpetas permitidas; falta el conector que las consuma)._
+- Sync incremental. _(pendiente: depende de los conectores reales y del cursor por fuente)._
+- Estados de preparación (`descubierta` → `operativa`/`observada`) visibles para admins. _(✅ 2026-05-20 — `EnterpriseSourceRegistry` en la pestaña Fuentes lista cada fuente con su estado, chips de readiness, catálogo expandible y chips de estructura por documento; gestión vía `POST/PATCH /api/enterprise-context/sources`)._
+- Materialización de cargas manuales como fuente enterprise. _(✅ 2026-05-20 — `ingestDocument()` crea/actualiza `enterprise_documents` para `uploaded_files`, con `documentStructure` en metadata y fuente `manual_upload` administrada por sistema)._
 
 ### Etapa 3: Extracción empresarial
 

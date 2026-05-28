@@ -1,6 +1,6 @@
 # Mapa de Arquitectura y Dependencias (Repo Map)
 
-> **Última actualización**: 2026-05-19 (Contexto Empresarial + Alerting local)
+> **Última actualización**: 2026-05-20 (Indexación estructural enterprise + limpieza documental)
 
 Este documento contiene el mapa estructural del proyecto. 
 **Regla para la IA**: Cada vez que crees un módulo nuevo (Frontend, Backend, Database), DEBES actualizar este grafo. Antes de modificar código existente, lee este grafo para entender qué otras partes del sistema vas a afectar y evitar romper el código.
@@ -497,16 +497,19 @@ RLS: `admin` lee/actualiza dentro de su organización; `admin`/`engineer` pueden
 
 Los bloques de `src/components/chat/blocks/` están cableados como contrato de UI generativa:
 
-1. El agente llama una tool de presentación (`proyectar_metricas`, `proyectar_legajo_grafico`, `proyectar_comparativa`, `proyectar_cronograma`).
+1. El agente llama una tool de presentación (`proyectar_metricas`, `proyectar_legajo_grafico`, `proyectar_comparativa`, `proyectar_cronograma`, `proyectar_riesgos`, `proyectar_evidencia`).
 2. La tool devuelve un objeto `kind` validable por `src/lib/validators/blocks.ts`.
 3. `src/components/chat/MessageBubble.tsx` detecta la tool, valida con `BlockSpec.safeParse()` y renderiza `ResponseBlock`.
-4. `/dashboard/blocks-demo` permite verificar los cuatro bloques en desarrollo sin depender de una conversación real.
+4. `/dashboard/blocks-demo` permite verificar los bloques en desarrollo sin depender de una conversación real.
+
+El set productivo actual cubre: métricas, legajo gráfico, comparativas, cronograma, registro de riesgos operativos y ledger de evidencia. Los seis bloques comparten `BlockShell`, skeletons dedicados y responsive horizontal controlado para tablas/gantt sin romper mobile. `risk_register` y `evidence_ledger` usan primitives shadcn locales (`Badge`, `Table`, `Tabs`) y todo el set queda registrado en `docs/design/shadcn-blocks/manifest.json` como `agent-visual-blocks-v2`.
 
 Invariantes:
 
 - Los bloques no deben inventar datos ni reemplazar verificación de dominio.
 - El texto del agente interpreta el bloque; no duplica la misma información en tablas Markdown.
 - Las tools bound deben resolver `organization_id` server-side cuando hay acceso a datos del tenant.
+- Las tools visuales vigentes son `proyectar_metricas`, `proyectar_legajo_grafico`, `proyectar_comparativa`, `proyectar_cronograma`, `proyectar_riesgos` y `proyectar_evidencia`; `MessageBubble` debe tratarlas como resultados especiales para no dejarlas ocultas dentro del timeline de tools.
 - Ante salida inválida, el frontend muestra fallback de error en vez de renderizar datos parciales.
 
 ## Registro de Cambios Estructurales
@@ -518,7 +521,7 @@ Invariantes:
 | 2026-04-29 | Sprint 1.5 | DB hardening: 14 indexes, soft deletes, RLS fixes, organization_invitations + audit_results |
 | 2026-04-29 | Sprint 2 | Chat UI + Motor Matemático: AI agent con tools, API route streamText, dashboard layout + chat page |
 | 2026-04-29 | Sprint 3 | Excel Upload + Parser: xlsx parser, /api/upload con InsForge storage, DropZone drag-and-drop |
-| 2026-04-29 | Sprint 3.5 | Universal File Processor: PDF, DXF, DOCX, Imágenes (Claude multimodal), DWG (rechazado con guía) |
+| 2026-04-29 | Sprint 3.5 | Universal File Processor: PDF, DXF, DOCX, Imágenes (análisis multimodal del modelo), DWG (rechazado con guía) |
 | 2026-04-29 | Rebrand | "Gemini Construcción" → "EdificIA". SYSTEM_PROMPT optimizado. v0.4.0 |
 | 2026-04-29 | Sprint 4 | QoL: Dark/Light mode, Session History sidebar, auto-registro de sesión |
 | 2026-04-29 | Sprint 7 | Persistencia de conversaciones: useMessageHistory, SessionContext, auto-save |
@@ -528,6 +531,7 @@ Invariantes:
 | 2026-05-13 | Fix | Removido `/super-admin` de rutas protegidas del proxy (bloqueaba acceso al panel) |
 | 2026-05-13 | Limpieza | Auditoría de 133+ archivos: eliminados archivos muertos (OrgSwitcher.tsx, demo-data.ts, scripts debug, .mcp.json, .claude-flow/, zip raíz) |
 | 2026-05-14 | Seguridad | Fix completo de auth: proxy/middleware real, requireAuth() centralizado, verifyUserId vía InsForge, localStorage+cookie, logout limpio. 18 routes refactorizadas. |
+| 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md y README (DeepSeek como modelo, no Claude) y planes históricos. Branding unificado a EdificIA. |
 | 2026-05-16 | Corrección docs | `src/proxy.ts` confirmado como guard activo de dashboard + CORS. Referencias obsoletas a `src/middleware.ts` corregidas. |
 | 2026-05-16 | Contratos API | Agregado `src/lib/validators/api-responses.ts` para validar responses críticas (`upload`, `auth/me`, `projects`, `sessions`) en route handlers y clientes. |
 | 2026-05-16 | Audit log | Agregado `audit_log_events` append-only con hash encadenado, RLS de lectura por org y triggers anti-update/delete; `upload` y `chat` registran eventos server-side. |
@@ -565,4 +569,5 @@ Invariantes:
 | 2026-05-19 | Auth strict mode | `verifyUserId()` ahora usa strict mode por defecto en producción y rechaza tokens no verificables contra InsForge. `AUTH_STRICT_MODE=false` queda documentado como break-glass. Test en `tests/auth/jwt.test.mjs`. |
 | 2026-05-19 | Inteligencia + fuentes convergidas | La navegación deja de mostrar Base Documental como sección separada. `/dashboard/contexto` concentra Radar, Fuentes y Mapa Vivo; `/dashboard/documents` y `/dashboard/contexto/documentos` quedan como redirects legacy a `/dashboard/contexto/fuentes`. |
 | 2026-05-19 | display_name via InsForge profile | `/api/auth/me` ahora hidrata `displayName` con `client.auth.getProfile(userId)` cuando el JWT no trae `name`/`full_name`. InsForge guarda el nombre en `auth.users.profile.name` (jsonb), no en `user_metadata`. Sin necesidad de tabla `user_profiles` adicional. |
-| 2026-05-14 | Auditoría | Verificación de planes contra código. Corregidos CLAUDE.md, README (DeepSeek no Claude), PLAN_DE_MEJORA, TAREAS_CLAUDE, PLAN_FLUJO_EMPRESAS. Branding unificado a EdificIA. |
+| 2026-05-20 | Indexación estructural enterprise | `src/lib/rag/structure.ts` detecta estructura de PDF/DOCX, rubros Excel y capas DXF; `chunkDocument()` preserva `section_path`/`section_level`; `ingestDocument()` sincroniza cargas manuales con `enterprise_documents` y readiness enterprise. Fuentes muestra chips de estructura por documento. Tests en `tests/rag/structure.test.mjs`. |
+| 2026-05-20 | Shadcn blocks adaptados | CLI shadcn usado para instalar primitives locales sin dependencias nuevas (`Badge`, `Table`, `Tabs`, etc.). `@shadcn/dashboard-01` queda registrado como referencia en `docs/design/shadcn-blocks/`; adaptación productiva: `RiskRegisterBlock` y `EvidenceLedgerBlock` en el renderer generativo + demo. |

@@ -75,7 +75,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 3. **Cliente**: `getAuthToken()` en `src/lib/insforge/client.ts` maneja refresh automático del token.
 4. **Roles**: `admin` | `engineer` | `viewer`. Los admins acceden a `/api/admin/*`. Los viewers solo chatean.
 
-> ⚠️ **NO crear rutas de API sin `requireAuth()`**. Excepción: `/api/health`, `/api/auth/register`, `/api/super-admin/*` (auth propia con `SUPER_ADMIN_KEY`).
+> ⚠️ **NO crear rutas de API sin `requireAuth()`**. Excepciones conocidas: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` (auth propia con `SUPER_ADMIN_KEY`).
 
 ## 5 · Multi-tenancy — Regla absoluta
 
@@ -85,8 +85,8 @@ Toda query a la DB o Qdrant **DEBE** filtrar por `organization_id` (derivado de 
 
 ```
 src/
-├── app/api/          → 31 API routes (auth, chat, upload, projects, documents, admin, super-admin, etc.)
-├── app/dashboard/    → Chat principal, obras/[id], documents, admin, blocks-demo
+├── app/api/          → API routes (auth, chat, upload, projects, documents, enterprise-context, work-cases, admin, super-admin, etc.)
+├── app/dashboard/    → Chat, obras/[id], contexto (Inteligencia Empresarial: Radar/Fuentes/Mapa Vivo), expedientes, admin (documents = redirect legacy)
 ├── app/(auth)/       → Login, registro, forgot/reset password
 ├── components/chat/  → ChatInput, MessageBubble, FileCard, DropZone, DxfViewerModal, bloques UI generativa
 ├── hooks/            → useProjects, useOrgMember, useOrgs, useSessionHistory, useProjectDetails, etc.
@@ -108,14 +108,16 @@ src/
 | `ROADMAP.md` (raíz) | **Siempre al inicio**. Pendientes, mejoras estratégicas y orden recomendado. |
 | `docs/04_architecture_map.md` | Para ver el grafo de dependencias y el stack de paquetes. |
 | `docs/03_domain_knowledge.md` | Antes de tocar lógica de auditoría / dominio de obra. |
-| `docs/06_enterprise_context_layer.md` | Antes de diseñar Base Documental, conectores, RAG empresarial o auditoría transversal. |
+| `docs/06_enterprise_context_layer.md` | Antes de tocar Contexto/Inteligencia Empresarial, Fuentes, conectores, RAG empresarial o auditoría transversal. |
 | `docs/07_agentic_document_reading.md` | Antes de modificar prompt, tools de documentos o UX de auditoría. |
+| `docs/08_agent_core_redesign.md` | Antes de tocar chat, sesiones, expedientes o el scope del agente (modelo Empresa → Obra → Expediente). |
 
 ## 7.1 · Decisiones de producto vigentes
 
-1. **Base Documental evoluciona a Contexto Empresarial.** EdificIA no debe pensarse como un repositorio de archivos subidos. Debe conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
+1. **Base Documental ya no es un producto separado: vive dentro de Inteligencia / Contexto Empresarial.** EdificIA no debe pensarse como un repositorio de archivos subidos. La carga y preparación de archivos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto a Radar y Mapa Vivo. El objetivo es conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
 2. **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
 3. **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
+4. **Bloques Shadcn externos como referencia, no código productivo directo.** Los bloques exportados viven en `docs/design/shadcn-blocks/`: `raw/` para pegarlos tal cual, `adapted/` para versiones revisadas y `manifest.json` como índice. No importar desde `raw/`; adaptar primero a tokens, componentes e identidad de EdificIA antes de mover algo a `src/components/`.
 
 ## 8 · Reglas de código
 

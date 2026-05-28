@@ -1,7 +1,9 @@
 # Roadmap de Visión Futura — EdificIA
 
+> **Visión a largo plazo, NO comprometida.** Este documento es un backlog de ideas de alto impacto que **no son pendientes vigentes**. Los pendientes y prioridades reales viven en `ROADMAP.md`. No tomar nada de acá como planificado ni prometido.
+>
 > **Última auditoría de estado**: 2026-05-14 (verificado contra código fuente)
-> 
+>
 > Leyenda: ✅ = Hecho | 🔶 = Parcial | ❌ = Pendiente
 
 Este documento captura las ideas de mayor impacto que **NO están en el MVP actual**, ordenadas por viabilidad técnica y valor de negocio.
@@ -56,7 +58,7 @@ Este documento captura las ideas de mayor impacto que **NO están en el MVP actu
 ### ❌ Generación de CAD desde descripción
 > "Generá un plano de estructura para una vivienda unifamiliar de 80m2, losa maciza, 2 dormitorios, zona sísmica Z3."
 
-- **Approach**: GPT-4 / Claude genera código Python `ezdxf` o `DXF scripting` → ejecutar en sandbox → devolver archivo DXF
+- **Approach**: un LLM de generación de código produce un script Python `ezdxf` o `DXF scripting` → ejecutar en sandbox → devolver archivo DXF
 - **Viabilidad**: Alta técnicamente, pero requiere validación por un ingeniero estructural.
 - **Modelo de negocio**: Feature premium — "EdificIA Design".
 - **Estado**: No iniciado.
