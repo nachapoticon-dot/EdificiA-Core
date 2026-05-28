@@ -30,9 +30,9 @@ const QUICK_PROMPTS = [
 const FILE_ICONS: Record<string, { Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; color: string }> = {
   excel: { Icon: FileSpreadsheet, color: "text-[var(--ok)]" },
   pdf:   { Icon: FileText,        color: "text-[var(--err)]" },
-  dxf:   { Icon: FileCode2,       color: "text-[oklch(0.55_0.16_235)]" },
-  docx:  { Icon: FileType2,       color: "text-[oklch(0.55_0.16_245)]" },
-  image: { Icon: Image,           color: "text-[oklch(0.74_0.15_75)]" },
+  dxf:   { Icon: FileCode2,       color: "text-[var(--cyan)]" },
+  docx:  { Icon: FileType2,       color: "text-primary" },
+  image: { Icon: Image,           color: "text-[var(--warn)]" },
 };
 
 function formatRelative(ms: number): string {
@@ -123,7 +123,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
   if (!activeProject) {
     return (
       <div className="py-6">
-        <div className="mx-auto max-w-[720px] px-6">
+        <div className="mx-auto max-w-[720px] px-4 md:px-6">
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
             className="mb-5 flex items-center justify-center gap-3"
@@ -138,10 +138,10 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.45 }}
             className="mb-8 text-center"
           >
-            <h1 className="font-display text-[38px] font-normal leading-[1.05] text-foreground">
+            <h1 className="font-display text-[30px] font-normal leading-[1.05] text-foreground md:text-[38px]">
               {fullGreeting}
             </h1>
-            <h2 className="font-display text-[38px] font-normal leading-[1.05] text-primary">
+            <h2 className="font-display text-[30px] font-normal leading-[1.05] text-primary md:text-[38px]">
               ¿En qué obra trabajamos hoy?
             </h2>
             <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -173,7 +173,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
               {projects.length > 0 && (
                 <SectionLabel>Nueva obra</SectionLabel>
               )}
-              <div className={`flex gap-2 ${projects.length > 0 ? "mt-3" : ""}`}>
+              <div className={`flex flex-col gap-2 sm:flex-row ${projects.length > 0 ? "mt-3" : ""}`}>
                 <div className="relative flex-1">
                   <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
                   <input
@@ -246,7 +246,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
   /* ── NORMAL WELCOME — project selected ───────────────────────── */
   return (
     <div className="py-6">
-      <div className="mx-auto max-w-[720px] px-6">
+        <div className="mx-auto max-w-[720px] px-4 md:px-6">
 
         {/* Eyebrow */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
@@ -263,10 +263,10 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.5 }}
           className="mb-3 text-center"
         >
-          <h1 className="font-display text-[40px] font-normal leading-[1.05] text-foreground">
+          <h1 className="font-display text-[30px] font-normal leading-[1.05] text-foreground md:text-[40px]">
             {fullGreeting}
           </h1>
-          <h2 className="font-display text-[40px] font-normal leading-[1.05]">
+          <h2 className="font-display text-[30px] font-normal leading-[1.05] md:text-[40px]">
             <em className="not-italic text-primary">¿Qué hacemos</em>{" "}
             <span className="text-foreground">hoy?</span>
           </h2>
@@ -351,7 +351,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${
                     phase.status === "complete" ? "bg-[var(--ok)]" :
-                    phase.status === "partial"  ? "bg-[oklch(0.72_0.16_65)]" :
+                    phase.status === "partial"  ? "bg-[var(--warn)]" :
                                                   "bg-border"
                   }`} />
                   <span className="text-muted-foreground">{phase.name}</span>

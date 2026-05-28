@@ -10,11 +10,13 @@ import {
   ArrowUpRight,
   BriefcaseBusiness,
   Building2,
+  CheckCircle2,
   FileText,
   Link2,
   Network,
   RefreshCw,
   Search,
+  ShieldCheck,
 } from "lucide-react";
 import { getAuthHeaders } from "@/lib/insforge/client";
 import {
@@ -82,19 +84,33 @@ export default function EnterpriseContextPage() {
 
   return (
     <div className="flex min-h-full flex-col bg-background">
-      <div className="border-b border-border bg-card px-8 py-6">
-        <div className="mx-auto max-w-6xl">
+      <div className="border-b border-border bg-card/92 px-4 py-5 backdrop-blur md:px-8 md:py-6">
+        <div className="mx-auto max-w-7xl">
           <div className="flex flex-wrap items-start gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/10 text-primary">
               <Activity className="h-5 w-5" strokeWidth={1.75} />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                 Inteligencia Empresarial
               </p>
-              <h1 className="mt-1 font-display text-[24px] font-medium leading-tight text-foreground">
-                Radar de Evidencia
+              <h1 className="mt-1 font-display text-[26px] font-medium leading-tight text-foreground">
+                Centro de decisión empresarial
               </h1>
+              <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
+                Una lectura viva de fuentes, obras, expedientes y relaciones. El objetivo no es buscar archivos: es decidir qué merece atención y con qué evidencia.
+              </p>
+              {data && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Pill label={`${data.summary.documents} documentos leídos`} />
+                  <Pill label={`${data.summary.projects} obras en contexto`} />
+                  <Pill label={`${data.summary.workCases} expedientes conectados`} />
+                  <Pill
+                    label={data.summary.observed > 0 ? `${data.summary.observed} señales observadas` : "Sin señales observadas"}
+                    tone={data.summary.observed > 0 ? "warn" : "ok"}
+                  />
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -113,7 +129,7 @@ export default function EnterpriseContextPage() {
               <input
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Obra, proveedor, contrato, rubro, documento, expediente o contradicción..."
+                placeholder="Preguntá por una obra, proveedor, contrato, rubro, faltante, contradicción o decisión pendiente..."
                 className="h-11 w-full rounded-[8px] border border-border bg-background pl-9 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
             </div>
@@ -127,18 +143,16 @@ export default function EnterpriseContextPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl space-y-6 px-8 py-8">
+      <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 md:px-8 md:py-8">
         {data && (
-          <section className="rounded-[10px] border border-border bg-card">
-            <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-6 md:divide-y-0">
-              <Metric label="Fuentes" value={data.summary.sources} />
-              <Metric label="Documentos" value={data.summary.documents} />
-              <Metric label="Indexación" value={`${indexedRatio}%`} />
-              <Metric label="Observados" value={`${observedRatio}%`} tone={observedRatio > 0 ? "warn" : "neutral"} />
-              <Metric label="Obras" value={data.summary.projects} />
-              <Metric label="Expedientes" value={data.summary.workCases} />
-            </div>
-          </section>
+          <DecisionStrip
+            sources={data.summary.sources}
+            documents={data.summary.documents}
+            indexedRatio={indexedRatio}
+            observedRatio={observedRatio}
+            projects={data.summary.projects}
+            workCases={data.summary.workCases}
+          />
         )}
 
         {contextQuery.isLoading && <LoadingState />}
@@ -234,13 +248,64 @@ export default function EnterpriseContextPage() {
   );
 }
 
-function Metric({ label, value, tone = "neutral" }: { label: string; value: number | string; tone?: "neutral" | "warn" }) {
+function DecisionStrip({
+  sources,
+  documents,
+  indexedRatio,
+  observedRatio,
+  projects,
+  workCases,
+}: {
+  sources: number;
+  documents: number;
+  indexedRatio: number;
+  observedRatio: number;
+  projects: number;
+  workCases: number;
+}) {
+  const needsAttention = observedRatio > 0;
+  return (
+    <section className="grid gap-3 lg:grid-cols-[1fr_360px]">
+      <div className="overflow-hidden rounded-[10px] border border-border bg-card shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
+        <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-4 md:divide-y-0">
+          <Metric label="Fuentes" value={sources} />
+          <Metric label="Documentos" value={documents} />
+          <Metric label="Indexación" value={`${indexedRatio}%`} />
+          <Metric label="Obras" value={projects} />
+        </div>
+      </div>
+      <div className={cn(
+        "rounded-[10px] border px-4 py-3 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]",
+        needsAttention
+          ? "border-amber-500/30 bg-amber-500/[0.06]"
+          : "border-emerald-500/25 bg-emerald-500/[0.05]",
+      )}>
+        <div className="flex items-start gap-3">
+          <div className={cn(
+            "mt-0.5 flex h-8 w-8 items-center justify-center rounded-[8px]",
+            needsAttention ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          )}>
+            {needsAttention ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+          </div>
+          <div>
+            <p className="text-[13px] font-semibold text-foreground">
+              {needsAttention ? "Hay evidencia que revisar" : "La lectura no marca alertas críticas"}
+            </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {observedRatio}% observado · {workCases} expediente{workCases !== 1 ? "s" : ""} para convertir señales en trabajo operativo.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="px-4 py-3">
       <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-      <p className={cn("mt-2 text-[17px] font-semibold text-foreground", tone === "warn" && "text-amber-600 dark:text-amber-300")}>
-        {value}
-      </p>
+      <p className="mt-2 text-[17px] font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -251,8 +316,8 @@ function SynthesisPanel({ data, query }: { data: EnterpriseContextResponse; quer
   const mainProject = data.projects[0];
   const mainWorkCase = data.workCases[0];
   return (
-    <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-      <div className="rounded-[10px] border border-border bg-card px-4 py-4">
+    <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="rounded-[10px] border border-border bg-card px-4 py-4 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
         <div className="flex flex-wrap items-start gap-3">
           <div className={cn(
             "flex h-9 w-9 items-center justify-center rounded-[8px]",
@@ -262,12 +327,12 @@ function SynthesisPanel({ data, query }: { data: EnterpriseContextResponse; quer
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Lectura ejecutiva
+              Lectura operativa
             </p>
-            <p className="mt-2 text-[14px] leading-relaxed text-foreground">
+            <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-foreground">
               {query
-                ? `La búsqueda "${query}" cruza evidencia documental, obras, expedientes y relaciones para devolver una lectura operativa.`
-                : "El radar consolida las señales vivas de la empresa: documentos disponibles, cobertura de obras, expedientes abiertos y vínculos entre evidencias."}
+                ? `La búsqueda "${query}" se lee como una señal de negocio: primero evidencia, después obras afectadas, luego expedientes donde actuar.`
+                : "La inteligencia empresarial consolida qué sabe EdificIA de la constructora y dónde esa información ya exige una decisión operativa."}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Pill label={hasRisk ? "Requiere atención" : "Sin señales críticas"} tone={hasRisk ? "warn" : "ok"} />
@@ -277,8 +342,11 @@ function SynthesisPanel({ data, query }: { data: EnterpriseContextResponse; quer
           </div>
         </div>
       </div>
-      <div className="rounded-[10px] border border-border bg-card px-4 py-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Principal vínculo operativo</p>
+      <div className="rounded-[10px] border border-border bg-card px-4 py-4 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Próximo paso recomendado</p>
+        </div>
         {mainWorkCase ? (
           <div className="mt-3">
             <p className="line-clamp-2 text-[14px] font-semibold text-foreground">{mainWorkCase.title}</p>
@@ -290,7 +358,7 @@ function SynthesisPanel({ data, query }: { data: EnterpriseContextResponse; quer
           </div>
         ) : (
           <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">
-            No hay expediente asociado a esta señal. Si la evidencia requiere acción, debería abrirse desde una obra o conversación.
+            No hay expediente asociado. Si la señal es relevante, conviene convertirla en expediente desde una obra o desde el chat para que tenga responsable, evidencia y cierre.
           </p>
         )}
       </div>
@@ -325,7 +393,7 @@ function ResultSection({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <section className="overflow-hidden rounded-[10px] border border-border bg-card shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
       <div className="flex items-start gap-3 border-b border-border px-4 py-3">
         <span className="mt-0.5 text-primary">{icon}</span>
         <span className="min-w-0">
