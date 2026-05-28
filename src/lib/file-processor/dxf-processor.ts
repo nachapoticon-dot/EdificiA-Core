@@ -7,7 +7,7 @@ import { extractDxfGeometry } from "./dxf-geometry";
  * Each "group code" (a number) defines the meaning of the next line (the value).
  *
  * We extract: TEXT/MTEXT annotations, DIMENSION values, LAYER names, and entity counts.
- * This gives Claude enough context to understand what the drawing contains without
+ * This gives the multimodal model enough context to understand what the drawing contains without
  * requiring a full geometric renderer.
  *
  * DXF spec reference: https://help.autodesk.com/view/OARX/2023/ENU/?guid=GUID-235B22E0-A567-4CF6-92D3-38A2306D73F3

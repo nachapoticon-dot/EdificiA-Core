@@ -4,7 +4,7 @@ import { ragLogger } from "@/lib/logger";
 /**
  * Extracts text from a PDF using pdf-parse.
  * If the PDF is scanned (no selectable text), marks it as needing multimodal analysis.
- * Scanned PDFs are not yet converted to images server-side — Claude handles them via
+ * Scanned PDFs are not yet converted to images server-side — the multimodal model handles them via
  * client-side File upload (sendMessage({ files }) in the chat).
  */
 
