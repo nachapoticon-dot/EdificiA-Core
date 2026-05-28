@@ -3,6 +3,8 @@ import { embedText } from "@/lib/embeddings";
 import { getQdrantClient, ensureCollection, COLLECTION_NAME, isQdrantConfigured } from "@/lib/qdrant/client";
 import { chunkDocument } from "./chunker";
 import type { ProcessedFile } from "@/lib/file-processor/types";
+import { structureMetadata } from "./structure";
+import { syncEnterpriseDocumentForFile } from "@/lib/enterprise-context/document-sync";
 
 interface IngestOptions {
   organizationId: string;
@@ -75,6 +77,26 @@ async function markIndexingStatus(
   }
 }
 
+async function markEnterpriseDocument(
+  file: ProcessedFile,
+  opts: IngestOptions,
+  status: IndexingStatus,
+  errorMessage?: string,
+): Promise<void> {
+  try {
+    await syncEnterpriseDocumentForFile({
+      organizationId: opts.organizationId,
+      fileId: opts.fileId,
+      projectId: opts.projectId,
+      file,
+      indexingStatus: status,
+      indexingError: errorMessage ?? null,
+    });
+  } catch (err) {
+    console.warn("[rag] syncEnterpriseDocumentForFile failed", { fileId: opts.fileId, status, err });
+  }
+}
+
 /**
  * Full ingestion pipeline:
  *   1. Delete stale chunks for the same file
@@ -98,8 +120,10 @@ export async function ingestDocument(
   try {
     const constructionDocType = detectConstructionDocType(file);
     const chunks = chunkDocument(file);
+    const documentStructure = structureMetadata(file).document_structure;
     if (chunks.length === 0) {
       await markIndexingStatus(client, opts.fileId, "failed", "no chunks produced");
+      await markEnterpriseDocument(file, opts, "failed", "no chunks produced");
       return;
     }
 
@@ -160,9 +184,12 @@ export async function ingestDocument(
                   construction_doc_type: constructionDocType,
                   chunk_index:           chunk.chunkIndex,
                   chunk_text:            chunk.text,
+                  document_structure:    documentStructure,
                   // Promote key metadata fields to top-level for Qdrant filtering
                   rubro:                 (chunk.metadata.rubro as string | undefined) ?? null,
                   section_title:         (chunk.metadata.section_title as string | undefined) ?? null,
+                  section_path:          (chunk.metadata.section_path as string[] | undefined) ?? null,
+                  section_level:         (chunk.metadata.section_level as number | undefined) ?? null,
                   has_prices:            (chunk.metadata.has_prices as boolean | undefined) ?? false,
                   has_quantities:        (chunk.metadata.has_quantities as boolean | undefined) ?? false,
                   ...chunk.metadata,
@@ -195,29 +222,35 @@ export async function ingestDocument(
       document_type:   documentType,
       chunk_index:     chunk.chunkIndex,
       chunk_text:      chunk.text,
-      metadata:        { ...chunk.metadata, construction_doc_type: constructionDocType },
+      metadata:        { ...chunk.metadata, construction_doc_type: constructionDocType, document_structure: documentStructure },
       qdrant_id:       qdrantSucceeded[i] ? qdrantIds[i] : null,
     }));
 
     if (rows.length === 0) {
       await markIndexingStatus(client, opts.fileId, "failed", "no rows to persist");
+      await markEnterpriseDocument(file, opts, "failed", "no rows to persist");
       return;
     }
 
     await client.database.from("document_chunks").insert(rows);
 
     const degraded = !qdrantAvailable || qdrantUpsertFailed || qdrantSucceeded.every((ok) => !ok);
+    const finalStatus = degraded ? "degraded" : "indexed";
+    const finalError = degraded
+      ? lastError ?? (!qdrantAvailable ? "qdrant not configured" : "no vectors persisted")
+      : undefined;
+
     await markIndexingStatus(
       client,
       opts.fileId,
-      degraded ? "degraded" : "indexed",
-      degraded
-        ? lastError ?? (!qdrantAvailable ? "qdrant not configured" : "no vectors persisted")
-        : undefined,
+      finalStatus,
+      finalError,
     );
+    await markEnterpriseDocument(file, opts, finalStatus, finalError);
   } catch (err) {
     lastError = err instanceof Error ? err.message : String(err);
     console.warn("[rag] ingestDocument fatal", { fileId: opts.fileId, err: lastError });
     await markIndexingStatus(client, opts.fileId, "failed", lastError);
+    await markEnterpriseDocument(file, opts, "failed", lastError);
   }
 }

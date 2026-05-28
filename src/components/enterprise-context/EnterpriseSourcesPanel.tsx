@@ -5,13 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
   Database, Trash2, RefreshCw, FolderOpen, Layers, Filter, AlertTriangle,
-  AlertOctagon, AlertCircle, UploadCloud, Table2, PlugZap, Server,
+  AlertOctagon, AlertCircle, UploadCloud,
   ShieldCheck, CheckCircle2, Clock3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { getAuthHeaders } from "@/lib/insforge/client";
 import { apiErrorResponseSchema, documentReindexResponseSchema, documentsResponseSchema, uploadResponseSchema } from "@/lib/validators/api-responses";
+import { EnterpriseSourceRegistry } from "@/components/enterprise-context/EnterpriseSourceRegistry";
 
 import type { DocumentFile } from "@/types";
 
@@ -25,45 +26,6 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   image: Image,
   other: FileText,
 };
-
-const SOURCE_CHANNELS = [
-  {
-    label: "Archivos de obra",
-    meta: "PDF, Excel, DXF, Word, imagen",
-    description: "Carga directa para legajos, presupuestos, planos, remitos y contratos.",
-    status: "Disponible",
-    icon: UploadCloud,
-    enabled: true,
-    accent: "border-primary/30 bg-primary/[0.04]",
-  },
-  {
-    label: "Exports de sistemas",
-    meta: "CSV/XLSX de ERP, compras, contabilidad",
-    description: "El mismo ingreso acepta tablas exportadas; EdificIA las clasifica antes de usarlas.",
-    status: "Disponible",
-    icon: Table2,
-    enabled: true,
-    accent: "border-emerald-500/30 bg-emerald-500/[0.06]",
-  },
-  {
-    label: "Carpetas corporativas",
-    meta: "Drive, SharePoint, OneDrive",
-    description: "Conector read-only con selección explícita de carpetas autorizadas.",
-    status: "Etapa 2",
-    icon: PlugZap,
-    enabled: false,
-    accent: "border-border bg-card",
-  },
-  {
-    label: "SQL read-only",
-    meta: "Vistas, snapshots, dumps parciales",
-    description: "Conexión restringida para leer tablas operativas sin tocar sistemas origen.",
-    status: "Etapa 2",
-    icon: Server,
-    enabled: false,
-    accent: "border-border bg-card",
-  },
-] as const;
 
 const TYPE_LABELS: Record<string, string> = {
   excel: "Excel",
@@ -254,7 +216,7 @@ export function EnterpriseSourcesPanel() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-8 py-4">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card/92 px-4 py-4 backdrop-blur md:px-8">
         <Database className="h-4 w-4 text-primary" />
         <div>
           <h1 className="text-sm font-semibold text-foreground">Fuentes de Empresa</h1>
@@ -262,7 +224,7 @@ export function EnterpriseSourcesPanel() {
             Ingreso, preparación y lectura de datos
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {visibleFiles.length > 0 && (
             <span className="text-[11px] text-muted-foreground">
               {visibleFiles.length} fuente{visibleFiles.length !== 1 ? "s" : ""} · {totalChunks} fragmentos
@@ -303,7 +265,7 @@ export function EnterpriseSourcesPanel() {
       </header>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <input
           ref={fileInputRef}
           type="file"
@@ -402,7 +364,7 @@ function SourceIntakePanel({
   return (
     <section className="mb-5 space-y-4">
       <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[8px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">Entrada empresarial</p>
@@ -425,7 +387,7 @@ function SourceIntakePanel({
           </div>
         </div>
 
-        <div className="rounded-[8px] border border-border bg-card p-4">
+        <div className="rounded-[10px] border border-border bg-card p-4 shadow-[0_1px_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Estado de ingreso</p>
           {uploading ? (
             <div className="mt-4 space-y-3">
@@ -455,11 +417,7 @@ function SourceIntakePanel({
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {SOURCE_CHANNELS.map((channel) => (
-          <SourceChannelCard key={channel.label} channel={channel} uploading={Boolean(uploading)} onUploadClick={onUploadClick} />
-        ))}
-      </div>
+      <EnterpriseSourceRegistry />
     </section>
   );
 }
@@ -480,46 +438,6 @@ function IntakeMetric({
         {label}
       </div>
       <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function SourceChannelCard({
-  channel,
-  uploading,
-  onUploadClick,
-}: {
-  channel: (typeof SOURCE_CHANNELS)[number];
-  uploading: boolean;
-  onUploadClick: () => void;
-}) {
-  const Icon = channel.icon;
-  return (
-    <div className={`rounded-[8px] border p-3 ${channel.accent}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-border bg-background">
-            <Icon className="h-4 w-4 text-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">{channel.label}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{channel.meta}</p>
-          </div>
-        </div>
-        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${channel.enabled ? "border-primary/25 bg-primary/[0.07] text-primary" : "border-border bg-background text-muted-foreground"}`}>
-          {channel.status}
-        </span>
-      </div>
-      <p className="mt-3 min-h-10 text-[12px] leading-relaxed text-muted-foreground">{channel.description}</p>
-      <Button
-        variant={channel.enabled ? "outline" : "ghost"}
-        size="sm"
-        className="mt-3 h-7 w-full text-[11px]"
-        onClick={onUploadClick}
-        disabled={!channel.enabled || uploading}
-      >
-        {channel.enabled ? "Ingresar fuente" : "Preparado"}
-      </Button>
     </div>
   );
 }
@@ -551,7 +469,7 @@ function FileRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20, height: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-accent/30"
+      className="flex flex-wrap items-center gap-3 rounded-[10px] border bg-card px-4 py-3 transition-colors hover:bg-accent/30"
     >
       {/* Type badge */}
       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
@@ -559,9 +477,9 @@ function FileRow({
       </div>
 
       {/* Name + meta */}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[220px] flex-1">
         <p className="truncate text-sm font-medium">{file.file_name}</p>
-        <div className="flex items-center gap-2.5 mt-0.5">
+        <div className="mt-0.5 flex flex-wrap items-center gap-2.5">
           <span className="text-[11px] text-muted-foreground">
             {TYPE_LABELS[file.file_type] ?? "Otro"}
           </span>
@@ -629,7 +547,7 @@ function FileRow({
           </Button>
         </div>
       ) : (
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {canReindex && (
             <Button
               variant="ghost"

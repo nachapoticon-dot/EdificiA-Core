@@ -1,5 +1,6 @@
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import type { BudgetItem } from "@/lib/math-engine/validators";
+import { extractStructuredSections } from "./structure";
 
 export interface DocumentChunk {
   text: string;
@@ -69,6 +70,10 @@ function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentCh
         text: `Rubro: ${group.rubro}\n${lines.join("\n")}\nTotal rubro: $${rubroTotal.toLocaleString("es-AR")}`,
         chunkIndex: i,
         metadata: {
+          section_title: group.rubro,
+          section_path: ["Rubros", group.rubro],
+          section_level: 2,
+          section_index: i,
           rubro: group.rubro,
           rubro_total: rubroTotal,
           has_prices: true,
@@ -92,6 +97,10 @@ function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentCh
       chunkIndex: chunks.length,
       metadata: {
         sheetName: file.sheetName,
+        section_title: file.sheetName,
+        section_path: ["Presupuesto", file.sheetName],
+        section_level: 2,
+        section_index: chunks.length,
         itemStart: i,
         itemEnd: i + group.length,
         has_prices: true,
@@ -104,43 +113,7 @@ function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentCh
     : [{ text: `Presupuesto vacío: ${file.fileName}`, chunkIndex: 0, metadata: { has_prices: false, has_quantities: false } }];
 }
 
-// ── PDF — section-aware chunking ──────────────────────────────────────────────
-
-interface Section {
-  title: string;
-  content: string;
-}
-
-/**
- * Detects section headers using common Argentine document patterns:
- * ALL-CAPS lines, numbered titles (1. TÍTULO), and roman numerals (I. CAPÍTULO).
- */
-function detectSections(text: string): Section[] {
-  const HEADER_RE = /^(?:\d+[\.\-]\s{0,4}[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\d]{3,}|[IVXLC]+[\.\-]\s{0,4}[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\d]{3,}|[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{6,})$/;
-
-  const lines = text.split("\n");
-  const sections: Section[] = [];
-  let currentTitle = "";
-  let currentLines: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (HEADER_RE.test(trimmed) && trimmed.length < 100) {
-      if (currentLines.join("\n").trim().length > 30) {
-        sections.push({ title: currentTitle, content: currentLines.join("\n").trim() });
-      }
-      currentTitle = trimmed;
-      currentLines = [];
-    } else {
-      currentLines.push(line);
-    }
-  }
-  if (currentLines.join("\n").trim().length > 30) {
-    sections.push({ title: currentTitle, content: currentLines.join("\n").trim() });
-  }
-
-  return sections;
-}
+// ── PDF — structure-aware chunking ────────────────────────────────────────────
 
 function chunkPdf(file: Extract<ProcessedFile, { type: "pdf" }>): DocumentChunk[] {
   if (file.isScanned || !file.text.trim()) {
@@ -151,18 +124,24 @@ function chunkPdf(file: Extract<ProcessedFile, { type: "pdf" }>): DocumentChunk[
     }];
   }
 
-  const sections = detectSections(file.text);
+  const sections = extractStructuredSections(file.text);
 
   if (sections.length > 1) {
     let idx = 0;
     return sections.flatMap((sec) => {
       const baseMeta = {
         section_title: sec.title,
+        section_path: sec.path,
+        section_level: sec.level,
+        section_index: sec.order,
+        section_parent: sec.path.length > 1 ? sec.path[sec.path.length - 2] : null,
+        line_start: sec.lineStart,
+        line_end: sec.lineEnd,
         page_count: file.pageCount,
         has_prices: /precio|costo|monto|importe|\$|total/i.test(sec.content),
         has_quantities: /m2|m²|ml|kg|gl|unid|cant/i.test(sec.content),
       };
-      const fullText = sec.title ? `${sec.title}\n\n${sec.content}` : sec.content;
+      const fullText = `Sección: ${sec.path.join(" > ")}\n\n${sec.content}`;
       if (fullText.length <= MAX_CHUNK_CHARS) {
         return [{ text: fullText, chunkIndex: idx++, metadata: baseMeta }];
       }
@@ -192,12 +171,20 @@ function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[
 
 function chunkDocx(file: Extract<ProcessedFile, { type: "docx" }>): DocumentChunk[] {
   if (!file.text.trim()) return [{ text: `Documento: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
-  const sections = detectSections(file.text);
+  const sections = extractStructuredSections(file.text);
   if (sections.length > 1) {
     let idx = 0;
     return sections.flatMap((sec) => {
-      const meta = { section_title: sec.title };
-      const full = sec.title ? `${sec.title}\n\n${sec.content}` : sec.content;
+      const meta = {
+        section_title: sec.title,
+        section_path: sec.path,
+        section_level: sec.level,
+        section_index: sec.order,
+        section_parent: sec.path.length > 1 ? sec.path[sec.path.length - 2] : null,
+        line_start: sec.lineStart,
+        line_end: sec.lineEnd,
+      };
+      const full = `Sección: ${sec.path.join(" > ")}\n\n${sec.content}`;
       if (full.length <= MAX_CHUNK_CHARS) return [{ text: full, chunkIndex: idx++, metadata: meta }];
       return slidingWindowChunk(full, meta).map((c) => ({ ...c, chunkIndex: idx++ }));
     });
