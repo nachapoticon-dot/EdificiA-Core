@@ -15,8 +15,9 @@
 1. **Commitear el trabajo terminado del working tree.**
    Hay ~40 archivos modificados + ~25 untracked (sources API, `structure.ts`, bloques UI, primitives `ui/*`). El ROADMAP marca ✅ cosas que solo viven sin commitear. Riesgo de pérdida. → Commit limpio por bloque temático.
 
-2. **Cerrar race conditions en alta de organización.**
-   `claim-founder` / `claim-invitation`: check-then-insert sin transacción. → Unique constraint `(user_id) WHERE deleted_at IS NULL` + upsert idempotente, o transacción server-side.
+2. ~~**Cerrar race conditions en alta de organización.**~~ ✅ hecho 2026-05-28.
+   `claim-founder` ahora elige un único ganador con compare-and-swap sobre la invitación (pending→accepted condicional) + rollback ante fallo, evitando orgs duplicadas. `claim-invitation` ya estaba cubierto por `UNIQUE(organization_id, user_id)`; se agregó manejo de error idempotente (re-chequeo de membresía ante conflicto). `register` queda protegido por la unicidad de `signUp`.
+   Nota / deuda menor: el constraint es `UNIQUE(organization_id, user_id)` completo, no parcial por `deleted_at`; re-invitar a un miembro soft-deleted fallaría. Migrar a índice único parcial queda como follow-up.
 
 3. **Validación central de variables de entorno (fail-fast).**
    Crear `src/lib/env.ts` con Zod que valide al import (DEEPSEEK/INSFORGE/SERVICE_ROLE_KEY/QDRANT). Hoy un env faltante falla recién en runtime.

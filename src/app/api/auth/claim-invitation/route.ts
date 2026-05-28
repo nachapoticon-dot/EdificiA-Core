@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { verifyUserId, extractBearerToken, decodeClaims } from "@/lib/auth/jwt";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiRateLimited, apiUnauthorized } from "@/lib/api/errors";
+import { httpLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -82,13 +83,39 @@ export async function POST(req: Request): Promise<Response> {
 
     if (!org) continue; // org disabled — skip
 
-    // Add user to org
-    await admin.database.from("organization_members").insert({
-      organization_id: inv.organization_id,
-      user_id: userId,
-      role: inv.role,
-      email,
-    });
+    // Add user to org. El constraint UNIQUE(organization_id, user_id) garantiza que
+    // dos requests concurrentes no creen membresías duplicadas: uno gana, el otro
+    // recibe error de conflicto.
+    const memberInsert = await admin.database
+      .from("organization_members")
+      .insert({
+        organization_id: inv.organization_id,
+        user_id: userId,
+        role: inv.role,
+        email,
+      })
+      .select("id")
+      .single();
+
+    if (memberInsert.error || !memberInsert.data) {
+      // El insert pudo fallar por un ganador concurrente (conflicto de unicidad).
+      // Solo marcamos la invitación si la membresía efectivamente existe.
+      const { data: nowMember } = await admin.database
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("organization_id", inv.organization_id)
+        .is("deleted_at", null)
+        .limit(1);
+
+      if ((nowMember ?? []).length === 0) {
+        httpLogger.error(
+          { err: memberInsert.error, orgId: inv.organization_id, userId },
+          "claim-invitation: no se pudo vincular el usuario a la organización",
+        );
+        continue;
+      }
+    }
 
     // Mark invitation as accepted
     await admin.database

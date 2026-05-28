@@ -50,6 +50,41 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ orgCreated: false, alreadyHasOrg: true });
   }
 
+  // Elección atómica de un único ganador: marcar la invitación pending → accepted
+  // condicionando a que siga pending. Dos requests concurrentes del mismo fundador
+  // no pueden crear ambas una organización: solo el que gana el compare-and-swap
+  // sigue al alta de org/membresía.
+  const claim = await admin.database
+    .from("org_founder_invitations")
+    .update({ status: "accepted" })
+    .eq("id", founder.id)
+    .eq("status", "pending")
+    .select("id");
+
+  const wonClaim = !claim.error && (claim.data ?? []).length > 0;
+  if (!wonClaim) {
+    // Otro request concurrente ya reclamó la invitación. Devolver la org que creó.
+    const { data: refetch } = await admin.database
+      .from("org_founder_invitations")
+      .select("organization_id")
+      .eq("id", founder.id)
+      .maybeSingle();
+    return Response.json({
+      orgCreated: false,
+      alreadyHandled: true,
+      orgId: (refetch as { organization_id?: string | null } | null)?.organization_id ?? null,
+    });
+  }
+
+  // A partir de acá somos el único ganador. Si algo falla, revertimos el claim a
+  // pending para que el fundador pueda reintentar.
+  const revertClaim = async () => {
+    await admin.database
+      .from("org_founder_invitations")
+      .update({ status: "pending" })
+      .eq("id", founder.id);
+  };
+
   // Reusar la org creada por super-admin, o crearla si no existe (retrocompatibilidad)
   let orgId = founder.organization_id ?? null;
   if (!orgId) {
@@ -60,6 +95,7 @@ export async function POST(req: Request): Promise<Response> {
       .single();
     if (orgErr || !orgData) {
       httpLogger.error({ err: orgErr, email, userId }, "claim-founder: no se pudo crear la organización");
+      await revertClaim();
       return Response.json({ error: "No se pudo crear la organización." }, { status: 500 });
     }
     orgId = (orgData as { id: string }).id;
@@ -77,16 +113,17 @@ export async function POST(req: Request): Promise<Response> {
       { err: memberInsert.error, orgId, userId, email },
       "claim-founder: falló insert en organization_members",
     );
+    await revertClaim();
     return Response.json(
       { error: "No se pudo vincular el usuario a la organización.", detail: memberInsert.error?.message },
       { status: 500 },
     );
   }
 
-  // Marcar invitación como aceptada y guardar el orgId (por si vino sin él)
+  // Persistir el orgId en la invitación ya reclamada (por si vino sin él).
   await admin.database
     .from("org_founder_invitations")
-    .update({ status: "accepted", organization_id: orgId })
+    .update({ organization_id: orgId })
     .eq("id", founder.id);
 
   return Response.json({ orgCreated: true, orgName: founder.company_name, orgId });
