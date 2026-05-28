@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, DraftingCompass, Layers, HardHat } from "lucide-react";
+import { AlertTriangle, Building2, ClipboardList, DraftingCompass, Layers, HardHat } from "lucide-react";
 import { BlockShell } from "./BlockShell";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8,7 +8,7 @@ import { BlockShell } from "./BlockShell";
 // `aria-busy` para lectores de pantalla.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const sk = "rounded-[4px] bg-[linear-gradient(90deg,oklch(1_0_0_/_0.04)_0%,oklch(1_0_0_/_0.09)_50%,oklch(1_0_0_/_0.04)_100%)] bg-[length:200%_100%] animate-[eb-shimmer_1.6s_linear_infinite]";
+const sk = "rounded-[4px] bg-[linear-gradient(90deg,color-mix(in_oklch,var(--foreground)_5%,transparent)_0%,color-mix(in_oklch,var(--foreground)_9%,transparent)_50%,color-mix(in_oklch,var(--foreground)_5%,transparent)_100%)] bg-[length:200%_100%] animate-[eb-shimmer_1.6s_linear_infinite]";
 const skBar = "rounded-[3px] bg-[linear-gradient(90deg,color-mix(in_oklch,var(--primary)_18%,transparent),color-mix(in_oklch,var(--primary)_32%,transparent),color-mix(in_oklch,var(--primary)_18%,transparent))] bg-[length:200%_100%] animate-[eb-shimmer_1.6s_linear_infinite]";
 
 export function MetricsSkeleton() {
@@ -32,7 +32,7 @@ export function MetricsSkeleton() {
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className="grid items-center gap-2.5" style={{ gridTemplateColumns: "130px 1fr 64px" }}>
               <div className={`${sk} ml-auto h-[10px] w-[100px]`} />
-              <div className="relative h-[20px] overflow-hidden rounded-[3px] bg-white/[0.05]">
+              <div className="relative h-[20px] overflow-hidden rounded-[3px] bg-muted/60">
                 <div className={`${skBar} h-full`} style={{ width: `${80 - i * 12}%` }} />
               </div>
               <div className={`${sk} h-[10px] w-[50px]`} />
@@ -96,7 +96,7 @@ export function ComparisonSkeleton() {
               <div key={j} className={`${sk} h-[12px] w-[60px]`} />
             ))}
             <div className="flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-[3px] bg-white/[0.05]">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-[3px] bg-muted/60">
                 <div className={`${skBar} h-full`} style={{ width: `${75 - i * 12}%` }} />
               </div>
             </div>
@@ -131,9 +131,72 @@ export function TimelineSkeleton() {
                   <div className={`${sk} h-[9px] w-[70px] opacity-50`} />
                 </div>
               </div>
-              <div className="relative h-[22px] rounded-[4px] bg-white/[0.04]">
+              <div className="relative h-[22px] rounded-[4px] bg-muted/60">
                 <div className={`${skBar} absolute top-[2px] bottom-[2px]`} style={{ left: `${5 + i * 12}%`, width: `${38 - i * 4}%` }} />
               </div>
+            </div>
+          ))}
+        </div>
+      </BlockShell>
+    </div>
+  );
+}
+
+export function RiskRegisterSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Cargando registro de riesgos">
+      <BlockShell icon={AlertTriangle} fig="FIG. 06 · RISK REGISTER" title="Priorizando riesgos operativos…" meta="calculando">
+        <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[8px] border border-border bg-border">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="bg-card px-3 py-2">
+              <div className={`${sk} h-[9px] w-14`} />
+              <div className={`${sk} mt-2 h-[18px] w-8`} />
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="grid grid-cols-[1.6fr_90px_110px_90px] items-start gap-3 border-b border-border py-2 last:border-b-0">
+              <div className="flex flex-col gap-1.5">
+                <div className={`${sk} h-[13px] w-[190px]`} />
+                <div className={`${sk} h-[10px] w-[130px] opacity-60`} />
+                <div className={`${sk} h-[10px] w-[240px] opacity-50`} />
+              </div>
+              <div className={`${sk} h-5 w-16 rounded-[6px]`} />
+              <div className={`${sk} h-[11px] w-20`} />
+              <div className={`${sk} h-5 w-16 rounded-[6px] justify-self-end`} />
+            </div>
+          ))}
+        </div>
+      </BlockShell>
+    </div>
+  );
+}
+
+export function EvidenceLedgerSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Cargando ledger de evidencia">
+      <BlockShell icon={ClipboardList} fig="FIG. 07 · EVIDENCE LEDGER" title="Trazando evidencia del expediente…" meta="validando fuentes">
+        <div className="flex items-center justify-between">
+          <div className={`${sk} h-8 w-[220px] rounded-[8px]`} />
+          <div className={`${sk} h-[10px] w-[130px]`} />
+        </div>
+        <div className="flex flex-col">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="grid grid-cols-[1.5fr_150px_90px_90px] items-start gap-3 border-b border-border py-2 last:border-b-0">
+              <div className="flex items-start gap-2">
+                <div className={`${sk} h-6 w-6 rounded-[6px]`} />
+                <div className="flex flex-col gap-1.5">
+                  <div className={`${sk} h-[13px] w-[190px]`} />
+                  <div className={`${sk} h-[10px] w-[230px] opacity-50`} />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className={`${sk} h-5 w-14 rounded-[6px]`} />
+                <div className={`${sk} h-[10px] w-[110px] opacity-60`} />
+              </div>
+              <div className={`${skBar} mt-1 h-1.5 w-16`} />
+              <div className={`${sk} h-5 w-16 rounded-[6px] justify-self-end`} />
             </div>
           ))}
         </div>

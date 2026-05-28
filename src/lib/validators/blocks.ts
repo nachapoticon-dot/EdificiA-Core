@@ -110,12 +110,58 @@ export const TimelineSpec = z.object({
 });
 export type TimelineSpec = z.infer<typeof TimelineSpec>;
 
+// ── Risk Register ────────────────────────────────────────────────────────────
+export const RiskItem = z.object({
+  title: z.string(),
+  category: z.string(),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  probability: z.number().min(0).max(100).optional(),
+  impact: z.string().optional(),
+  owner: z.string().optional(),
+  due: z.string().optional(),
+  status: z.enum(["open", "monitoring", "blocked", "resolved"]).default("open"),
+  mitigation: z.string().optional(),
+  evidence: z.string().optional(),
+});
+export type RiskItem = z.infer<typeof RiskItem>;
+
+export const RiskRegisterSpec = z.object({
+  kind: z.literal("risk_register"),
+  title: z.string(),
+  scope: z.string().optional(),
+  updatedAt: z.string().optional(),
+  risks: z.array(RiskItem).min(1).max(8),
+});
+export type RiskRegisterSpec = z.infer<typeof RiskRegisterSpec>;
+
+// ── Evidence Ledger ──────────────────────────────────────────────────────────
+export const EvidenceItem = z.object({
+  label: z.string(),
+  source: z.string(),
+  type: z.enum(["document", "tool", "finding", "event", "external"]),
+  status: z.enum(["confirmed", "observed", "missing", "conflict"]),
+  confidence: z.number().min(0).max(100).optional(),
+  timestamp: z.string().optional(),
+  note: z.string().optional(),
+});
+export type EvidenceItem = z.infer<typeof EvidenceItem>;
+
+export const EvidenceLedgerSpec = z.object({
+  kind: z.literal("evidence_ledger"),
+  title: z.string(),
+  summary: z.string().optional(),
+  items: z.array(EvidenceItem).min(1).max(12),
+});
+export type EvidenceLedgerSpec = z.infer<typeof EvidenceLedgerSpec>;
+
 // ── Union ────────────────────────────────────────────────────────────────────
 export const BlockSpec = z.discriminatedUnion("kind", [
   MetricsSpec,
   MediaSpec,
   ComparisonSpec,
   TimelineSpec,
+  RiskRegisterSpec,
+  EvidenceLedgerSpec,
 ]);
 export type BlockSpec = z.infer<typeof BlockSpec>;
 export type BlockKind = BlockSpec["kind"];
