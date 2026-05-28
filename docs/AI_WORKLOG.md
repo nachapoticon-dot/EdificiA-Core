@@ -34,6 +34,18 @@ Formato:
 
 ---
 
+## 2026-05-28 - Claude Code - Estabilización base (A.1-A.3) + handoff de rama
+
+- Objetivo: ejecutar el plan de `docs/PROXIMOS_PASOS.md` post-auditoría. Convergir working tree, cerrar race conditions y validación de env.
+- ⚠️ HANDOFF CRÍTICO: todo el trabajo (esta sesión + el acumulado previo de Codex/Opus 4.7) vive en la rama **`chore/converge-working-tree`** — 7 commits por delante de `main`, **sin pushear y sin mergear**. Antes de seguir: decidir merge a `main` y/o push. `main` sigue en `b183eff`.
+- Cambios:
+  - **A.1** — Convergido el working tree (~65 archivos sin commitear) en 5 commits temáticos: enterprise structural indexing + sources, shadcn primitives + bloques, UX dashboard, prompt gráficas + comentarios file-processor, docs/auditoría.
+  - **A.2** — Race conditions de alta de org. `claim-founder` elige único ganador con compare-and-swap sobre la invitación (pending→accepted condicional) + rollback ante fallo. `claim-invitation` ya cubierto por `UNIQUE(organization_id, user_id)`; se sumó manejo idempotente de conflicto. `register` queda protegido por unicidad de `signUp`. Sin migración (el constraint protector ya existía).
+  - **A.3** — `src/lib/env.ts` (Zod, fail-fast) + `src/instrumentation.ts` (valida al boot). Requeridas: `NEXT_PUBLIC_INSFORGE_URL`, `INSFORGE_SERVICE_ROLE_KEY`, `DEEPSEEK_API_KEY`. `chat/route.ts` sin `?? ""`. `.env.local.example` reescrito (pedía `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` inexistentes).
+- Archivos clave: `src/app/api/auth/claim-founder/route.ts`, `claim-invitation/route.ts`, `src/lib/env.ts`, `src/instrumentation.ts`, `src/app/api/chat/route.ts`, `.env.local.example`, `docs/PROXIMOS_PASOS.md`.
+- Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` 85/85 OK; `npm run build` OK; matriz de fail-fast de env probada en runtime (falta requerido → falla; SKIP=true → arranca).
+- Pendiente / próximo: **B.5** (primer test de integración auth + multi-tenancy: que una org no vea datos de otra). Luego C (decisiones de producto: conector real vs recortar narrativa, proactividad). Deuda menor anotada: constraint `UNIQUE(org,user)` es completo, no parcial por `deleted_at` (re-invitar miembro soft-deleted fallaría). Ver `docs/PROXIMOS_PASOS.md`.
+
 ## 2026-05-28 - Claude Code - Auditoría de estado (Opus 4.8)
 
 - Objetivo: auditar el proyecto dejado por Opus 4.7 y registrar qué está mal y qué mejorar. Sin tocar código productivo.
