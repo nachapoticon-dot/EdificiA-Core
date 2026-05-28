@@ -19,8 +19,8 @@
    `claim-founder` ahora elige un único ganador con compare-and-swap sobre la invitación (pending→accepted condicional) + rollback ante fallo, evitando orgs duplicadas. `claim-invitation` ya estaba cubierto por `UNIQUE(organization_id, user_id)`; se agregó manejo de error idempotente (re-chequeo de membresía ante conflicto). `register` queda protegido por la unicidad de `signUp`.
    Nota / deuda menor: el constraint es `UNIQUE(organization_id, user_id)` completo, no parcial por `deleted_at`; re-invitar a un miembro soft-deleted fallaría. Migrar a índice único parcial queda como follow-up.
 
-3. **Validación central de variables de entorno (fail-fast).**
-   Crear `src/lib/env.ts` con Zod que valide al import (DEEPSEEK/INSFORGE/SERVICE_ROLE_KEY/QDRANT). Hoy un env faltante falla recién en runtime.
+3. ~~**Validación central de variables de entorno (fail-fast).**~~ ✅ hecho 2026-05-28.
+   `src/lib/env.ts` valida con Zod (requeridas: `NEXT_PUBLIC_INSFORGE_URL`, `INSFORGE_SERVICE_ROLE_KEY`, `DEEPSEEK_API_KEY`; resto opcional tipado). `src/instrumentation.ts` dispara la validación al boot del server. Guardado contra build/cliente/test y `SKIP_ENV_VALIDATION=true`. `chat/route.ts` ya no usa `?? ""`. `.env.local.example` reescrito y corregido (pedía `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` inexistentes).
 
 4. **Verificación de firma JWT local.**
    `src/lib/auth/jwt.ts` delega 100% a InsForge. Agregar verificación de firma (jose/jwks) y usar el round-trip solo para revocación. Cambiar la clave del cache de "últimos 20 chars" a hash del token completo.

@@ -12,6 +12,7 @@ import { summarizeToolUsage, toTelemetryRows, type StepLike } from "@/lib/ai/obs
 import { resolveAgentRuntimeContext } from "@/lib/agent-core/runtime";
 import { writeAgentRun } from "@/lib/agent-core/agent-run-writer";
 import { captureAppError } from "@/lib/observability/error-events";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,7 @@ const MAX_LAST_MSG_CHARS = 200_000;
 const deepseek = createOpenAICompatible({
   name: "deepseek",
   baseURL: "https://api.deepseek.com",
-  apiKey: process.env.DEEPSEEK_API_KEY ?? "",
+  apiKey: env.DEEPSEEK_API_KEY,
 });
 
 export async function POST(req: Request) {
