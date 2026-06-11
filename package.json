@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register-ts-loader.mjs --test tests/**/*.test.mjs",
     "smoke:chat": "node --env-file=.env.local scripts/smoke-chat.mjs",
+    "eval:agent": "node --env-file=.env.local evals/run.mjs",
     "type-check": "tsc --noEmit",
     "migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
     "migrate:dry": "node --env-file-if-exists=.env.local scripts/migrate.mjs --dry-run",

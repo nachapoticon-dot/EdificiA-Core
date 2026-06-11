@@ -34,6 +34,15 @@ Formato:
 
 ---
 
+## 2026-06-11 - Claude Code - Agente especializado PM Digital (plan 10 ejecutado completo)
+
+- Objetivo: ejecutar las 4 etapas de `docs/10_plan_agente_especializado.md` — quitar el sesgo "siempre auditoría" y redocumentar.
+- Cambios: ROADMAP.md eliminado → `docs/00_PRODUCTO.md` único doc vivo; architecture map y EXPLICACION actualizados al stack real; prompt modular por capacidades (`src/lib/ai/turn-modes.ts` + `agent-prompt.ts` reescrito: CORE+OPERATIONS siempre, DOCUMENTS/GENERATION/COMMUNICATIONS por señal) con tools filtradas por modo en ambos backends; apertura operativa (resumen_diario_obra ante saludo con obra activa); quick-prompts operativos; Python: señales operativas vivas (findings + vencimientos HSE) inyectadas al turno y reflexión al cierre de expediente; evals de conducta en `evals/` (npm run eval:agent).
+- Verificación: evals 13/13 (TS) + 3/3 (Python, incl. respuesta desde memoria sin tools); tokens del turno "Hola": ~10k totales en 2 pasos vs 23k por paso antes; npm test 104/104; type-check OK; build OK.
+- Pendiente: ver `docs/00_PRODUCTO.md`. Nota: los evals viven en `evals/` raíz (no services/agent/evals como decía el plan) porque ejercitan ambos backends vía /api/chat.
+
+---
+
 ## 2026-06-11 - Claude Code - Desconexión InsForge/Qdrant + agente Python
 
 - Objetivo: eliminar dependencia de InsForge y Qdrant; preparar agente real (cerebro Python con aprendizaje genuino) portable a otra infraestructura.
