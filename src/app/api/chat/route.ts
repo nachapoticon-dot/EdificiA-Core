@@ -1,6 +1,7 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { routeModel } from "@/lib/ai/model-router";
+import { collectTurnSignals, detectTurnModes } from "@/lib/ai/turn-modes";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { learnFromSession } from "@/lib/ai/session-learner";
@@ -65,7 +66,10 @@ export async function POST(req: Request) {
     return proxyToPythonAgent({ messages, auth, projectName, projectId, chatSessionId, req, log });
   }
 
-  const { systemPrompt, tools, auditProjectId, agentScope, capabilityIds } = await resolveAgentRuntimeContext(auth, projectName, projectId, chatSessionId);
+  // Modos del turno: modulan los módulos del prompt y el set de tools visible
+  const turnModes = detectTurnModes(collectTurnSignals(messages));
+
+  const { systemPrompt, tools, auditProjectId, agentScope, capabilityIds } = await resolveAgentRuntimeContext(auth, projectName, projectId, chatSessionId, turnModes);
 
   const route = routeModel(messages);
   const stepBudget = route.tier === "deep" ? 35 : 20;

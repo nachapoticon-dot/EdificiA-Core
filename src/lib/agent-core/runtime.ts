@@ -1,4 +1,5 @@
 import { buildSystemPrompt, createBoundTools } from "@/lib/ai/agent";
+import { ALL_MODES, filterToolsByModes, type TurnMode } from "@/lib/ai/turn-modes";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { loadEnterpriseProfileForAgent } from "@/lib/enterprise-context/profile-reader";
 import type { AuthResult } from "@/lib/auth/require-auth";
@@ -26,6 +27,8 @@ export async function resolveAgentRuntimeContext(
   projectName?: string,
   projectId?: string,
   chatSessionId?: string,
+  /** Modos del turno (turn-modes.ts): modulan prompt y tools. Default: todos. */
+  modes: TurnMode[] = ALL_MODES,
 ): Promise<AgentRuntimeContext> {
   const { userId, orgId } = auth;
   const fallbackScope = buildAgentCoreScope({
@@ -35,8 +38,8 @@ export async function resolveAgentRuntimeContext(
     projectName,
   });
   const fallback = {
-    systemPrompt: buildSystemPrompt({ organizationId: orgId, projectName, projectId }),
-    tools: createBoundTools(orgId, userId),
+    systemPrompt: buildSystemPrompt({ organizationId: orgId, projectName, projectId, modes }),
+    tools: filterToolsByModes(createBoundTools(orgId, userId), modes),
     auditProjectId: undefined,
     agentScope: fallbackScope,
     capabilityIds: getCapabilitiesForScope(Boolean(fallbackScope.projectId)).map((capability) => capability.id),
@@ -139,11 +142,12 @@ export async function resolveAgentRuntimeContext(
       workCaseId,
       recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
       enterpriseProfile: enterpriseProfile ?? undefined,
+      modes,
     });
 
     return {
       systemPrompt,
-      tools: createBoundTools(orgId, userId, { projectId: validatedProjectId, workCaseId }),
+      tools: filterToolsByModes(createBoundTools(orgId, userId, { projectId: validatedProjectId, workCaseId }), modes),
       auditProjectId: validatedProjectId,
       agentScope,
       capabilityIds,

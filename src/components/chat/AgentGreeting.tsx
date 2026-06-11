@@ -20,11 +20,12 @@ interface AgentGreetingProps {
   onFileSelect?: (file: File) => void;
 }
 
+// Identidad PM Digital: la apertura es operativa, no de auditoría (decisión de producto §7.1)
 const QUICK_PROMPTS = [
-  "¿Qué incidencia tiene el rubro estructura?",
-  "Compará este presupuesto con el promedio del sector",
-  "Detectá ítems duplicados o inconsistencias",
-  "Calculá m² de revoque grueso necesarios",
+  "¿Cómo arranca el día en la obra?",
+  "¿Quién puede ingresar hoy? Revisá HSE y vencimientos",
+  "¿Cómo viene la curva de inversión?",
+  "¿Llueve esta semana? ¿Qué conviene reprogramar?",
 ];
 
 const FILE_ICONS: Record<string, { Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; color: string }> = {
@@ -130,7 +131,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
           >
             <span className="h-px w-4 bg-primary" />
             <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-primary">
-              {companyName ? `${companyName} · ${agentName ?? "EdificIA"}` : "EdificIA · auditoría asistida"}
+              {companyName ? `${companyName} · ${agentName ?? "EdificIA"}` : "EdificIA · Project Manager Digital"}
             </span>
             <span className="h-px w-4 bg-primary" />
           </motion.div>
@@ -271,8 +272,8 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
             <span className="text-foreground">hoy?</span>
           </h2>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-            Cargá un documento o preguntá sobre{" "}
-            <span className="font-medium text-foreground">{activeProject.name}</span>.
+            Preguntá por el estado de{" "}
+            <span className="font-medium text-foreground">{activeProject.name}</span> o cargá un documento.
           </p>
         </motion.div>
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolveAgentRuntimeContext } from "@/lib/agent-core/runtime";
+import { detectTurnModes, toolNamesForModes } from "@/lib/ai/turn-modes";
 import { requireGatewaySecret } from "@/lib/api/gateway-auth";
 import type { AuthResult } from "@/lib/auth/require-auth";
 
@@ -11,6 +12,9 @@ const bodySchema = z.object({
   projectName: z.string().optional(),
   projectId: z.string().uuid().optional(),
   chatSessionId: z.string().optional(),
+  // Señales del turno (las computa el caller sobre la ventana de mensajes)
+  recentText: z.string().max(50_000).optional(),
+  hasFile: z.boolean().optional(),
 });
 
 /**
@@ -34,14 +38,18 @@ export async function POST(req: Request) {
     return Response.json({ error: parsed.error.issues[0]?.message ?? "Body inválido" }, { status: 400 });
   }
 
-  const { orgId, userId, projectName, projectId, chatSessionId } = parsed.data;
+  const { orgId, userId, projectName, projectId, chatSessionId, recentText, hasFile } = parsed.data;
+  const modes = detectTurnModes({ recentText: recentText ?? "", hasFile: hasFile ?? false });
   const auth: AuthResult = { orgId, userId, role: "engineer", email: null };
-  const ctx = await resolveAgentRuntimeContext(auth, projectName, projectId, chatSessionId);
+  const ctx = await resolveAgentRuntimeContext(auth, projectName, projectId, chatSessionId, modes);
 
   return Response.json({
     systemPrompt: ctx.systemPrompt,
     auditProjectId: ctx.auditProjectId ?? null,
     agentScope: ctx.agentScope,
     capabilityIds: ctx.capabilityIds,
+    modes,
+    // Tools visibles este turno: Python filtra el manifest con esta lista
+    toolNames: [...toolNamesForModes(modes)],
   });
 }
