@@ -2,18 +2,22 @@
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.expand": false,
   "explorer.fileNesting.patterns": {
-    "package.json": "package-lock.json, eslint.config.mjs, postcss.config.mjs, components.json",
-    "next.config.ts": "next-env.d.ts, tsconfig.json, tsconfig.tsbuildinfo",
+    "package.json": "package-lock.json, eslint.config.mjs, postcss.config.mjs, components.json, tsconfig.json",
+    "next.config.ts": "next-env.d.ts, tsconfig.tsbuildinfo",
     "README.md": "AGENTS.md, CLAUDE.md, CONTRIBUTING.md, LICENSE, ROADMAP.md",
-    "docker-compose.yml": "Dockerfile, .env.docker.example",
-    ".env.local": ".env.local.example"
+    "docker-compose.yml": "Dockerfile, .env.docker, .env.docker.example",
+    ".env.local": ".env.local.example",
+    ".gitignore": ".gitattributes"
   },
   "files.exclude": {
     "**/.next": true,
     "**/node_modules": true,
-    "**/.claude-flow": true,
-    "**/.insforge": true,
+    "**/__pycache__": true,
+    "**/.venv": true,
     "**/tsconfig.tsbuildinfo": true,
-    "**/next-env.d.ts": true
+    "**/next-env.d.ts": true,
+    "**/.DS_Store": true,
+    ".github": true,
+    "data": true
   }
 }
