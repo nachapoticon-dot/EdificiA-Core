@@ -51,7 +51,9 @@ test("buildSystemPrompt omite sección de perfil cuando no hay snapshot", () => 
   });
 
   assert.equal(prompt.includes("Perfil de empresa"), false);
-  assert.equal(prompt.includes("consultar_perfil_empresa"), false);
+  // La referencia de drill-down del perfil no debe estar; la mención de la tool
+  // en el playbook operativo (apertura sin obra activa) es legítima.
+  assert.equal(prompt.includes("Para drill-down"), false);
 });
 
 test("buildSystemPrompt funciona sin perfil empresarial (backward-compatible)", () => {
