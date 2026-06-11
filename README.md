@@ -4,7 +4,7 @@
 
 EdificIA es un **Sistema Integral de Gestión** de alta seguridad diseñado exclusivamente para constructoras. Supera el concepto tradicional de software de gestión al incorporar un **Project Manager Digital** nativo, capaz de anticipar y gestionar la realidad del terreno. Los equipos de ingeniería, arquitectura y administración pueden auditar presupuestos, controlar seguridad (HSE), gestionar cronogramas, ordenar expedientes operativos y recibir alertas de riesgos climáticos, documentales o logísticos, todo mediante lenguaje natural y vistas operativas por obra, expediente y empresa.
 
-Estado actual: el producto corre localmente. La URL pública y el schedule automático de InsForge quedan **fuera de alcance por ahora** (no hay deployment estable). La capa de Inteligencia Empresarial ya converge Radar, Fuentes y Mapa Vivo; los conectores read-only reales (Drive/SharePoint/SQL) son un **pendiente externo** porque requieren credenciales del cliente.
+Estado actual: el producto corre **100% sobre infraestructura propia** (PostgreSQL + pgvector, auth local, storage filesystem — desconexión de InsForge/Qdrant completada 2026-06-11, ver `ROADMAP.md` §-1). La URL pública y el schedule automático del motor de proactividad quedan **fuera de alcance por ahora** (no hay deployment estable). La capa de Inteligencia Empresarial ya converge Radar, Fuentes y Mapa Vivo; los conectores read-only reales (Drive/SharePoint/SQL) son un **pendiente externo** porque requieren credenciales del cliente.
 
 ---
 
@@ -39,11 +39,12 @@ Estado actual: el producto corre localmente. La URL pública y el schedule autom
 | UI | Shadcn UI · Tailwind CSS v4 · Framer Motion |
 | Data fetching | TanStack Query v5 |
 | Validación | Zod v3 — schemas compartidos E2E |
-| AI / Agente | Vercel AI SDK v6 · DeepSeek (OpenAI-compatible) |
-| Embeddings | NVIDIA NIM / OpenAI-compatible `text-embedding-3-small` |
-| Vector DB | Qdrant Cloud |
-| Backend / Auth / Storage | InsForge BaaS |
-| Base de datos | PostgreSQL con Row-Level Security multi-tenant |
+| AI / Agente | Vercel AI SDK v6 · DeepSeek (OpenAI-compatible) · servicio Python FastAPI opcional (`AGENT_BACKEND=python`) |
+| Embeddings | NVIDIA NIM `baai/bge-m3` (1024 dims) |
+| Vector DB | pgvector (en el mismo PostgreSQL) |
+| Auth | Propia: JWT HS256 local + refresh tokens con rotación |
+| Storage | Filesystem local con interfaz de adapter (`STORAGE_DIR`) |
+| Base de datos | PostgreSQL 16 + pgvector con Row-Level Security multi-tenant |
 | Email transaccional | Resend |
 | Generación de documentos | jsPDF · docx · xlsx |
 
@@ -89,9 +90,11 @@ src/
     ├── document-intelligence/    # Reportes documentales y context scan
     ├── knowledge-graph/          # Relaciones semánticas entre documentos
     ├── observability/            # Captura de errores operativos
-    ├── rag/                      # Pipeline RAG: ingest, chunking, retrieval
-    ├── embeddings/               # Cliente OpenAI embeddings
-    ├── qdrant/                   # Cliente Qdrant + helpers de búsqueda vectorial
+    ├── rag/                      # Pipeline RAG: ingest, chunking, retrieval (pgvector + FTS)
+    ├── embeddings/               # Cliente NVIDIA NIM (bge-m3)
+    ├── db/                       # Capa de datos propia: pool pg, query-builder, SQL raw
+    ├── auth/                     # Auth local: JWT HS256, passwords, refresh tokens
+    ├── storage/                  # Adapter de storage filesystem
     ├── file-processor/           # Procesadores PDF, DOCX, Excel, DXF, imágenes
     ├── math-engine/              # Motor de auditoría de presupuestos
     ├── pattern-extractor/        # Extracción de patrones de documentos
@@ -99,15 +102,18 @@ src/
     ├── indices/                  # Lógica de índices CAC
     ├── export/                   # Generadores PDF (jsPDF), DOCX, XLSX
     ├── email/                    # Invitaciones con Resend
-    ├── insforge/                 # Cliente BaaS centralizado
+    ├── insforge/                 # Re-export histórico del cliente admin (vive en lib/db)
     └── validators/               # Schemas Zod compartidos
+
+services/
+└── agent/                        # Cerebro del agente (FastAPI): loop, memoria, reflexión
 ```
 
 ---
 
 ## Desarrollo local
 
-**Requisitos:** Node.js 22 LTS · npm 10+
+**Requisitos:** Node.js 22 LTS · npm 10+ · Docker (para PostgreSQL local)
 
 ```bash
 # 1. Clonar e instalar dependencias
@@ -117,10 +123,19 @@ npm install
 
 # 2. Configurar variables de entorno
 cp .env.local.example .env.local
-# Completar las claves según .env.local.example
+# Completar las claves según .env.local.example (AUTH_JWT_SECRET: openssl rand -base64 48)
 
-# 3. Levantar servidor de desarrollo
+# 3. Levantar PostgreSQL (pgvector) y aplicar migraciones
+docker compose up -d postgres
+npm run migrate
+
+# 4. Levantar servidor de desarrollo
 npm run dev
+
+# (Opcional) Cerebro Python del agente — requiere AGENT_BACKEND=python en .env.local
+cd services/agent && python3 -m venv .venv && .venv/bin/pip install -e . \
+  && cp .env.example .env  # completar secrets
+.venv/bin/uvicorn app.main:app --port 8000
 ```
 
 El servidor queda disponible en `http://localhost:3000`.
@@ -131,13 +146,11 @@ Ver `.env.local.example` para la lista completa. Las mínimas para correr el cha
 
 | Variable | Descripción |
 |---|---|
-| `NEXT_PUBLIC_INSFORGE_PROJECT_ID` | ID del proyecto en InsForge |
-| `NEXT_PUBLIC_INSFORGE_URL` | URL del backend InsForge |
-| `INSFORGE_SERVICE_ROLE_KEY` | Clave admin InsForge (solo server-side) |
-| `AUTH_STRICT_MODE` | Opcional. En producción es estricto por defecto; `false` solo para emergencia operativa |
+| `DATABASE_URL` | PostgreSQL propio (el del docker-compose por defecto) |
+| `AUTH_JWT_SECRET` | Secreto de firma de sesiones (mínimo 32 chars) |
 | `DEEPSEEK_API_KEY` | Clave API de DeepSeek |
 
-Para RAG y embeddings también se requieren `OPENAI_API_KEY` y las variables de Qdrant.
+Para búsqueda semántica (RAG) se requiere además `NVIDIA_API_KEY`; sin ella la búsqueda degrada a full-text.
 
 ---
 
@@ -150,6 +163,8 @@ npm run type-check   # Verificación de tipos TypeScript
 npm run lint         # ESLint
 npm test             # Tests unitarios node:test
 npm run smoke:chat   # Smoke E2E del runtime conversacional
+npm run migrate      # Aplica migraciones pendientes (runner propio, tabla schema_migrations)
+npm run migrate:new  # Crea una migración vacía con timestamp
 ```
 
 ---
