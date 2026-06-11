@@ -77,6 +77,4 @@ export interface AdminClient {
   database: { from(table: string): DbQueryBuilder };
   storage: { from(bucket: string): StorageBucket };
   auth: AdminAuth;
-  /** Solo lo usa el flujo de login legacy del SDK; el shim local lo stubea. */
-  getHttpClient(): { getHeaders(): Record<string, unknown> };
 }

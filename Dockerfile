@@ -10,10 +10,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # NEXT_PUBLIC_* vars must be present at build time so they get inlined into the client bundle.
-# Pass them via: docker build --build-arg NEXT_PUBLIC_INSFORGE_URL=... --build-arg NEXT_PUBLIC_APP_URL=...
-ARG NEXT_PUBLIC_INSFORGE_URL
+# Pass via: docker build --build-arg NEXT_PUBLIC_APP_URL=...
 ARG NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_INSFORGE_URL=$NEXT_PUBLIC_INSFORGE_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 RUN npm run build
 

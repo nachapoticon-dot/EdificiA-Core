@@ -2,6 +2,11 @@
 /**
  * Export one-shot de InsForge (DB + usuarios + storage) a disco, previo al cutover.
  *
+ * HISTÓRICO: @insforge/sdk ya fue removido de package.json (desconexión 2026-06).
+ * Para volver a correr este script: npm i -D @insforge/sdk && node ... (y removerlo después).
+ * Al intentar el export del 2026-06-10 el proyecto cloud respondía HTTP 503
+ * ("No backend services available"), así que el cutover se hizo con base limpia.
+ *
  * Uso: node --env-file=.env.local scripts/export-insforge.mjs [--out data/export]
  *
  * - Tablas: las del schema local (public.*) — pagina por cursor de id vía SDK.

@@ -20,6 +20,5 @@ export function getPgAdminClient(): AdminClient {
       getProfile: (userId) => localGetProfile(userId),
       refreshSession: ({ refreshToken }) => localRefresh(refreshToken),
     },
-    getHttpClient: () => ({ getHeaders: () => ({}) }),
   };
 }

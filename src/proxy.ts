@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { isLocalAuthMode, verifyAccessToken } from "@/lib/auth/local-jwt";
+import { verifyAccessToken } from "@/lib/auth/local-jwt";
 
 const SESSION_COOKIE = "edificia_session";
 const REQUEST_ID_HEADER = "x-request-id";
@@ -36,12 +36,9 @@ export async function proxy(req: NextRequest) {
   }
 
   // ── Dashboard auth gate ──────────────────────────────────────────────────
-  // Auth local: verificación de firma HS256 real. Modo InsForge legacy:
-  // decode-only (la firma la verifica cada API route contra InsForge).
+  // Verificación de firma HS256 local (sin fallback decode-only).
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const isAuthed = isLocalAuthMode()
-    ? token !== undefined && (await verifyAccessToken(token)) !== null
-    : isValidToken(token);
+  const isAuthed = token !== undefined && (await verifyAccessToken(token)) !== null;
 
   if (pathname.startsWith("/dashboard")) {
     if (!isAuthed) {
@@ -83,32 +80,6 @@ function setCorsHeader(res: NextResponse, origin: string) {
   }
 }
 
-function isValidToken(token: string | undefined): boolean {
-  if (!token) return false;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3 || !parts[1]) return false;
-
-    // base64url → base64 with padding
-    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-
-    // Edge-runtime compatible UTF-8 decode
-    const binary = atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const claims = JSON.parse(new TextDecoder().decode(bytes)) as {
-      sub?: string;
-      exp?: number;
-    };
-
-    if (!claims.sub || claims.sub.length < 10) return false;
-    if (claims.exp && claims.exp < Math.floor(Date.now() / 1000)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const config = {
   matcher: ["/dashboard/:path*", "/login", "/register", "/api/:path*"],

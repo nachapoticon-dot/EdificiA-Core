@@ -9,11 +9,6 @@ import { SignJWT, jwtVerify } from "jose";
 const ISSUER = "edificia";
 const ACCESS_TOKEN_TTL = "1h";
 
-/** La auth local está activa cuando la app corre sobre la capa de datos propia. */
-export function isLocalAuthMode(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.DATA_BACKEND === "postgres";
-}
-
 function getSecretKey(): Uint8Array {
   const secret = process.env.AUTH_JWT_SECRET;
   if (!secret || secret.length < 32) {
