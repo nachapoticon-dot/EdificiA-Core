@@ -77,3 +77,6 @@ design_handoff_edificia/
 services/agent/.venv/
 __pycache__/
 services/agent/.env
+
+# Artefactos de packaging Python
+*.egg-info/

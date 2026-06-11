@@ -1,6 +1,7 @@
 # Próximos pasos — EdificIA
 
-> Creado 2026-05-28 tras la auditoría (`docs/09_auditoria_2026-05.md`).
+> Creado 2026-05-28 tras la auditoría (`docs/archive/09_auditoria_2026-05.md`).
+> Actualizado 2026-06-11 tras la desconexión de InsForge/Qdrant (ver `ROADMAP.md` §-1).
 > Foco: estabilizar lo construido y reducir sobre-ingeniería antes de sumar capas nuevas.
 > Esta lista es corta a propósito. Cuando un item se completa, se tacha o se borra.
 
@@ -12,8 +13,7 @@
 
 ## A · Estabilizar la base (hacer primero)
 
-1. **Commitear el trabajo terminado del working tree.**
-   Hay ~40 archivos modificados + ~25 untracked (sources API, `structure.ts`, bloques UI, primitives `ui/*`). El ROADMAP marca ✅ cosas que solo viven sin commitear. Riesgo de pérdida. → Commit limpio por bloque temático.
+1. ~~**Commitear el trabajo terminado del working tree.**~~ ✅ hecho (rama `chore/converge-working-tree`, 2026-05/06). Working tree limpio desde entonces.
 
 2. ~~**Cerrar race conditions en alta de organización.**~~ ✅ hecho 2026-05-28.
    `claim-founder` ahora elige un único ganador con compare-and-swap sobre la invitación (pending→accepted condicional) + rollback ante fallo, evitando orgs duplicadas. `claim-invitation` ya estaba cubierto por `UNIQUE(organization_id, user_id)`; se agregó manejo de error idempotente (re-chequeo de membresía ante conflicto). `register` queda protegido por la unicidad de `signUp`.
@@ -22,8 +22,7 @@
 3. ~~**Validación central de variables de entorno (fail-fast).**~~ ✅ hecho 2026-05-28.
    `src/lib/env.ts` valida con Zod (requeridas: `NEXT_PUBLIC_INSFORGE_URL`, `INSFORGE_SERVICE_ROLE_KEY`, `DEEPSEEK_API_KEY`; resto opcional tipado). `src/instrumentation.ts` dispara la validación al boot del server. Guardado contra build/cliente/test y `SKIP_ENV_VALIDATION=true`. `chat/route.ts` ya no usa `?? ""`. `.env.local.example` reescrito y corregido (pedía `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` inexistentes).
 
-4. **Verificación de firma JWT local.**
-   `src/lib/auth/jwt.ts` delega 100% a InsForge. Agregar verificación de firma (jose/jwks) y usar el round-trip solo para revocación. Cambiar la clave del cache de "últimos 20 chars" a hash del token completo.
+4. ~~**Verificación de firma JWT local.**~~ ✅ resuelto 2026-06-11 por la desconexión de InsForge: auth 100% local con firma HS256 (`src/lib/auth/local-jwt.ts`), sin round-trip ni cache. Ver `ROADMAP.md` §-1 Fase 2/4.
 
 ## B · Cubrir lo que no tiene tests
 
@@ -49,4 +48,4 @@
 
 ---
 
-Detalle y severidad de cada punto: `docs/09_auditoria_2026-05.md`.
+Detalle y severidad de cada punto: `docs/archive/09_auditoria_2026-05.md`.
