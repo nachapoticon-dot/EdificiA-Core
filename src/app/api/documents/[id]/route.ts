@@ -1,11 +1,10 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { getQdrantClient, COLLECTION_NAME, isQdrantConfigured } from "@/lib/qdrant/client";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
-/** DELETE /api/documents/[id] — removes a file from storage, Qdrant, and PostgreSQL. */
+/** DELETE /api/documents/[id] — removes a file from storage and PostgreSQL (chunks + vectores). */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: fileId } = await params;
   const auth = await requireAuth(req);
@@ -26,21 +25,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const fileRow = fileResult.data as { id: string; storage_path: string } | null;
     if (!fileRow) return Response.json({ error: "File not found" }, { status: 404 });
 
-    const chunksResult = await client.database
-      .from("document_chunks")
-      .select("qdrant_id")
-      .eq("file_id", fileId)
-      .eq("organization_id", auth.orgId)
-      .not("qdrant_id", "is", null);
-
-    const qdrantIds = ((chunksResult.data ?? []) as { qdrant_id: string | null }[])
-      .map((r) => r.qdrant_id)
-      .filter((id): id is string => id !== null);
-
-    if (qdrantIds.length > 0 && isQdrantConfigured()) {
-      await getQdrantClient().delete(COLLECTION_NAME, { points: qdrantIds }).catch(() => null);
-    }
-
+    // El DELETE de document_chunks elimina también los embeddings (misma fila)
     await client.database
       .from("document_chunks")
       .delete()

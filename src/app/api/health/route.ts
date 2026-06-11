@@ -1,5 +1,5 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { getQdrantClient, isQdrantConfigured } from "@/lib/qdrant/client";
+import { sqlQuery } from "@/lib/db/sql";
 import { httpLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -12,12 +12,12 @@ type ServiceStatus = {
 
 export async function GET() {
   const t0 = Date.now();
-  const [postgres, qdrant] = await Promise.all([checkPostgres(), checkQdrant()]);
+  const [postgres, vector] = await Promise.all([checkPostgres(), checkPgVector()]);
 
-  const healthy = postgres.status === "ok" && qdrant.status !== "error";
+  const healthy = postgres.status === "ok" && vector.status !== "error";
   const payload = {
     status: healthy ? "ok" : "degraded",
-    services: { postgres, qdrant },
+    services: { postgres, vector },
     timestamp: new Date().toISOString(),
   };
 
@@ -39,11 +39,11 @@ async function checkPostgres(): Promise<ServiceStatus> {
   }
 }
 
-async function checkQdrant(): Promise<ServiceStatus> {
-  if (!isQdrantConfigured()) return { status: "unconfigured", detail: "QDRANT_URL not set" };
+async function checkPgVector(): Promise<ServiceStatus> {
   const t = Date.now();
   try {
-    await getQdrantClient().getCollections();
+    const rows = await sqlQuery<{ extname: string }>("SELECT extname FROM pg_extension WHERE extname = 'vector'");
+    if (rows.length === 0) return { status: "unconfigured", detail: "extensión pgvector no instalada" };
     return { status: "ok", latencyMs: Date.now() - t };
   } catch (e) {
     return { status: "error", latencyMs: Date.now() - t, detail: String(e) };

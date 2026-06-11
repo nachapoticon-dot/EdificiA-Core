@@ -29,8 +29,6 @@ const envSchema = z
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.string().optional(),
   NVIDIA_API_KEY: z.string().optional(), // embeddings RAG
-  QDRANT_URL: z.string().url().optional(), // vector store
-  QDRANT_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(), // email
   RESEND_FROM_EMAIL: z.string().optional(),
   SUPER_ADMIN_KEY: z.string().optional(), // panel super-admin

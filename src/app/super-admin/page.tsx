@@ -495,7 +495,7 @@ export default function SuperAdminPage() {
       <ResetConfirmModal
         open={resetAllModalOpen}
         title="Reset total — todas las empresas"
-        description="Borra todas las tablas globales y la colección Qdrant completa. Acción irreversible. Solo usar en entornos de desarrollo o staging."
+        description="Borra todas las tablas globales, incluidos chunks y embeddings. Acción irreversible. Solo usar en entornos de desarrollo o staging."
         expected="BORRAR TODO"
         expectedHint="Sensible a mayúsculas y espacios"
         destructiveLabel="Borrar todo"
@@ -652,7 +652,7 @@ function FoundersTab({
             <div>
               <p className="text-sm font-medium text-destructive">Reset total (todas las empresas)</p>
               <p className="text-xs text-muted-foreground">
-                Borra todas las tablas globales y la colección Qdrant. Requiere confirmación tipada. Solo dev/staging.
+                Borra todas las tablas globales (incluidos chunks y embeddings). Requiere confirmación tipada. Solo dev/staging.
               </p>
             </div>
           </div>
