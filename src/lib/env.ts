@@ -17,6 +17,7 @@ const envSchema = z.object({
   DEEPSEEK_API_KEY: z.string().min(1, "es requerida (API key de DeepSeek)"),
 
   // --- Opcionales: degradan funcionalidad, no rompen el boot ---
+  DATABASE_URL: z.string().optional(), // Postgres propio (requerida cuando DATA_BACKEND=postgres)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.string().optional(),
   NVIDIA_API_KEY: z.string().optional(), // embeddings RAG
