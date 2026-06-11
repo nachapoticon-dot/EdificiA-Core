@@ -1,31 +1,52 @@
-import { createClient, type InsForgeClient } from "@insforge/sdk";
+/**
+ * Cliente de sesión del browser — sin SDK de InsForge.
+ *
+ * La sesión vive en localStorage (access + refresh token) y en la cookie
+ * httpOnly `edificia_session` (seteada server-side por /api/auth/login).
+ * El refresh se hace contra /api/auth/refresh (rotación server-side).
+ *
+ * `getInsForgeClient()` se mantiene por compatibilidad con los call-sites
+ * existentes (signOut best-effort, setAuthToken, getHeaders) pero ya no
+ * habla con ningún servicio externo.
+ */
 
-const BASE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
 const TOKEN_KEY = "edificia:access_token";
 const REFRESH_KEY = "edificia:refresh_token";
-const SESSION_COOKIE = "edificia_session";
 
-let _client: InsForgeClient | null = null;
-
-/**
- * Returns the singleton browser InsForge client.
- * Token is persisted in localStorage so it survives tab closes and browser restarts.
- * Only call from Client Components or browser-side code.
- */
-export function getInsForgeClient(): InsForgeClient {
-  if (!_client) {
-    _client = createClient({ baseUrl: BASE_URL });
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(TOKEN_KEY);
-      if (saved) _client.getHttpClient().setAuthToken(saved);
-      const savedRefresh = localStorage.getItem(REFRESH_KEY);
-      if (savedRefresh) _client.getHttpClient().setRefreshToken(savedRefresh);
-    }
-  }
-  return _client;
+interface BrowserSessionClient {
+  auth: { signOut(): Promise<void> };
+  getHttpClient(): {
+    setAuthToken(token: string): void;
+    setRefreshToken(token: string): void;
+    getHeaders(): Record<string, string>;
+  };
 }
 
-/** Call after successful sign-in to persist the token in localStorage and sync the SDK client. */
+const browserClient: BrowserSessionClient = {
+  auth: {
+    // El logout real es POST /api/auth/logout (borra la cookie) + clearPersistedToken()
+    signOut: async () => {},
+  },
+  getHttpClient: () => ({
+    setAuthToken: (token: string) => {
+      if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, token);
+    },
+    setRefreshToken: (token: string) => {
+      if (typeof window !== "undefined") localStorage.setItem(REFRESH_KEY, token);
+    },
+    getHeaders: (): Record<string, string> => {
+      if (typeof window === "undefined") return {};
+      const token = localStorage.getItem(TOKEN_KEY);
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
+  }),
+};
+
+export function getInsForgeClient(): BrowserSessionClient {
+  return browserClient;
+}
+
+/** Call after successful sign-in to persist the token in localStorage. */
 export function persistAuthToken(rawToken: string, refreshToken?: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem(TOKEN_KEY, rawToken);
@@ -35,7 +56,6 @@ export function persistAuthToken(rawToken: string, refreshToken?: string) {
 
 /**
  * Returns Authorization headers with a valid token, refreshing it if needed.
- * Use this instead of getInsForgeClient().getHttpClient().getHeaders() in all hooks/pages.
  */
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await getAuthToken();
@@ -48,7 +68,6 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
  */
 export async function getAuthToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  const client = getInsForgeClient();
   const token = localStorage.getItem(TOKEN_KEY);
 
   if (token) {
@@ -62,17 +81,21 @@ export async function getAuthToken(): Promise<string | null> {
     }
   }
 
-  // Token expired or near expiry — attempt refresh
+  // Token expirado o por expirar — refresh con rotación vía API propia
   const savedRefresh = localStorage.getItem(REFRESH_KEY);
   if (savedRefresh) {
     try {
-      const { data } = await client.auth.refreshSession({ refreshToken: savedRefresh });
-      if (data?.accessToken) {
-        const newRefresh = data.refreshToken ?? undefined;
-        persistAuthToken(data.accessToken, newRefresh);
-        client.getHttpClient().setAuthToken(data.accessToken);
-        if (newRefresh) client.getHttpClient().setRefreshToken(newRefresh);
-        return data.accessToken;
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: savedRefresh }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { accessToken?: string; refreshToken?: string | null };
+        if (data.accessToken) {
+          persistAuthToken(data.accessToken, data.refreshToken ?? undefined);
+          return data.accessToken;
+        }
       }
     } catch {
       // Refresh failed — return whatever token we have
@@ -88,5 +111,4 @@ export function clearPersistedToken() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
   }
-  _client = null;
 }

@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { isLocalAuthMode } from "@/lib/auth/local-jwt";
+import { localUpdatePassword } from "@/lib/auth/local-auth";
 import { verifyResetToken } from "@/lib/auth/reset-token";
 
 export const runtime = "nodejs";
 
-const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-const SERVICE_ROLE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY!;
+const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL ?? "";
+const SERVICE_ROLE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY ?? "";
 
 const schema = z.object({
   token: z.string().min(10),
@@ -29,6 +31,14 @@ export async function PUT(req: Request) {
   const claims = await verifyResetToken(token);
   if (!claims) {
     return Response.json({ error: "El link expiró o no es válido. Solicitá uno nuevo." }, { status: 400 });
+  }
+
+  if (isLocalAuthMode()) {
+    const updated = await localUpdatePassword(claims.userId, newPassword);
+    if (!updated) {
+      return Response.json({ error: "No se pudo actualizar la contraseña. Intentá de nuevo." }, { status: 500 });
+    }
+    return Response.json({ ok: true });
   }
 
   // Update the user's password via InsForge admin API

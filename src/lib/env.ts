@@ -10,14 +10,22 @@ import { z } from "zod";
  * Las "opcionales" degradan funcionalidad (embeddings, vector store, email, cron)
  * pero no rompen el arranque; cada módulo consumidor ya chequea su disponibilidad.
  */
-const envSchema = z.object({
+const envSchema = z
+  .object({
   // --- Requeridas: la app no funciona sin estas ---
-  NEXT_PUBLIC_INSFORGE_URL: z.string().url("debe ser una URL válida (ej. https://xxx.insforge.app)"),
-  INSFORGE_SERVICE_ROLE_KEY: z.string().min(1, "es requerida (service role key de InsForge)"),
   DEEPSEEK_API_KEY: z.string().min(1, "es requerida (API key de DeepSeek)"),
 
+  // --- Backend de datos ---
+  // "postgres" = infraestructura propia (Postgres + auth local + storage FS).
+  // ausente/otro = InsForge legacy (en desuso, se elimina al completar la desconexión).
+  DATA_BACKEND: z.enum(["postgres", "insforge"]).optional(),
+  DATABASE_URL: z.string().optional(), // requerida cuando DATA_BACKEND=postgres
+  AUTH_JWT_SECRET: z.string().optional(), // requerida cuando DATA_BACKEND=postgres (≥32 chars)
+  STORAGE_DIR: z.string().optional(), // raíz del storage filesystem (default ./data/storage)
+  NEXT_PUBLIC_INSFORGE_URL: z.string().url().optional(), // legacy, requerida solo sin DATA_BACKEND=postgres
+  INSFORGE_SERVICE_ROLE_KEY: z.string().optional(), // legacy, requerida solo sin DATA_BACKEND=postgres
+
   // --- Opcionales: degradan funcionalidad, no rompen el boot ---
-  DATABASE_URL: z.string().optional(), // Postgres propio (requerida cuando DATA_BACKEND=postgres)
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.string().optional(),
   NVIDIA_API_KEY: z.string().optional(), // embeddings RAG
@@ -34,7 +42,24 @@ const envSchema = z.object({
   AI_MODEL_FAST: z.string().optional(),
   AI_MODEL_DEEP: z.string().optional(),
   AUTH_STRICT_MODE: z.enum(["true", "false"]).optional(),
-});
+  })
+  .superRefine((vals, ctx) => {
+    if (vals.DATA_BACKEND === "postgres") {
+      if (!vals.DATABASE_URL) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["DATABASE_URL"], message: "es requerida con DATA_BACKEND=postgres" });
+      }
+      if (!vals.AUTH_JWT_SECRET || vals.AUTH_JWT_SECRET.length < 32) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_JWT_SECRET"], message: "es requerida con DATA_BACKEND=postgres (mínimo 32 caracteres)" });
+      }
+    } else {
+      if (!vals.NEXT_PUBLIC_INSFORGE_URL) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["NEXT_PUBLIC_INSFORGE_URL"], message: "es requerida en modo InsForge (o seteá DATA_BACKEND=postgres)" });
+      }
+      if (!vals.INSFORGE_SERVICE_ROLE_KEY) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["INSFORGE_SERVICE_ROLE_KEY"], message: "es requerida en modo InsForge (o seteá DATA_BACKEND=postgres)" });
+      }
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

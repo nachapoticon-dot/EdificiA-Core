@@ -1,3 +1,5 @@
+import { isLocalAuthMode, verifyAccessToken } from "./local-jwt";
+
 const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL ?? "";
 
 interface JwtClaims {
@@ -55,6 +57,12 @@ export function decodeClaims(jwt: string): { sub: string; email: string | null; 
  * Production is strict by default; set AUTH_STRICT_MODE=false only for emergency break-glass.
  */
 export async function verifyUserId(token: string): Promise<string | null> {
+  // Auth local (DATA_BACKEND=postgres): verificación de firma HS256 propia, sin red.
+  if (isLocalAuthMode()) {
+    const verified = await verifyAccessToken(token);
+    return verified?.sub ?? null;
+  }
+
   // Fast path: check structure + exp locally first
   const claims = decodeClaims(token);
   if (!claims) return null;

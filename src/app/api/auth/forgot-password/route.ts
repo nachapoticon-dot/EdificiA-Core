@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { isLocalAuthMode } from "@/lib/auth/local-jwt";
+import { localFindUserIdByEmail } from "@/lib/auth/local-auth";
 import { signResetToken } from "@/lib/auth/reset-token";
 import { sendPasswordResetEmail } from "@/lib/email/resend";
 
 export const runtime = "nodejs";
 
-const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-const SERVICE_ROLE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY!;
+const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL ?? "";
+const SERVICE_ROLE_KEY = process.env.INSFORGE_SERVICE_ROLE_KEY ?? "";
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -21,6 +23,15 @@ export async function POST(req: Request) {
   const { email } = parsed.data;
 
   try {
+    if (isLocalAuthMode()) {
+      const userId = await localFindUserIdByEmail(email);
+      if (userId) {
+        const token = await signResetToken(userId, email);
+        await sendPasswordResetEmail({ toEmail: email, token });
+      }
+      return Response.json({ ok: true }); // silencioso siempre — anti-enumeración
+    }
+
     // Look up the user by email via InsForge admin API
     const usersRes = await fetch(
       `${INSFORGE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}&page=1&per_page=1`,

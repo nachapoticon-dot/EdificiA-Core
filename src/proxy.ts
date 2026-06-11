@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { isLocalAuthMode, verifyAccessToken } from "@/lib/auth/local-jwt";
 
 const SESSION_COOKIE = "edificia_session";
 const REQUEST_ID_HEADER = "x-request-id";
@@ -15,7 +16,7 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400",
 };
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const origin = req.headers.get("origin") ?? "";
 
@@ -35,8 +36,12 @@ export function proxy(req: NextRequest) {
   }
 
   // ── Dashboard auth gate ──────────────────────────────────────────────────
+  // Auth local: verificación de firma HS256 real. Modo InsForge legacy:
+  // decode-only (la firma la verifica cada API route contra InsForge).
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const isAuthed = isValidToken(token);
+  const isAuthed = isLocalAuthMode()
+    ? token !== undefined && (await verifyAccessToken(token)) !== null
+    : isValidToken(token);
 
   if (pathname.startsWith("/dashboard")) {
     if (!isAuthed) {
