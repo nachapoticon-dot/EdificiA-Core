@@ -8,7 +8,7 @@ Este archivo es la guía operativa de Codex. `CLAUDE.md` sigue siendo la guía o
 
 ## 1. Arranque de cada sesión
 
-1. Leer `ROADMAP.md` antes de elegir una tarea o proponer orden de trabajo.
+1. Leer `docs/00_PRODUCTO.md` antes de elegir una tarea o proponer orden de trabajo.
 2. Leer los archivos directamente involucrados antes de editar. No asumir contenido por nombre de archivo.
 3. Si el cambio toca arquitectura, leer `docs/04_architecture_map.md`.
 4. Si el cambio toca auditoría, presupuestos, documentos de obra o lógica de dominio, leer `docs/03_domain_knowledge.md`.
@@ -25,7 +25,7 @@ Este archivo es la guía operativa de Codex. `CLAUDE.md` sigue siendo la guía o
 - `CLAUDE.md` y `AGENTS.md` deben decir lo mismo en las reglas críticas: auth, multi-tenancy, estilo de edición, verificación y prioridades.
 - Al terminar una tarea relevante, agregar una entrada breve en `docs/AI_WORKLOG.md`.
 - Si se cambia una regla operativa para un agente, evaluar si debe reflejarse también en el archivo del otro agente.
-- No duplicar documentación larga. `ROADMAP.md` concentra pendientes; `docs/04_architecture_map.md` concentra arquitectura; `docs/AI_WORKLOG.md` concentra handoffs recientes.
+- No duplicar documentación larga. `docs/00_PRODUCTO.md` concentra visión, estado y pendientes; `docs/04_architecture_map.md` concentra arquitectura; `docs/AI_WORKLOG.md` concentra handoffs recientes.
 - Cuando una sesión deje trabajo incompleto, registrar exactamente qué quedó pendiente y qué archivos estaban en curso.
 
 Formato de handoff recomendado:
@@ -59,7 +59,7 @@ Formato de handoff recomendado:
 - Evitar búsquedas amplias si ya se conoce el área del repo.
 - Editar de forma quirúrgica con `apply_patch`; no reescribir archivos completos para cambios chicos.
 - Agrupar cambios relacionados en una sola edición por archivo cuando sea razonable.
-- No abrir docs históricas si `ROADMAP.md` ya tiene el estado consolidado.
+- No abrir docs históricas si `docs/00_PRODUCTO.md` ya tiene el estado consolidado.
 - Mantener respuestas cortas salvo que el usuario pida análisis detallado.
 
 ---
@@ -109,7 +109,7 @@ Formato de handoff recomendado:
 - Migraciones nuevas: usar `npm run migrate:new` y aplicar con `npm run migrate` (`migrations/` es la ruta canónica).
 - `docs/archive/db-migrations-legacy/` es histórico read-only; no agregar cambios nuevos ahí.
 - Si se agrega un módulo estructural nuevo, actualizar `docs/04_architecture_map.md`.
-- Si se cambia una prioridad o se completa un pendiente relevante, actualizar `ROADMAP.md`.
+- Si se cambia una prioridad o se completa un pendiente relevante, actualizar `docs/00_PRODUCTO.md`.
 
 ---
 
@@ -118,6 +118,7 @@ Formato de handoff recomendado:
 - **Base Documental ya no es un producto separado: vive dentro de Inteligencia / Contexto Empresarial.** EdificIA no debe ser un repositorio de archivos subidos. La carga y preparación de archivos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto a Radar y Mapa Vivo. El objetivo es conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
 - **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
 - **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
+- **La identidad del agente es Project Manager Digital; la auditoría es una capacidad bajo señal, no la apertura por defecto.** Con obra activa y sin archivo, el agente abre con el estado operativo del día. No reintroducir el sesgo "¿qué auditamos hoy?" en prompts, quick-prompts ni UX.
 - **Bloques Shadcn externos como referencia, no código productivo directo.** Los bloques exportados viven en `docs/design/shadcn-blocks/`: `raw/` para pegarlos tal cual, `adapted/` para versiones revisadas y `manifest.json` como índice. No importar desde `raw/`; adaptar primero a tokens, componentes e identidad de EdificIA antes de mover algo a `src/components/`.
 
 ---

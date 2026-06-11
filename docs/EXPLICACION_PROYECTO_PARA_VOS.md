@@ -221,9 +221,11 @@ El proyecto usa varias tecnologías. La idea no es que sepas todas perfecto, sin
 | UI | React + Tailwind + Shadcn | Componentes visuales |
 | Estado cliente | TanStack Query | Cargar datos del backend y cachearlos |
 | IA | Vercel AI SDK + DeepSeek | Streaming del chat y tools del agente |
-| Backend/Auth/Storage | InsForge | Usuarios, base Postgres, storage |
-| Base de datos | PostgreSQL | Datos principales del producto |
-| Vector DB | Qdrant | Búsqueda semántica de documentos |
+| Base de datos | PostgreSQL 16 propio (Docker) | Datos principales del producto |
+| Auth | Propia (JWT firmado local + refresh tokens) | Usuarios y sesiones, sin servicios externos |
+| Storage | Filesystem local con adapter | Archivos subidos (PDF, Excel, planos) |
+| Vector DB | pgvector (dentro del mismo Postgres) | Búsqueda semántica de documentos |
+| Agente (cerebro) | Servicio Python FastAPI opcional | Orquestación de turnos, memoria y aprendizaje |
 | Validación | Zod | Verificar inputs/outputs con schemas |
 | Logs | Pino | Logs estructurados |
 | Documentos | docx, xlsx, jsPDF | Generar/leer archivos |
@@ -234,8 +236,7 @@ Una forma simple de verlo:
 Next.js = la app
 React = pantallas
 API routes = backend
-InsForge/Postgres = base de datos y usuarios
-Qdrant = memoria semántica de documentos
+PostgreSQL = base de datos, usuarios y memoria semántica (pgvector)
 AI SDK + DeepSeek = agente conversacional con tools
 Zod = guardarraíl de datos
 ```
@@ -352,12 +353,12 @@ docs/08_agent_core_redesign.md
 
 ## 6. Cómo funciona el login y la seguridad
 
-EdificIA usa InsForge para auth.
+EdificIA usa auth propia: usuarios en nuestra base, contraseñas hasheadas y tokens firmados localmente.
 
 El flujo simple:
 
 1. El usuario entra a `/login`.
-2. Se autentica con InsForge.
+2. El servidor verifica email y contraseña contra nuestra base y firma un token.
 3. El frontend guarda el token.
 4. También se crea una cookie `edificia_session`.
 5. `src/proxy.ts` protege `/dashboard/*`.
@@ -497,18 +498,18 @@ Flujo:
 1. Se procesa un documento.
 2. Se divide en fragmentos.
 3. Cada fragmento se convierte en un embedding.
-4. Ese embedding se guarda en Qdrant.
+4. Ese embedding se guarda en PostgreSQL (columna pgvector, junto al texto).
 5. Cuando el usuario pregunta, se busca semánticamente.
 6. El agente recibe los fragmentos relevantes.
 7. Responde con más contexto.
 
-Qdrant no guarda "archivos" como una carpeta. Guarda vectores, que sirven para búsqueda por significado.
+pgvector no guarda "archivos" como una carpeta. Guarda vectores junto a cada fragmento, que sirven para búsqueda por significado.
 
 Ejemplo:
 
 ```text
 Usuario: "¿Hay diferencia entre el presupuesto viejo y el nuevo?"
-Sistema: busca documentos relacionados en Qdrant.
+Sistema: busca documentos relacionados por similitud semántica en PostgreSQL.
 Agente: usa esos resultados para comparar.
 ```
 
@@ -1004,7 +1005,7 @@ export async function GET(req: Request) {
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
 
-  const client = getInsForgeAdminClient();
+  const client = getInsForgeAdminClient(); // nombre histórico: hoy es nuestra capa de datos propia (src/lib/db)
 
   const result = await client.database
     .from("tabla")
@@ -1414,9 +1415,9 @@ Buscar contexto en documentos antes de responder con IA.
 
 Representación numérica de un texto para buscar por significado.
 
-### Qdrant
+### pgvector
 
-Base de datos vectorial donde viven embeddings.
+Extensión de PostgreSQL donde viven los embeddings (reemplazó a Qdrant en 2026-06).
 
 ### Tool
 

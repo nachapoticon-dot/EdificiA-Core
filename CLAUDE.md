@@ -9,7 +9,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 ### Flujo de trabajo obligatorio
 
 1. **Leer antes de actuar.** Antes de proponer o escribir código, leer los archivos involucrados. No asumir contenido.
-2. **Verificar tareas activas.** Al inicio de cada sesión, leer `ROADMAP.md` (raíz) para saber qué hay pendiente y la prioridad sugerida.
+2. **Verificar tareas activas.** Al inicio de cada sesión, leer `docs/00_PRODUCTO.md` (visión, estado y pendientes vigentes).
 3. **Preguntar ante ambigüedad.** Si una instrucción admite más de una interpretación, preguntar. No inventar requerimientos.
 4. **Un cambio, un propósito.** Cada edición debe resolver exactamente lo que se pidió. No refactorizar "de paso", no mejorar nombres, no reordenar imports, a menos que se pida explícitamente.
 5. **Probar lo que se toca.** Después de cada cambio, verificar que compila (`npm run type-check`) si es un cambio de tipos, o validar lógica si es runtime. Reportar resultado.
@@ -112,7 +112,8 @@ src/
 
 | Archivo | Cuándo leerlo |
 |---------|---------------|
-| `ROADMAP.md` (raíz) | **Siempre al inicio**. Pendientes, mejoras estratégicas y orden recomendado. |
+| `docs/00_PRODUCTO.md` | **Siempre al inicio**. Visión canónica, estado del sistema y pendientes vigentes. |
+| `docs/10_plan_agente_especializado.md` | Plan vigente del rediseño del agente (PM Digital). |
 | `docs/04_architecture_map.md` | Para ver el grafo de dependencias y el stack de paquetes. |
 | `docs/03_domain_knowledge.md` | Antes de tocar lógica de auditoría / dominio de obra. |
 | `docs/06_enterprise_context_layer.md` | Antes de tocar Contexto/Inteligencia Empresarial, Fuentes, conectores, RAG empresarial o auditoría transversal. |
@@ -125,6 +126,7 @@ src/
 2. **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
 3. **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
 4. **Bloques Shadcn externos como referencia, no código productivo directo.** Los bloques exportados viven en `docs/design/shadcn-blocks/`: `raw/` para pegarlos tal cual, `adapted/` para versiones revisadas y `manifest.json` como índice. No importar desde `raw/`; adaptar primero a tokens, componentes e identidad de EdificIA antes de mover algo a `src/components/`.
+5. **La identidad del agente es Project Manager Digital; la auditoría es una capacidad bajo señal, no la apertura por defecto.** Con obra activa y sin archivo, el agente abre con el estado operativo del día. El playbook de auditoría se activa cuando llega un documento o el usuario lo pide. No reintroducir el sesgo "¿qué auditamos hoy?" en prompts, quick-prompts ni UX.
 
 ## 8 · Reglas de código
 
@@ -138,8 +140,7 @@ src/
 
 - `src/lib/rag/` — Búsqueda híbrida funcionando. No refactorizar sin razón.
 - `src/lib/file-processor/` — Procesadores de PDF, Excel, DXF, DOCX, imagen. Funcionan.
-- `src/lib/ai/agent-tools.ts` y `agent-tools-bound.ts` — 38KB de tools. Muy estable.
-- `src/lib/ai/agent-prompt.ts` — System prompt de 198 líneas cuidadosamente calibrado.
+- `src/lib/db/` — Capa de datos compatible. Su semántica ({data,error}, nunca lanza) está codificada en tests; no cambiarla sin actualizar contratos.
 - `migrations/` — ruta canónica de migraciones. Crear con `npm run migrate:new` y aplicar con `npm run migrate`.
 - `docs/archive/db-migrations-legacy/` — histórico read-only de migraciones raw SQL previas.
 - `src/components/chat/blocks/` — 4 bloques de UI Generativa completos y funcionando.
