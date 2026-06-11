@@ -43,6 +43,7 @@ class TurnResult:
     tool_telemetry: dict[str, dict[str, int]] = field(default_factory=dict)
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     finished_at: datetime | None = None
+    final_text: str = ""
 
     def telemetry_rows(self) -> list[dict[str, Any]]:
         rows = [
@@ -156,6 +157,8 @@ async def run_turn(
             yield sse.reasoning_end(rid)
         if text_open:
             yield sse.text_end(tid)
+        if content_text.strip():
+            result.final_text = content_text
 
         if not tool_calls:
             yield sse.finish_step()
