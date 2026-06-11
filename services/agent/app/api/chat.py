@@ -11,9 +11,10 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 from app.core.loop import TurnContext, TurnResult, run_turn
+from app.core.proactive import fetch_operational_signals, render_signals_block
 from app.core.router import route_model, text_from_ui_message
 from app.db.writers import write_turn_accounting
-from app.memory.reflection import reflect_on_turn
+from app.memory.reflection import reflect_on_case_closure, reflect_on_turn
 from app.memory.store import render_memories_block, retrieve_memories
 
 log = logging.getLogger("agent.chat")
@@ -45,20 +46,25 @@ async def chat_stream(
     _check_secret(x_agent_secret)
     gateway = request.app.state.gateway
 
-    # Contexto efectivo (prompt, scope validado, capabilities) desde Next.js:
-    # mismo runtime context que el backend TS, cero divergencia de prompt.
+    # Señales del turno: el contexto de Next.js decide modos (prompt + tools)
+    recent_text = "\n".join(text_from_ui_message(m) for m in body.messages[-6:])
+    has_file = "__file_meta__" in recent_text or "cacheId" in recent_text
+
+    # Contexto efectivo (prompt modular, scope validado, tools del turno) desde
+    # Next.js: mismo runtime context que el backend TS, cero divergencia.
     runtime_ctx = await gateway.context(
         org_id=body.orgId,
         user_id=body.userId,
         project_name=body.projectName,
         project_id=body.projectId,
         chat_session_id=body.chatSessionId,
+        recent_text=recent_text,
+        has_file=has_file,
     )
     route = route_model(body.messages)
     scope = runtime_ctx.get("agentScope") or {}
 
-    # Memoria episódica: retrieval semántico por scope, inyectada al prompt.
-    # Esto es el aprendizaje real — lo que el agente recordó de turnos previos.
+    # Memoria episódica (aprendizaje real) + señales operativas vivas (PM continuo)
     user_text = text_from_ui_message(body.messages[-1]) if body.messages else ""
     memories = await retrieve_memories(
         org_id=body.orgId,
@@ -66,7 +72,8 @@ async def chat_stream(
         project_id=runtime_ctx.get("auditProjectId"),
         work_case_id=scope.get("workCaseId"),
     )
-    system_prompt = runtime_ctx["systemPrompt"] + render_memories_block(memories)
+    signals = await fetch_operational_signals(body.orgId, runtime_ctx.get("auditProjectId"))
+    system_prompt = runtime_ctx["systemPrompt"] + render_signals_block(signals) + render_memories_block(memories)
 
     ctx = TurnContext(
         org_id=body.orgId,
@@ -85,6 +92,7 @@ async def chat_stream(
         },
         capability_ids=runtime_ctx.get("capabilityIds") or [],
         route=route,
+        allowed_tool_names=set(runtime_ctx["toolNames"]) if runtime_ctx.get("toolNames") else None,
     )
     result = TurnResult()
     log.info(
@@ -145,3 +153,14 @@ async def _account_and_reflect(ctx: TurnContext, result: TurnResult, user_text: 
     )
     if saved:
         log.info("reflection saved %d memories org=%s", saved, ctx.org_id)
+
+    # Si el agente cerró un expediente, destilar el caso completo
+    if ctx.work_case_id and any(t["toolName"] == "proponer_cierre_expediente" for t in result.telemetry_rows()):
+        closed = await reflect_on_case_closure(
+            org_id=ctx.org_id,
+            work_case_id=ctx.work_case_id,
+            project_id=ctx.project_id,
+            agent_run_id=agent_run_id,
+        )
+        if closed:
+            log.info("case-closure reflection saved %d memories org=%s", closed, ctx.org_id)

@@ -92,6 +92,94 @@ async def reflect_on_turn(
         return 0
 
 
+CASE_REFLECTION_PROMPT = """Sos el módulo de memoria de un agente de gestión de obras. Se acaba de CERRAR un expediente operativo.
+Analizá el caso completo (título, tipo, veredicto, resumen y eventos) y extraé 0-2 aprendizajes durables
+para futuros expedientes de esta constructora: qué tipo de evidencia decidió el caso, qué procedimiento
+siguió el equipo, qué criterio fijó el cierre. NO resumas el caso: extraé lo reutilizable.
+Si no hay nada durable, devolvé lista vacía.
+Respondé SOLO un JSON array: {"kind": "procedure|fact|preference", "content": "...", "confidence": 0.0-1.0}"""
+
+
+async def reflect_on_case_closure(
+    *,
+    org_id: str,
+    work_case_id: str,
+    project_id: str | None,
+    agent_run_id: str | None,
+) -> int:
+    """Destila un expediente cerrado a memoria de empresa. Nunca lanza."""
+    from app.db.pool import get_pool
+
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            case = await conn.fetchrow(
+                """
+                SELECT title, kind, status, verdict, summary
+                FROM work_cases
+                WHERE id = $1 AND organization_id = $2
+                """,
+                work_case_id, org_id,
+            )
+            if case is None:
+                return 0
+            events = await conn.fetch(
+                """
+                SELECT event_type, summary FROM work_case_events
+                WHERE work_case_id = $1 AND organization_id = $2
+                ORDER BY created_at DESC LIMIT 12
+                """,
+                work_case_id, org_id,
+            )
+
+        events_text = "\n".join(f"- {e['event_type']}: {e['summary'] or ''}" for e in events)
+        case_text = (
+            f"Expediente: {case['title']} (tipo {case['kind']})\n"
+            f"Estado: {case['status']} · Veredicto: {case['verdict'] or 'sin veredicto'}\n"
+            f"Resumen de cierre: {case['summary'] or 'sin resumen'}\n"
+            f"Eventos recientes:\n{events_text}"
+        )
+
+        client = get_deepseek()
+        completion = await client.chat.completions.create(
+            model=get_settings().fast_model,
+            messages=[
+                {"role": "system", "content": CASE_REFLECTION_PROMPT},
+                {"role": "user", "content": case_text[:6000]},
+            ],
+            temperature=0.1,
+            max_tokens=500,
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        items = json.loads(raw)
+        if not isinstance(items, list):
+            return 0
+
+        saved = 0
+        for item in items[:2]:
+            kind = item.get("kind")
+            if kind not in ("procedure", "fact", "preference"):
+                continue
+            memory_id = await save_memory(
+                org_id=org_id,
+                scope="project" if project_id else "org",
+                kind=kind,
+                content=str(item.get("content", "")),
+                confidence=min(0.7, float(item.get("confidence", 0.5))),
+                source="reflection",
+                project_id=project_id,
+                work_case_id=work_case_id,
+                source_run_id=agent_run_id,
+            )
+            if memory_id:
+                saved += 1
+        return saved
+    except Exception:  # noqa: BLE001
+        log.warning("case-closure reflection failed", exc_info=True)
+        return 0
+
+
 async def process_feedback(feedback_id: str) -> bool:
     """Convierte feedback explícito en memoria. Negativo con corrección → kind=correction (alta confianza)."""
     from app.db.pool import get_pool

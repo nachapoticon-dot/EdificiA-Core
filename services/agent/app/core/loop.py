@@ -34,6 +34,9 @@ class TurnContext:
     agent_scope: dict[str, Any]
     capability_ids: list[str]
     route: RouteDecision
+    # Tools visibles este turno (modos del turno, fuente de verdad en Next.js).
+    # None = sin filtro (back-compat).
+    allowed_tool_names: set[str] | None = None
 
 
 @dataclass
@@ -85,6 +88,8 @@ async def run_turn(
     client = get_deepseek()
 
     manifest = await gateway.manifest()
+    if ctx.allowed_tool_names is not None:
+        manifest = [t for t in manifest if t["name"] in ctx.allowed_tool_names]
     openai_tools = manifest_to_openai_tools(manifest)
     messages = ui_messages_to_openai(ui_messages, ctx.system_prompt)
 

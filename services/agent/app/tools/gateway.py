@@ -38,6 +38,8 @@ class ToolGateway:
         project_name: str | None,
         project_id: str | None,
         chat_session_id: str | None,
+        recent_text: str = "",
+        has_file: bool = False,
     ) -> dict[str, Any]:
         res = await self._client.post(
             f"{self._base}/api/internal/agent/context",
@@ -48,6 +50,8 @@ class ToolGateway:
                 **({"projectName": project_name} if project_name else {}),
                 **({"projectId": project_id} if project_id else {}),
                 **({"chatSessionId": chat_session_id} if chat_session_id else {}),
+                "recentText": recent_text[:50_000],
+                "hasFile": has_file,
             },
         )
         res.raise_for_status()
