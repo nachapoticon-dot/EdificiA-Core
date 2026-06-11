@@ -17,10 +17,11 @@ function urlB64(buf: ArrayBuffer): string {
 }
 
 function getSecret(): string {
-  const secret = process.env.PASSWORD_RESET_SECRET ?? process.env.INSFORGE_SERVICE_ROLE_KEY;
+  const secret =
+    process.env.PASSWORD_RESET_SECRET ?? process.env.AUTH_JWT_SECRET ?? process.env.INSFORGE_SERVICE_ROLE_KEY;
   if (secret) return secret;
   if (process.env.NODE_ENV !== "production") return "edificia-reset-dev-secret";
-  throw new Error("Missing PASSWORD_RESET_SECRET or INSFORGE_SERVICE_ROLE_KEY");
+  throw new Error("Missing PASSWORD_RESET_SECRET, AUTH_JWT_SECRET or INSFORGE_SERVICE_ROLE_KEY");
 }
 
 export async function signResetToken(userId: string, email: string): Promise<string> {
