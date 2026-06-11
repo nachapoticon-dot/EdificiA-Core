@@ -35,10 +35,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
   }
 
-  // Auth local: el token viene en data. SDK InsForge (legacy): side effect en el HTTP client.
-  const tokenFromData = (data as { accessToken?: string }).accessToken ?? null;
-  const authHeader = client.getHttpClient().getHeaders().Authorization as string | undefined;
-  const accessToken = tokenFromData ?? authHeader?.replace(/^Bearer\s+/i, "") ?? null;
+  const accessToken = (data as { accessToken?: string }).accessToken ?? null;
 
   if (!accessToken) {
     return Response.json({ error: "Error al autenticar. Intentá de nuevo." }, { status: 500 });

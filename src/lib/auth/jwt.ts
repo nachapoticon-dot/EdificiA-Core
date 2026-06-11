@@ -1,6 +1,10 @@
-import { isLocalAuthMode, verifyAccessToken } from "./local-jwt";
+import { verifyAccessToken } from "./local-jwt";
 
-const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL ?? "";
+/**
+ * Verificación de sesión — 100% local desde la desconexión de InsForge.
+ * La firma HS256 se verifica con AUTH_JWT_SECRET (ver local-jwt.ts);
+ * no hay fallback decode-only: token sin firma válida = sin sesión.
+ */
 
 interface JwtClaims {
   sub?: string;
@@ -12,17 +16,6 @@ interface JwtClaims {
     name?: string;
     full_name?: string;
   };
-}
-
-// Cache: last 20 chars of token → { userId | null, expiresAt }
-// Avoids a round-trip to InsForge on every API call.
-const _verifyCache = new Map<string, { userId: string | null; expiresAt: number }>();
-const CACHE_TTL_MS = 60_000;
-
-export function isAuthStrictMode(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.AUTH_STRICT_MODE === "true") return true;
-  if (env.AUTH_STRICT_MODE === "false") return false;
-  return env.NODE_ENV === "production";
 }
 
 /**
@@ -50,56 +43,10 @@ export function decodeClaims(jwt: string): { sub: string; email: string | null; 
   }
 }
 
-/**
- * Verifies a JWT by calling the InsForge auth endpoint server-side.
- * Results are cached for 60 s to avoid per-request latency.
- * Development can fall back to decode-only if InsForge is unreachable.
- * Production is strict by default; set AUTH_STRICT_MODE=false only for emergency break-glass.
- */
+/** Verifica firma y expiración localmente y devuelve el userId, o null si el token no es válido. */
 export async function verifyUserId(token: string): Promise<string | null> {
-  // Auth local (DATA_BACKEND=postgres): verificación de firma HS256 propia, sin red.
-  if (isLocalAuthMode()) {
-    const verified = await verifyAccessToken(token);
-    return verified?.sub ?? null;
-  }
-
-  // Fast path: check structure + exp locally first
-  const claims = decodeClaims(token);
-  if (!claims) return null;
-
-  const cacheKey = token.slice(-20);
-  const cached = _verifyCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.userId;
-
-  if (INSFORGE_URL) {
-    try {
-      const res = await fetch(`${INSFORGE_URL}/auth/v1/user`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(3000),
-      });
-      if (res.ok) {
-        _verifyCache.set(cacheKey, { userId: claims.sub, expiresAt: Date.now() + CACHE_TTL_MS });
-        // Prune stale entries
-        if (_verifyCache.size > 1000) {
-          const now = Date.now();
-          for (const [k, v] of _verifyCache) {
-            if (v.expiresAt < now) _verifyCache.delete(k);
-          }
-        }
-        return claims.sub;
-      }
-      // InsForge returned non-ok (token from a different project, or project recreated)
-      // Fall through to decode-only fallback below
-    } catch {
-      // Network error — fall through to decode-only fallback
-    }
-  }
-
-  // In strict mode (production), reject tokens we can't verify against InsForge.
-  if (isAuthStrictMode()) return null;
-
-  // Fallback: trust local decode (exp already verified above)
-  return claims.sub;
+  const verified = await verifyAccessToken(token);
+  return verified?.sub ?? null;
 }
 
 /** Extracts the Bearer token from an Authorization header value. */

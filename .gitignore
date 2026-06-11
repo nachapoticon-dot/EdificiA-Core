@@ -69,3 +69,6 @@ design_handoff_edificia/
 
 # InsForge & AI agent skills
 .claude
+
+# Storage local y exports de datos
+/data/
