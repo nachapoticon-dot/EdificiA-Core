@@ -25,6 +25,8 @@ export async function embedText(text: string): Promise<number[] | null> {
         input: text.slice(0, 8000),
         encoding_format: "float",
       }),
+      // Sin esto, un stream HTTP/2 colgado bloquea la ingesta hasta 5 min (UND_ERR_INFO)
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

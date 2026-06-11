@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { embedText } from "@/lib/embeddings";
-import { getQdrantClient, COLLECTION_NAME, isQdrantConfigured } from "@/lib/qdrant/client";
+import { sqlQuery } from "@/lib/db/sql";
+import { isVectorSearchAvailable, toVectorLiteral } from "./vector";
 
 export interface SearchResult {
   fileId: string | null;
@@ -45,7 +46,7 @@ function detectQueryIntent(query: string): QueryIntent {
 }
 
 /**
- * Hybrid search: runs Qdrant semantic and PostgreSQL full-text concurrently,
+ * Hybrid search: runs pgvector semantic and PostgreSQL full-text concurrently,
  * merges by score, deduplicates by (fileName + chunkText prefix).
  */
 export async function searchDocuments(
@@ -90,69 +91,82 @@ function dedupeKey(r: SearchResult): string {
   return `${r.fileName}::${r.chunkText.slice(0, 80)}`;
 }
 
+interface SemanticRow {
+  file_id: string | null;
+  file_name: string;
+  document_type: string;
+  chunk_text: string;
+  metadata: Record<string, unknown> | null;
+  score: number;
+}
+
 async function semanticSearch(
   query: string,
   opts: SearchOptions,
   topK: number,
   intent: QueryIntent,
 ): Promise<SearchResult[]> {
-  if (!isQdrantConfigured()) return [];
+  if (!isVectorSearchAvailable()) return [];
 
   const embedding = await embedText(query);
   if (!embedding) return [];
 
-  try {
-    const baseMust: object[] = [
-      { key: "org_id", match: { value: opts.organizationId } },
-    ];
-    if (opts.projectId) {
-      baseMust.push({ key: "project_id", match: { value: opts.projectId } });
-    }
+  const vector = toVectorLiteral(embedding);
 
+  try {
     // First pass: filtered by construction doc type when intent is clear
     if (intent.docTypes) {
-      const filtered = await getQdrantClient().search(COLLECTION_NAME, {
-        vector: embedding,
-        limit: topK,
-        filter: {
-          must: [
-            ...baseMust,
-            { key: "construction_doc_type", match: { any: intent.docTypes } },
-          ],
-        },
-        with_payload: true,
-      });
-
+      const filtered = await runVectorQuery(vector, opts, topK, intent.docTypes);
       const relevant = filtered.filter((r) => r.score >= 0.65);
       if (relevant.length >= 2) return relevant.map(toSearchResult);
     }
 
-    const results = await getQdrantClient().search(COLLECTION_NAME, {
-      vector: embedding,
-      limit: topK,
-      filter: { must: baseMust },
-      with_payload: true,
-    });
-
+    const results = await runVectorQuery(vector, opts, topK, null);
     return results.filter((r) => r.score >= 0.55).map(toSearchResult);
   } catch {
     return [];
   }
 }
 
-function toSearchResult(r: {
-  payload?: Record<string, unknown> | null;
-  score: number;
-}): SearchResult {
-  const p = r.payload ?? {};
+/** Búsqueda coseno en pgvector. score = 1 - distancia (igual escala que Qdrant). */
+async function runVectorQuery(
+  vector: string,
+  opts: SearchOptions,
+  topK: number,
+  docTypes: string[] | null,
+): Promise<SemanticRow[]> {
+  const params: unknown[] = [vector, opts.organizationId];
+  let where = "organization_id = $2 AND embedding IS NOT NULL";
+  if (opts.projectId) {
+    params.push(opts.projectId);
+    where += ` AND project_id = $${params.length}`;
+  }
+  if (docTypes && docTypes.length > 0) {
+    params.push(docTypes);
+    where += ` AND metadata->>'construction_doc_type' = ANY($${params.length})`;
+  }
+  params.push(topK);
+  return sqlQuery<SemanticRow>(
+    `SELECT file_id, file_name, document_type, chunk_text, metadata,
+            1 - (embedding <=> $1::vector) AS score
+     FROM document_chunks
+     WHERE ${where}
+     ORDER BY embedding <=> $1::vector
+     LIMIT $${params.length}`,
+    params,
+  );
+}
+
+function toSearchResult(r: SemanticRow): SearchResult {
+  const meta = r.metadata ?? {};
   return {
-    fileId:              (p.file_id as string) ?? null,
-    fileName:            (p.file_name as string) ?? "",
-    documentType:        (p.document_type as string) ?? "",
-    constructionDocType: (p.construction_doc_type as string) ?? "",
-    chunkText:           (p.chunk_text as string) ?? "",
-    score:               r.score,
-    metadata:            p,
+    fileId:              r.file_id,
+    fileName:            r.file_name,
+    documentType:        r.document_type,
+    constructionDocType: (meta.construction_doc_type as string) ?? "",
+    chunkText:           r.chunk_text,
+    score:               Number(r.score),
+    metadata:            meta,
   };
 }
 

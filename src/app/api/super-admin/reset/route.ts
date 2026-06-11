@@ -1,5 +1,4 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { getQdrantClient, COLLECTION_NAME, EMBEDDING_DIM } from "@/lib/qdrant/client";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import {
   superAdminResetRequestSchema,
@@ -158,41 +157,6 @@ async function resetOrganization(db: DbClient, organizationId: string, log: stri
   // organization_members + organizations + org_founder_invitations: preservados
 }
 
-async function resetQdrantAll(log: string[]): Promise<void> {
-  try {
-    const qdrant = getQdrantClient();
-    const { exists } = await qdrant.collectionExists(COLLECTION_NAME);
-    if (exists) {
-      await qdrant.deleteCollection(COLLECTION_NAME);
-      log.push("✓ qdrant: colección eliminada");
-    }
-    await qdrant.createCollection(COLLECTION_NAME, {
-      vectors: { size: EMBEDDING_DIM, distance: "Cosine" },
-    });
-    log.push("✓ qdrant: colección recreada");
-  } catch (err) {
-    log.push(`✗ qdrant: ${String(err)}`);
-  }
-}
-
-async function resetQdrantOrg(organizationId: string, log: string[]): Promise<void> {
-  try {
-    const qdrant = getQdrantClient();
-    const { exists } = await qdrant.collectionExists(COLLECTION_NAME);
-    if (!exists) {
-      log.push("◦ qdrant: colección inexistente, nada que limpiar");
-      return;
-    }
-    await qdrant.delete(COLLECTION_NAME, {
-      filter: { must: [{ key: "org_id", match: { value: organizationId } }] },
-      wait: true,
-    });
-    log.push(`✓ qdrant: vectores de la org borrados`);
-  } catch (err) {
-    log.push(`✗ qdrant (org): ${String(err)}`);
-  }
-}
-
 export async function POST(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "super-admin-reset"), { limit: 6, windowMs: 3_600_000 })) {
     return Response.json({ error: "Too many requests" }, { status: 429 });
@@ -218,8 +182,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (parsed.data.scope === "all") {
     log.push("→ scope: TOTAL");
-    await deleteAll(db, log);
-    await resetQdrantAll(log);
+    await deleteAll(db, log); // document_chunks incluye los embeddings pgvector
     return Response.json(
       superAdminResetResponseSchema.parse({ ok: true, scope: "all", organizationId: null, log }),
     );
@@ -257,8 +220,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   log.push(`→ scope: ORG · ${org.name} (${organizationId})`);
-  await resetOrganization(db, organizationId, log);
-  await resetQdrantOrg(organizationId, log);
+  await resetOrganization(db, organizationId, log); // document_chunks incluye los embeddings pgvector
 
   return Response.json(
     superAdminResetResponseSchema.parse({

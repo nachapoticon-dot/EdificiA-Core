@@ -63,7 +63,7 @@ const INDEXING_BADGE: Record<NonNullable<DocumentFile["indexing_status"]>, {
     label: "Degradado",
     classes: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
     icon: AlertCircle,
-    tooltip: "Indexado solo en Postgres — Qdrant no respondió. La búsqueda funciona en modo texto pero pierde precisión semántica.",
+    tooltip: "Indexado sin embeddings — no se pudieron generar vectores. La búsqueda funciona en modo texto pero pierde precisión semántica.",
   },
   failed: {
     label: "Falló",

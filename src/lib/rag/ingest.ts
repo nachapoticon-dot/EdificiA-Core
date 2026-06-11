@@ -1,6 +1,6 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { embedText } from "@/lib/embeddings";
-import { getQdrantClient, ensureCollection, COLLECTION_NAME, isQdrantConfigured } from "@/lib/qdrant/client";
+import { toVectorLiteral } from "./vector";
 import { chunkDocument } from "./chunker";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { structureMetadata } from "./structure";
@@ -102,13 +102,12 @@ async function markEnterpriseDocument(
  *   1. Delete stale chunks for the same file
  *   2. Detect construction document type (keyword-based, never LLM)
  *   3. Chunk the document with type-aware strategy
- *   4. Batch-embed all chunks in parallel
- *   5. Upsert to Qdrant with enriched payload
- *   6. Persist rows to document_chunks (PostgreSQL fallback)
- *   7. Stamp uploaded_files.indexing_status with the final state
+ *   4. Batch-embed all chunks in parallel (NVIDIA NIM)
+ *   5. Persist rows to document_chunks con embedding pgvector inline
+ *   6. Stamp uploaded_files.indexing_status with the final state
  *
- * Never throws — pero ahora deja rastro estructurado del resultado en la fila
- * de uploaded_files. Estados posibles: 'indexed' | 'degraded' | 'failed'.
+ * Never throws — deja rastro estructurado del resultado en la fila de
+ * uploaded_files. Estados: 'indexed' | 'degraded' (sin embeddings) | 'failed'.
  */
 export async function ingestDocument(
   file: ProcessedFile,
@@ -127,92 +126,17 @@ export async function ingestDocument(
       return;
     }
 
-    const documentType    = file.type === "dwg_unsupported" ? "other" : file.type;
-    const qdrantAvailable = isQdrantConfigured();
+    const documentType = file.type === "dwg_unsupported" ? "other" : file.type;
 
-    if (qdrantAvailable) {
-      await ensureCollection().catch((err: unknown) => {
-        console.warn("[rag] ensureCollection failed", { err });
-      });
-    }
-
-    // Purge previous version of this file
-    const { data: stale } = await client.database
-      .from("document_chunks")
-      .select("qdrant_id")
-      .eq("organization_id", opts.organizationId)
-      .eq("file_name", file.fileName)
-      .not("qdrant_id", "is", null);
-
-    if (stale && stale.length > 0) {
-      const ids = (stale as { qdrant_id: string | null }[])
-        .map((c) => c.qdrant_id)
-        .filter((id): id is string => id !== null);
-      if (ids.length > 0 && qdrantAvailable) {
-        await getQdrantClient().delete(COLLECTION_NAME, { points: ids }).catch((err: unknown) => {
-          console.warn("[rag] purge stale vectors failed", { fileName: file.fileName, err });
-        });
-      }
-    }
-
+    // Purge previous version of this file (los vectores viven en la misma fila)
     await client.database
       .from("document_chunks")
       .delete()
       .eq("organization_id", opts.organizationId)
       .eq("file_name", file.fileName);
 
-    // Parallel embedding
-    const qdrantIds  = chunks.map(() => crypto.randomUUID());
+    // Parallel embedding (null si NVIDIA_API_KEY falta o la llamada falla)
     const embeddings = await Promise.all(chunks.map((c) => embedText(c.text)));
-
-    const qdrantSucceeded = new Array<boolean>(chunks.length).fill(false);
-    let qdrantUpsertFailed = false;
-
-    if (qdrantAvailable) {
-      const points = chunks
-        .map((chunk, i) =>
-          embeddings[i]
-            ? {
-                id: qdrantIds[i]!,
-                vector: embeddings[i]!,
-                payload: {
-                  org_id:                opts.organizationId,
-                  project_id:            opts.projectId ?? null,
-                  file_id:               opts.fileId,
-                  file_name:             file.fileName,
-                  document_type:         documentType,
-                  construction_doc_type: constructionDocType,
-                  chunk_index:           chunk.chunkIndex,
-                  chunk_text:            chunk.text,
-                  document_structure:    documentStructure,
-                  // Promote key metadata fields to top-level for Qdrant filtering
-                  rubro:                 (chunk.metadata.rubro as string | undefined) ?? null,
-                  section_title:         (chunk.metadata.section_title as string | undefined) ?? null,
-                  section_path:          (chunk.metadata.section_path as string[] | undefined) ?? null,
-                  section_level:         (chunk.metadata.section_level as number | undefined) ?? null,
-                  has_prices:            (chunk.metadata.has_prices as boolean | undefined) ?? false,
-                  has_quantities:        (chunk.metadata.has_quantities as boolean | undefined) ?? false,
-                  ...chunk.metadata,
-                },
-              }
-            : null,
-        )
-        .filter((p): p is NonNullable<typeof p> => p !== null);
-
-      if (points.length > 0) {
-        try {
-          await getQdrantClient().upsert(COLLECTION_NAME, { points });
-          chunks.forEach((_, i) => { if (embeddings[i]) qdrantSucceeded[i] = true; });
-        } catch (err) {
-          qdrantUpsertFailed = true;
-          lastError = err instanceof Error ? err.message : String(err);
-          console.warn("[rag] qdrant upsert failed, fallback to Postgres", {
-            fileName: file.fileName,
-            err: lastError,
-          });
-        }
-      }
-    }
 
     const rows = chunks.map((chunk, i) => ({
       organization_id: opts.organizationId,
@@ -223,7 +147,7 @@ export async function ingestDocument(
       chunk_index:     chunk.chunkIndex,
       chunk_text:      chunk.text,
       metadata:        { ...chunk.metadata, construction_doc_type: constructionDocType, document_structure: documentStructure },
-      qdrant_id:       qdrantSucceeded[i] ? qdrantIds[i] : null,
+      embedding:       embeddings[i] ? toVectorLiteral(embeddings[i]!) : null,
     }));
 
     if (rows.length === 0) {
@@ -232,13 +156,12 @@ export async function ingestDocument(
       return;
     }
 
-    await client.database.from("document_chunks").insert(rows);
+    const insertResult = await client.database.from("document_chunks").insert(rows);
+    if (insertResult.error) throw new Error(insertResult.error.message);
 
-    const degraded = !qdrantAvailable || qdrantUpsertFailed || qdrantSucceeded.every((ok) => !ok);
+    const degraded = embeddings.every((e) => e === null);
     const finalStatus = degraded ? "degraded" : "indexed";
-    const finalError = degraded
-      ? lastError ?? (!qdrantAvailable ? "qdrant not configured" : "no vectors persisted")
-      : undefined;
+    const finalError = degraded ? lastError ?? "sin embeddings (NVIDIA_API_KEY ausente o falló)" : undefined;
 
     await markIndexingStatus(
       client,

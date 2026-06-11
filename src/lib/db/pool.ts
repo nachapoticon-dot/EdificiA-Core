@@ -1,9 +1,16 @@
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 
 /**
  * Pool singleton de PostgreSQL para el backend.
  * Sobrevive a hot-reload en dev guardándose en globalThis (patrón estándar Next.js).
  */
+
+// Compat con el SDK de InsForge (PostgREST): los timestamps llegan como string
+// ISO, no como Date. Los schemas Zod y la UI del codebase dependen de eso.
+types.setTypeParser(types.builtins.TIMESTAMPTZ, (v) => new Date(v).toISOString());
+types.setTypeParser(types.builtins.TIMESTAMP, (v) => new Date(`${v}Z`).toISOString());
+types.setTypeParser(types.builtins.DATE, (v) => v); // "YYYY-MM-DD" tal cual
+
 const globalForPg = globalThis as unknown as { __edificiaPgPool?: Pool };
 
 export function getPool(): Pool {
