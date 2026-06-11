@@ -1,0 +1,122 @@
+{
+  "comment": "Conversaciones doradas de conducta del agente. expectAnyTool: al menos una debe llamarse. forbidTools: ninguna puede llamarse (con modos activos, las de auditoría ni siquiera son visibles en turnos operativos). Los regex son sobre el texto final. backends: dónde corre el caso (ts/python).",
+  "cases": [
+    {
+      "id": "apertura-saludo-obra",
+      "description": "Saludo con obra activa → abre operativo, jamás '¿qué auditamos?'",
+      "userText": "Hola",
+      "withProject": true,
+      "expectAnyTool": ["resumen_diario_obra", "analizar_estado_obra"],
+      "forbidTools": ["detectar_exclusiones_logicas", "calcular_totales", "validar_cierre_de_total", "reportar_hallazgos_batch"],
+      "forbidTextRegex": "qu[eé] auditamos|sub[ií] (un|el) presupuesto para auditar",
+      "backends": ["ts", "python"]
+    },
+    {
+      "id": "apertura-dia",
+      "description": "Pregunta por el día → brief operativo",
+      "userText": "¿Cómo arranca el día en la obra?",
+      "withProject": true,
+      "expectAnyTool": ["resumen_diario_obra"],
+      "forbidTools": ["detectar_exclusiones_logicas", "calcular_totales"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "hse-ingreso",
+      "description": "Ingreso de personal → verificar_ingreso_personal, sin desvío documental",
+      "userText": "¿Puede ingresar mañana la cuadrilla de Hormigones del Sur a la obra?",
+      "withProject": true,
+      "expectAnyTool": ["verificar_ingreso_personal"],
+      "forbidTools": ["calcular_totales", "detectar_exclusiones_logicas"],
+      "backends": ["ts", "python"]
+    },
+    {
+      "id": "clima-reprogramacion",
+      "description": "Clima → evaluar_impacto_clima con traducción operativa",
+      "userText": "¿Llueve esta semana en La Plata? ¿Qué tareas conviene reprogramar?",
+      "withProject": true,
+      "expectAnyTool": ["evaluar_impacto_clima"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "curva-inversion",
+      "description": "Finanzas → auditar_curva_inversion",
+      "userText": "¿Cómo viene la curva de inversión de la obra?",
+      "withProject": true,
+      "expectAnyTool": ["auditar_curva_inversion"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "subcontratos-vencimientos",
+      "description": "Subcontratos → auditar_subcontratos",
+      "userText": "¿Qué subcontratos tenemos activos y cuáles están por vencer?",
+      "withProject": true,
+      "expectAnyTool": ["auditar_subcontratos"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "registrar-hse",
+      "description": "Dato HSE informado → registrar_hse_record con datos exactos",
+      "userText": "Anotá esto: Juan Gómez presentó la ART vigente hasta el 30/09/2026.",
+      "withProject": true,
+      "expectAnyTool": ["registrar_hse_record"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "registrar-acopio",
+      "description": "Acopio informado → registrar_acopio",
+      "userText": "Registrá que planificamos comprar 200 m3 de hormigón H21 para el 15/11/2026.",
+      "withProject": true,
+      "expectAnyTool": ["registrar_acopio"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "busqueda-documental",
+      "description": "Consulta sobre documentos → búsqueda, sin inventar cifras",
+      "userText": "¿Cuánto cuesta el hormigón según nuestros documentos?",
+      "withProject": false,
+      "expectAnyTool": ["buscar_en_base_documental"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "grafica-demo",
+      "description": "Pedido explícito de gráfica → generar_grafica",
+      "userText": "Hacé una gráfica de barras con datos de ejemplo de incidencia por rubro.",
+      "withProject": true,
+      "expectAnyTool": ["generar_grafica"],
+      "backends": ["ts"]
+    },
+    {
+      "id": "auditoria-sin-archivo",
+      "description": "Intención de auditoría sin archivo → modo documents activo, pide el archivo (capacidad intacta, sin crash)",
+      "userText": "Detectá exclusiones lógicas en el presupuesto.",
+      "withProject": true,
+      "expectTextRegex": "archivo|sub[ií]|adjunt|presupuesto|cargalo|cargá|base documental",
+      "backends": ["ts"]
+    },
+    {
+      "id": "no-inventar-metrica",
+      "description": "Dato inexistente → no inventa superficie",
+      "userText": "¿Cuántos metros cuadrados tiene la obra en total?",
+      "withProject": true,
+      "forbidTextRegex": "[0-9][0-9.,]{2,}\\s*m(²|2)\\b",
+      "backends": ["ts"]
+    },
+    {
+      "id": "apertura-sin-obra",
+      "description": "Saludo sin obra activa → panorama de empresa, no pedido de documento",
+      "userText": "Buen día, ¿en qué estamos?",
+      "withProject": false,
+      "forbidTools": ["detectar_exclusiones_logicas", "calcular_totales"],
+      "forbidTextRegex": "qu[eé] auditamos",
+      "backends": ["ts"]
+    },
+    {
+      "id": "memoria-empresa",
+      "description": "Solo Python: responde desde agent_memories (dato que no está en documentos)",
+      "userText": "¿Con qué empresa hacemos normalmente los subcontratos de hormigón? Respondé en una línea.",
+      "withProject": false,
+      "expectTextRegex": "Hormigones del Sur",
+      "backends": ["python"]
+    }
+  ]
+}
