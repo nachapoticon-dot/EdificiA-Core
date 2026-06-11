@@ -1,6 +1,6 @@
 # Roadmap de Visión Futura — EdificIA
 
-> **Visión a largo plazo, NO comprometida.** Este documento es un backlog de ideas de alto impacto que **no son pendientes vigentes**. Los pendientes y prioridades reales viven en `ROADMAP.md`. No tomar nada de acá como planificado ni prometido.
+> **Visión a largo plazo, NO comprometida.** Este documento es un backlog de ideas de alto impacto que **no son pendientes vigentes**. Los pendientes y prioridades reales viven en `docs/00_PRODUCTO.md`. No tomar nada de acá como planificado ni prometido.
 >
 > **Última auditoría de estado**: 2026-05-14 (verificado contra código fuente)
 >
