@@ -34,6 +34,16 @@ Formato:
 
 ---
 
+## 2026-06-11 - Claude Code - Limpieza de reglas: AGENTS.md eliminado, CLAUDE.md única guía
+
+- Objetivo: corregir reglas desactualizadas/contradictorias detectadas en auditoría de guías operativas.
+- Cambios: `AGENTS.md` eliminado — `CLAUDE.md` es la única guía operativa canónica (cualquier agente debe leerla; se acabó el espejado manual que generaba drift). En `CLAUDE.md`: conteo de bloques corregido (4→6), regla shadcn simplificada (sin mantenimiento de manifest; `docs/design/shadcn-blocks/` queda como histórico), referencias a herramientas inexistentes (`StartLine`/`EndLine`, multi-edit) reemplazadas, regla de búsquedas con excepción para renames, lectura de `00_PRODUCTO.md` acotada a tareas de producto, y regla de multi-tenancy reforzada (no confiar en IDs del cliente — preservada de AGENTS.md). Además: puntero roto a `ROADMAP.md` corregido en `docs/05_future_roadmap.md` y file-nesting de `.vscode/settings.json` actualizado.
+- Archivos: `CLAUDE.md`, `AGENTS.md` (borrado), `docs/05_future_roadmap.md`, `.vscode/settings.json`
+- Verificacion: solo docs/config; no aplica type-check.
+- Pendiente: si se retoma Codex u otro agente, apuntarlo a `CLAUDE.md` (no recrear AGENTS.md).
+
+---
+
 ## 2026-06-11 - Claude Code - Agente especializado PM Digital (plan 10 ejecutado completo)
 
 - Objetivo: ejecutar las 4 etapas de `docs/10_plan_agente_especializado.md` — quitar el sesgo "siempre auditoría" y redocumentar.

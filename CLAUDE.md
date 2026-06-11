@@ -9,7 +9,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 ### Flujo de trabajo obligatorio
 
 1. **Leer antes de actuar.** Antes de proponer o escribir código, leer los archivos involucrados. No asumir contenido.
-2. **Verificar tareas activas.** Al inicio de cada sesión, leer `docs/00_PRODUCTO.md` (visión, estado y pendientes vigentes).
+2. **Verificar tareas activas.** Antes de trabajar sobre el producto (features, arquitectura, prioridades), leer `docs/00_PRODUCTO.md` (visión, estado y pendientes vigentes). No es necesario para consultas puntuales o fixes acotados.
 3. **Preguntar ante ambigüedad.** Si una instrucción admite más de una interpretación, preguntar. No inventar requerimientos.
 4. **Un cambio, un propósito.** Cada edición debe resolver exactamente lo que se pidió. No refactorizar "de paso", no mejorar nombres, no reordenar imports, a menos que se pida explícitamente.
 5. **Probar lo que se toca.** Después de cada cambio, verificar que compila (`npm run type-check`) si es un cambio de tipos, o validar lógica si es runtime. Reportar resultado.
@@ -21,11 +21,10 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 - Al terminar una tarea, dar un resumen breve: qué se hizo, qué archivos se tocaron, y si quedó algo pendiente.
 - No repetir contexto que ya se dio. Si el usuario ya explicó algo, no parafrasearlo de vuelta.
 
-### Coordinación con Codex
+### Coordinación entre agentes
 
-- Codex usa `AGENTS.md` como guía operativa equivalente a este archivo.
+- Este archivo (`CLAUDE.md`) es la **única guía operativa canónica**. Si otro agente necesita guía, debe leer este archivo; no mantener copias paralelas.
 - Al terminar una tarea relevante o dejar trabajo incompleto, agregar una entrada breve en `docs/AI_WORKLOG.md`.
-- Si se modifica una regla crítica en `CLAUDE.md` (auth, multi-tenancy, edición, verificación, prioridades), evaluar si también debe reflejarse en `AGENTS.md`.
 - Antes de retomar una tarea iniciada por otro agente, revisar `docs/AI_WORKLOG.md`.
 
 ### Toma de decisiones
@@ -43,13 +42,13 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 | Regla | Detalle |
 |-------|---------|
-| **Lectura incremental** | No leer archivos enteros si solo se necesita una sección. Usar rangos de líneas (`StartLine`/`EndLine`). |
+| **Lectura incremental** | No leer archivos enteros si solo se necesita una sección. Leer por rangos de líneas. |
 | **Ediciones quirúrgicas** | Editar solo las líneas que cambian. Nunca reescribir un archivo completo para cambiar una función. |
 | **No repetir código** | No copiar el archivo entero en la respuesta. Mostrar solo el diff o las líneas relevantes. |
 | **Respuestas cortas** | Evitar explicaciones extensas. Si el cambio es obvio, basta con: "Hecho. Se cambió X en `archivo.ts:42`." |
-| **Agrupar ediciones** | Si hay múltiples cambios en un archivo, hacerlos en una sola operación multi-edit en vez de varias individuales. |
+| **Agrupar ediciones** | Si hay múltiples cambios en un archivo, agruparlos en una sola pasada en vez de varias ediciones individuales. |
 | **No recapitular** | No resumir lo que el usuario acaba de decir. No repetir el contexto del proyecto al inicio de cada respuesta. |
-| **Evitar búsquedas amplias** | Usar `grep` con paths específicos, no buscar en todo el proyecto. Filtrar por extensión (`*.ts`, `*.tsx`). |
+| **Búsquedas con criterio** | Usar `grep` con paths específicos y filtro por extensión (`*.ts`, `*.tsx`) cuando se conoce el área. **Excepción**: en renames o cambios de contrato, buscar en todo el proyecto — encontrar todos los usos importa más que ahorrar tokens. |
 | **Un solo plan** | No presentar múltiples opciones salvo que se pidan. Ir con la mejor solución directamente. |
 
 ---
@@ -85,7 +84,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 ## 5 · Multi-tenancy — Regla absoluta
 
-Toda query a la DB (incluida la búsqueda pgvector) **DEBE** filtrar por `organization_id` (derivado de `auth.orgId`). Columna real: `organization_id`, **NO** `company_id`. Jamás asumir que los datos pueden cruzarse entre orgs.
+Toda query a la DB (incluida la búsqueda pgvector) **DEBE** filtrar por `organization_id` (derivado de `auth.orgId`). Columna real: `organization_id`, **NO** `company_id`. Jamás asumir que los datos pueden cruzarse entre orgs. No confiar en IDs enviados por el cliente para aislar tenant: usar siempre el `auth.orgId` resuelto server-side.
 
 ## 6 · Estructura principal
 
@@ -125,7 +124,7 @@ src/
 1. **Base Documental ya no es un producto separado: vive dentro de Inteligencia / Contexto Empresarial.** EdificIA no debe pensarse como un repositorio de archivos subidos. La carga y preparación de archivos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto a Radar y Mapa Vivo. El objetivo es conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
 2. **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
 3. **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
-4. **Bloques Shadcn externos como referencia, no código productivo directo.** Los bloques exportados viven en `docs/design/shadcn-blocks/`: `raw/` para pegarlos tal cual, `adapted/` para versiones revisadas y `manifest.json` como índice. No importar desde `raw/`; adaptar primero a tokens, componentes e identidad de EdificIA antes de mover algo a `src/components/`.
+4. **Bloques Shadcn externos como referencia, no código productivo directo.** Nunca correr `npx shadcn add` de un bloque directamente contra `src/` (puede pisar archivos productivos y traer dependencias nuevas). Revisar el código del bloque y adaptarlo a tokens, componentes e identidad de EdificIA antes de incorporar algo a `src/components/`. `docs/design/shadcn-blocks/` es archivo histórico de referencia; no requiere mantenimiento de manifest.
 5. **La identidad del agente es Project Manager Digital; la auditoría es una capacidad bajo señal, no la apertura por defecto.** Con obra activa y sin archivo, el agente abre con el estado operativo del día. El playbook de auditoría se activa cuando llega un documento o el usuario lo pide. No reintroducir el sesgo "¿qué auditamos hoy?" en prompts, quick-prompts ni UX.
 
 ## 8 · Reglas de código
@@ -143,4 +142,4 @@ src/
 - `src/lib/db/` — Capa de datos compatible. Su semántica ({data,error}, nunca lanza) está codificada en tests; no cambiarla sin actualizar contratos.
 - `migrations/` — ruta canónica de migraciones. Crear con `npm run migrate:new` y aplicar con `npm run migrate`.
 - `docs/archive/db-migrations-legacy/` — histórico read-only de migraciones raw SQL previas.
-- `src/components/chat/blocks/` — 4 bloques de UI Generativa completos y funcionando.
+- `src/components/chat/blocks/` — 6 bloques de UI Generativa completos y funcionando (metrics, media, comparison, timeline, risk_register, evidence_ledger).

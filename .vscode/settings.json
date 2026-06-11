@@ -4,7 +4,7 @@
   "explorer.fileNesting.patterns": {
     "package.json": "package-lock.json, eslint.config.mjs, postcss.config.mjs, components.json, tsconfig.json",
     "next.config.ts": "next-env.d.ts, tsconfig.tsbuildinfo",
-    "README.md": "AGENTS.md, CLAUDE.md, CONTRIBUTING.md, LICENSE, ROADMAP.md",
+    "README.md": "CLAUDE.md, CONTRIBUTING.md, LICENSE",
     "docker-compose.yml": "Dockerfile, .env.docker, .env.docker.example",
     ".env.local": ".env.local.example",
     ".gitignore": ".gitattributes"
