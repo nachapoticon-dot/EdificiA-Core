@@ -72,3 +72,8 @@ design_handoff_edificia/
 
 # Storage local y exports de datos
 /data/
+
+# Python (servicio del agente)
+services/agent/.venv/
+__pycache__/
+services/agent/.env

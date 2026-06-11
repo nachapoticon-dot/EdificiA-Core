@@ -58,6 +58,13 @@ export async function POST(req: Request) {
   const projectId   = req.headers.get("x-project-id")   ?? undefined;
   const chatSessionId = req.headers.get("x-chat-session-id")?.trim() || undefined;
 
+  // Cerebro Python (flag AGENT_BACKEND=python): el servicio externo orquesta el
+  // turno y emite el mismo UI Message Stream v1; acá solo se valida auth/rate-limit
+  // y se pipea el stream. Rollback instantáneo: quitar el flag vuelve al runtime TS.
+  if (process.env.AGENT_BACKEND === "python") {
+    return proxyToPythonAgent({ messages, auth, projectName, projectId, chatSessionId, req, log });
+  }
+
   const { systemPrompt, tools, auditProjectId, agentScope, capabilityIds } = await resolveAgentRuntimeContext(auth, projectName, projectId, chatSessionId);
 
   const route = routeModel(messages);
@@ -205,6 +212,57 @@ export async function POST(req: Request) {
     }
     throw err;
   }
+}
+
+interface PythonAgentProxyInput {
+  messages: UIMessage[];
+  auth: { orgId: string; userId: string };
+  projectName?: string;
+  projectId?: string;
+  chatSessionId?: string;
+  req: Request;
+  log: ReturnType<typeof getRequestLogger>;
+}
+
+async function proxyToPythonAgent(input: PythonAgentProxyInput): Promise<Response> {
+  const baseUrl = process.env.AGENT_SERVICE_URL ?? "http://localhost:8000";
+  const secret = process.env.AGENT_GATEWAY_SECRET;
+  if (!secret) {
+    return Response.json({ error: "AGENT_GATEWAY_SECRET no configurado para AGENT_BACKEND=python." }, { status: 503 });
+  }
+
+  const upstream = await fetch(`${baseUrl}/v1/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-agent-secret": secret },
+    body: JSON.stringify({
+      messages: input.messages,
+      orgId: input.auth.orgId,
+      userId: input.auth.userId,
+      projectName: input.projectName ?? null,
+      projectId: input.projectId ?? null,
+      chatSessionId: input.chatSessionId ?? null,
+      requestId: input.req.headers.get(REQUEST_ID_HEADER),
+    }),
+  }).catch((err: unknown) => {
+    input.log.error({ err: String(err) }, "python agent unreachable");
+    return null;
+  });
+
+  if (!upstream || !upstream.ok || !upstream.body) {
+    return Response.json(
+      { error: "El servicio del agente no está disponible. Reintentá o volvé al backend TS (AGENT_BACKEND)." },
+      { status: 502 },
+    );
+  }
+
+  return new Response(upstream.body, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "x-vercel-ai-ui-message-stream": "v1",
+    },
+  });
 }
 
 interface WorkCaseTurnCompletedEventInput {
