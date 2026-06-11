@@ -66,16 +66,22 @@ Formato de handoff recomendado:
 
 ## 5. Stack real
 
+> Desde 2026-06-11 EdificIA corre 100% sobre infraestructura propia: sin InsForge ni Qdrant.
+
 | Capa | Tecnología | Archivo clave |
 |---|---|---|
 | Framework | Next.js 16 App Router + TypeScript strict | `next.config.ts` |
 | UI | Shadcn UI + Tailwind CSS v4 + Framer Motion | `src/components/` |
 | Data fetching | TanStack Query v5 | `src/hooks/` |
-| AI / agente | Vercel AI SDK v6 + DeepSeek OpenAI-compatible | `src/app/api/chat/route.ts` |
-| Embeddings | NVIDIA NIM / OpenAI-compatible `text-embedding-3-small` | `src/lib/embeddings/` |
-| Vector DB | Qdrant | `src/lib/qdrant/` |
-| Backend/Auth/Storage | InsForge | `src/lib/insforge/` |
-| DB | PostgreSQL con RLS multi-tenant | `migrations/` (InsForge CLI) |
+| AI / agente (runtime TS) | Vercel AI SDK v6 + DeepSeek OpenAI-compatible | `src/app/api/chat/route.ts` |
+| Agente (cerebro Python) | FastAPI detrás de flag `AGENT_BACKEND=python`; tools TS vía `/api/internal/tools/*` | `services/agent/` |
+| Embeddings | NVIDIA NIM `baai/bge-m3` (1024 dims) | `src/lib/embeddings/` |
+| Capa de datos | Query-builder propio sobre `pg` (interfaz compatible SDK → `{data,error}`) | `src/lib/db/` |
+| Auth | Propia: `auth.users` + bcryptjs + JWT HS256 local + refresh con rotación | `src/lib/auth/local-auth.ts` |
+| Storage | Filesystem local (`STORAGE_DIR`) con interfaz de adapter | `src/lib/storage/fs-adapter.ts` |
+| Vector DB | pgvector (`document_chunks.embedding`) | `src/lib/rag/vector.ts` |
+| DB | PostgreSQL 16 + pgvector con RLS multi-tenant | `migrations/` (runner propio `scripts/migrate.mjs`) |
+| Memoria del agente | `agent_memories` + `agent_feedback` (reflexión LLM + feedback + decay) | `services/agent/app/memory/` |
 | Validación | Zod v3 | `src/lib/validators/` |
 | Email | Resend | `src/lib/email/` |
 | Export | jsPDF, docx, xlsx | `src/lib/export/` |
@@ -84,9 +90,9 @@ Formato de handoff recomendado:
 
 ## 6. Auth y multi-tenancy
 
-- Toda API privada debe usar `requireAuth(req)` desde `src/lib/auth/require-auth.ts`.
-- Excepciones conocidas: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` con `SUPER_ADMIN_KEY`.
-- Toda query a DB, storage lógico o Qdrant debe filtrar por `organization_id` derivado de `auth.orgId`.
+- Toda API privada debe usar `requireAuth(req)` desde `src/lib/auth/require-auth.ts`. La verificación de JWT es 100% local (firma HS256 con `AUTH_JWT_SECRET`).
+- Excepciones conocidas: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` con `SUPER_ADMIN_KEY`, `/api/internal/*` con `AGENT_GATEWAY_SECRET` (tool gateway del agente Python — jamás exponer público).
+- Toda query a DB (incluida la búsqueda pgvector) debe filtrar por `organization_id` derivado de `auth.orgId`.
 - La columna real es `organization_id`, no `company_id`.
 - No confiar en IDs enviados por el cliente para aislar tenant si ya existe `auth.orgId` server-side.
 - Roles actuales: `admin`, `engineer`, `viewer`.

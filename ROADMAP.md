@@ -10,6 +10,22 @@
 
 ---
 
+## -1 · Desconexión de infraestructura externa (completada 2026-06-11)
+
+EdificIA ya **no depende de InsForge ni de Qdrant**. Ejecutado en 7 fases (rama `feat/desconexion-insforge-qdrant`, un commit por fase):
+
+- ✅ **Fase 0** — Postgres local autosuficiente: runner de migraciones propio (`scripts/migrate.mjs`, tabla `schema_migrations`), bootstrap (extensiones pgvector/pgcrypto/citext, roles shim, `auth.uid()`, `auth.users`) y baseline consolidado de las migraciones legacy. Imagen `pgvector/pgvector:pg16` en compose.
+- ✅ **Fase 1** — Capa de datos propia: `src/lib/db/` con query-builder compatible con la interfaz del SDK (`.from().select().eq()` → `{data,error,count}`, nunca lanza) sobre `pg`; los ~94 call-sites no se tocaron. Storage filesystem con adapter (`src/lib/storage/fs-adapter.ts`).
+- ✅ **Fase 2** — Auth propia: `auth.users` + bcryptjs + JWT HS256 local (`jose`, `AUTH_JWT_SECRET`) + `auth.refresh_tokens` con rotación; rutas auth reescritas + nueva `/api/auth/refresh`. Nota: al intentar el export, el proyecto InsForge cloud respondía HTTP 503 ("No backend services available") — cutover con base limpia; scripts `export-insforge.mjs`/`import-local.mjs` quedan como referencia.
+- ✅ **Fase 3** — pgvector reemplaza Qdrant: `document_chunks.embedding vector(1024)` + HNSW; búsqueda semántica por SQL con los mismos umbrales; fix de timeout en embeddings NVIDIA.
+- ✅ **Fase 4** — Limpieza final: sin `@insforge/sdk` ni `@qdrant/js-client-rest`; `AUTH_STRICT_MODE` eliminado (la verificación local es siempre estricta); `.insforge/` removido del repo.
+- ✅ **Fase 5** — **Agente Python (cerebro)**: `services/agent/` (FastAPI) orquesta los turnos (loop LLM→tools, router de modelos, streaming UI Message Stream v1) detrás de `AGENT_BACKEND=python`; las tools TS se ejecutan vía tool gateway `/api/internal/tools/*` (`AGENT_GATEWAY_SECRET`). Rollback instantáneo quitando el flag.
+- ✅ **Fase 6** — **Aprendizaje real**: `agent_memories` (embedding + scope + confianza) y `agent_feedback`; reflexión LLM post-turno destila aprendizajes durables; feedback negativo con corrección → memoria de alta confianza; retrieval semántico inyecta memoria al prompt con refuerzo por uso y decaimiento temporal. Reemplaza el rol de `session-learner`/heurísticas como mecanismo de aprendizaje.
+
+Pendientes derivados: migrar tools de a una al servicio Python; deprecar `company_learned_patterns` cuando `agent_memories` cubra sus usos; UI de feedback más rica (rating positivo y corrección inline); mover el servicio a la infraestructura definitiva cuando se elija.
+
+---
+
 ## 0 · Pendientes externos (fuera de alcance actual)
 
 Estos puntos están **fuera de alcance hasta resolver dependencias externas**. No son trabajo de código pendiente dentro del repo: requieren infraestructura, credenciales o decisiones del cliente. No prometer fechas ni darlos por hechos.
