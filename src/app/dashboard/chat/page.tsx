@@ -483,6 +483,16 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
                   key={m.id}
                   message={m}
                   onFeedback={m.role === "assistant" ? () => {
+                    // Señal persistente para el loop de aprendizaje del agente
+                    void (async () => {
+                      const { getAuthHeaders } = await import("@/lib/insforge/client");
+                      const headers = await getAuthHeaders();
+                      await fetch("/api/feedback", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...headers },
+                        body: JSON.stringify({ rating: -1, messageId: m.id, chatSessionId: sessionId ?? undefined }),
+                      }).catch(() => null);
+                    })();
                     void sendMessage({ text: "Esa respuesta no fue correcta. Por favor corrígela y explicá qué estuvo mal." });
                   } : undefined}
                   onAdjustDocument={handleAdjustDocument}
