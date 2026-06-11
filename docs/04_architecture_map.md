@@ -1,120 +1,91 @@
 # Mapa de Arquitectura y Dependencias (Repo Map)
 
-> **Última actualización**: 2026-05-20 (Indexación estructural enterprise + limpieza documental)
+> **Última actualización**: 2026-06-11 (desconexión InsForge/Qdrant + agente Python + identidad PM Digital)
 
-Este documento contiene el mapa estructural del proyecto. 
+Este documento contiene el mapa estructural del proyecto.
 **Regla para la IA**: Cada vez que crees un módulo nuevo (Frontend, Backend, Database), DEBES actualizar este grafo. Antes de modificar código existente, lee este grafo para entender qué otras partes del sistema vas a afectar y evitar romper el código.
 
-## ✅ Estado de Auth (arreglado)
+## Auth (100% local desde 2026-06-11)
 
-> **Proxy real**: `src/proxy.ts` protege `/dashboard/*` y redirige a `/login` si no hay cookie `edificia_session`. Redirige también de `/login` → `/dashboard/chat` o `/register` → `/dashboard/chat` si ya hay sesión activa. También responde preflight CORS para `/api/*`.
+> **Proxy real**: `src/proxy.ts` protege `/dashboard/*` y **verifica la firma HS256** de la cookie `edificia_session` (jose, `AUTH_JWT_SECRET`). Redirige `/login`/`/register` → `/dashboard/chat` si ya hay sesión. Responde preflight CORS para `/api/*`.
 >
-> **Verificación JWT**: `verifyUserId()` en `src/lib/auth/jwt.ts` valida el token contra `${INSFORGE_URL}/auth/v1/user` server-side (cache 60 s). En producción es strict por defecto: si InsForge no verifica el token, se rechaza. `AUTH_STRICT_MODE=false` existe solo como break-glass operativo explícito para emergencias.
+> **Verificación JWT**: `verifyUserId()` en `src/lib/auth/jwt.ts` verifica firma y expiración localmente (`src/lib/auth/local-jwt.ts`). Sin fallback decode-only, sin round-trips.
 >
-> **Función centralizada**: `requireAuth(req, opts?)` en `src/lib/auth/require-auth.ts` extrae token, verifica, resuelve org membership. Los 18 route handlers la usan.
+> **Credenciales**: `auth.users` (email citext + bcryptjs) y `auth.refresh_tokens` (opacos hasheados, rotación en `POST /api/auth/refresh`). Lógica en `src/lib/auth/local-auth.ts`.
 >
-> **Sesión persistente**: token en `localStorage` + cookie `edificia_session` (7 días). Sobrevive cierre de pestaña/navegador. Logout limpia ambos.
+> **Función centralizada**: `requireAuth(req, opts?)` en `src/lib/auth/require-auth.ts` extrae token, verifica, resuelve org membership.
 >
-> **Rutas excluidas de auth**: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` (auth propia con SUPER_ADMIN_KEY).
+> **Rutas excluidas de auth de usuario**: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` (SUPER_ADMIN_KEY), `/api/internal/*` (AGENT_GATEWAY_SECRET — tool gateway del agente Python, jamás público).
 
 ```mermaid
 graph TD
-    %% Entidades externas
     User[Usuario / Ingeniero]
 
-    %% Auth Flow
     LoginPage[Login Page\nsrc/app/auth/login]
-    AuthLayout[Auth Layout\nsrc/app/auth/layout.tsx]
-
-    %% Dashboard
     ChatUI[Next.js Chat UI\nsrc/app/dashboard/chat]
     ChatAPI[API Route /api/chat\nsrc/app/api/chat/route.ts]
 
-    %% AI
-    AI_Agent[Vercel AI SDK Agent\nsrc/lib/ai/agent.ts]
+    LocalAuth[Auth local\nsrc/lib/auth: local-jwt · local-auth · password]
+    DataLayer[Capa de datos propia\nsrc/lib/db: pool · query-builder · sql]
+    Storage[Storage filesystem\nsrc/lib/storage/fs-adapter.ts\nSTORAGE_DIR]
 
-    %% InsForge
-    BrowserClient[InsForge Browser Client\nsrc/lib/insforge/client.ts]
-    AdminClient[InsForge Admin Client\nsrc/lib/insforge/server.ts]
-    InsForgeBackend[InsForge BaaS\nhttps://daw63k5s.us-east.insforge.app]
+    AI_TS[Runtime TS del agente\nstreamText + tools\nsrc/lib/agent-core/runtime.ts]
+    AgentPy[Cerebro Python opcional\nservices/agent FastAPI\nAGENT_BACKEND=python]
+    Gateway[Tool gateway interno\n/api/internal/tools/* + /agent/context\nAGENT_GATEWAY_SECRET]
 
-    %% DB
-    DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\nchat_sessions · document_chunks\norg_founder_invitations\ncompany_learned_patterns\nproject_phase_docs\naudit_log_events · agent_runs · app_error_events\ndocument_intelligence_reports · operational_findings\nenterprise_sources · enterprise_documents · enterprise_sync_runs\nenterprise_entities · enterprise_entity_aliases · enterprise_patterns\nenterprise_project_coverage · enterprise_profile_snapshots\nproject_schedule_tasks · project_financial_snapshots\nproject_subcontracts · project_hse_records · project_supply_items\nwork_cases · work_case_events · work_case_evidence)]
+    DB[(PostgreSQL 16 + pgvector\norganizations · members · projects · uploaded_files\nchat_sessions · document_chunks(embedding)\nwork_cases · events · evidence · agent_runs\noperational_findings · audit_log_events\nenterprise_* · project_* (schedule/HSE/supply/financial/subcontracts)\nagent_memories · agent_feedback\nauth.users · auth.refresh_tokens)]
 
-    %% Qdrant
-    Qdrant[(Qdrant Cloud\nVector DB para RAG)]
+    DeepSeek[DeepSeek API\nLLM - externo]
+    NIM[NVIDIA NIM bge-m3\nembeddings 1024d - externo]
 
-    %% Tools
     Parser[File Processor\nsrc/lib/file-processor/]
-    RAG[RAG Engine\nsrc/lib/rag/]
+    RAG[RAG Engine\nsrc/lib/rag/ ingest · search · vector]
 
-    %% Validators
-    Validators[Zod Schemas\nsrc/lib/validators/]
-
-    %% Projects API
-    ProjectsAPI[API Route /api/projects\nsrc/app/api/projects/route.ts]
-    useProjects[useProjects hook\nTanStack Query + localStorage activeId]
-
-    %% Super Admin
-    SuperAdmin[Super Admin Panel\nsrc/app/super-admin/page.tsx\nAuth propia con SUPER_ADMIN_KEY]
-
-    %% Conexiones Auth (middleware real + cookie de sesión)
     User -- "GET /login" --> LoginPage
-    LoginPage -- "signInWithPassword" --> BrowserClient
-    BrowserClient -- "Auth API" --> InsForgeBackend
-    InsForgeBackend -. "Token → localStorage\n+ cookie edificia_session" .-> LoginPage
+    LoginPage -- "POST /api/auth/login" --> LocalAuth
+    LocalAuth -- "verifica hash + firma JWT" --> DB
 
-    %% Conexiones Chat
-    User -- "Sube Archivos / Pregunta" --> ChatUI
+    User -- "Archivos / Preguntas" --> ChatUI
     ChatUI -- "POST /api/chat" --> ChatAPI
-    ChatAPI -- "streamText + tools" --> AI_Agent
-    AI_Agent -- "Tool: buscar_en_base_documental" --> RAG
-    RAG -- "Semantic search" --> Qdrant
-    AI_Agent -- "Tool: Procesar archivo" --> Parser
+    ChatAPI -- "default" --> AI_TS
+    ChatAPI -- "AGENT_BACKEND=python (pipe SSE)" --> AgentPy
+    AgentPy -- "contexto + tools" --> Gateway
+    Gateway -- "createBoundTools" --> AI_TS
+    AgentPy -- "memoria/contabilidad (asyncpg)" --> DB
 
-    %% Projects
-    ChatUI -- "useProjects" --> useProjects
-    useProjects -- "GET/POST" --> ProjectsAPI
-    ProjectsAPI -- "admin client" --> AdminClient
+    AI_TS -- "chat/tools" --> DeepSeek
+    AI_TS -- "buscar_en_base_documental" --> RAG
+    RAG -- "embed query" --> NIM
+    RAG -- "cosine + FTS" --> DB
+    AI_TS -- "procesar archivo" --> Parser
+    ChatAPI -- "upload/download" --> Storage
 
-    %% DB
-    AdminClient -- "Queries con service role" --> InsForgeBackend
-    InsForgeBackend -- "PostgREST" --> DB
-
-    %% Super Admin (independiente)
-    SuperAdmin -- "Bearer SUPER_ADMIN_KEY" --> AdminClient
+    AI_TS -- "queries {data,error}" --> DataLayer
+    DataLayer -- "pg parametrizado" --> DB
 ```
 
-## Stack de Dependencias (2026-05-13)
+## Stack de Dependencias (2026-06-11)
 
-| Paquete | Versión | Rol |
-|---|---|---|
-| next | ^16.2.4 | Framework Frontend + API Routes |
-| react | ^19.0.0 | UI Runtime |
-| typescript | ^5 | Tipado estricto E2E |
-| tailwindcss | ^4 | Estilos utility-first |
-| shadcn | ^4.6.0 | Componentes UI premium |
-| @tanstack/react-query | ^5.74.4 | Data fetching / cache del cliente |
-| zod | ^3.24.3 | Validación de schemas E2E |
-| @insforge/sdk | ^1.2.5 | BaaS client — auth, database, storage |
-| ai | ^6.0.168 | Vercel AI SDK — streaming + tools |
-| @ai-sdk/openai | ^3.0.62 | Provider OpenAI estándar (no usado para DeepSeek desde 2026-05-18; queda disponible para futuros providers OpenAI nativos) |
-| @ai-sdk/openai-compatible | ^2.0.46 | Provider DeepSeek — extrae y reinyecta `reasoning_content` que `@ai-sdk/openai` ignora |
-| @ai-sdk/react | ^3.0.171 | React hooks (useChat) |
-| @qdrant/js-client-rest | ^1.17.0 | Qdrant vector DB client |
-| pino | ^10.3.1 | Logger estructurado |
-| framer-motion | ^12.38.0 | Animaciones |
-| lucide-react | ^1.12.0 | Iconos |
-| recharts | ^3.8.1 | Gráficos |
-| resend | ^6.12.2 | Email transaccional |
-| xlsx | ^0.18.5 | Excel parser |
-| pdf-parse | ^2.4.5 | PDF parser |
-| mammoth | ^1.12.0 | DOCX parser |
-| dxf-parser | ^1.1.2 | DXF parser |
-| dxf-viewer | ^1.0.47 | DXF WebGL viewer |
-| docx | ^9.6.1 | DOCX generator |
-| jspdf + jspdf-autotable | ^4.2.1 | PDF generator |
-| react-markdown + remark-gfm | ^10.1.0 | Markdown rendering |
+| Paquete | Rol |
+|---|---|
+| next ^16 / react ^19 / typescript ^5 | Framework + UI + tipado |
+| tailwindcss ^4 · shadcn · framer-motion · lucide-react · recharts | UI |
+| @tanstack/react-query ^5 | Data fetching cliente |
+| zod ^3 | Validación E2E |
+| **pg** | Capa de datos propia (`src/lib/db/`) — reemplazó a @insforge/sdk |
+| **jose** | Firma/verificación JWT HS256 (edge-safe) |
+| **bcryptjs** | Hash de passwords |
+| **zod-to-json-schema** | Manifest de tools para el agente Python |
+| ai ^6 · @ai-sdk/openai-compatible · @ai-sdk/react | Agente TS: streaming + tools + reasoning_content de DeepSeek |
+| pino | Logs estructurados |
+| resend | Email transaccional |
+| xlsx · pdf-parse · mammoth · dxf-parser · dxf-viewer | Parsers de archivos |
+| docx · jspdf + autotable | Generadores de documentos |
+| react-markdown + remark-gfm | Render de Markdown |
+
+**Python (`services/agent/`)**: fastapi · uvicorn · asyncpg · pgvector · openai (cliente DeepSeek) · httpx · pydantic-settings · tenacity.
+
+**Eliminados** (2026-06-11): `@insforge/sdk`, `@qdrant/js-client-rest`. El path `src/lib/insforge/` se conserva como re-export histórico de la capa propia.
 
 ## Estructura de Carpetas (`src/`) — Actual
 
@@ -216,7 +187,7 @@ src/
 │   ├── SessionContext.tsx          → Contexto de sesión de chat
 │   └── ProjectContext.tsx          → Contexto de proyecto activo
 ├── hooks/
-│   ├── useCurrentUser.ts           → Usuario autenticado (InsForge SDK)
+│   ├── useCurrentUser.ts           → Usuario autenticado (sesión local)
 │   ├── useOrgs.ts                  → Organizaciones del usuario
 │   ├── useOrgMember.ts             → Membership + branding
 │   ├── useProjects.ts              → CRUD de proyectos
@@ -231,7 +202,10 @@ src/
 │   └── useTheme.ts                 → Selector de tema: editorial | plano | oscuro (sin next-themes)
 ├── lib/
 │   ├── auth/
-│   │   ├── jwt.ts                  → Verificación JWT con InsForge; strict por defecto en producción
+│   │   ├── jwt.ts                  → verifyUserId (firma local) + decodeClaims
+│   │   ├── local-jwt.ts            → Firma/verificación HS256 (jose, edge-safe)
+│   │   ├── local-auth.ts           → signUp/signIn/refresh/updatePassword sobre auth.users
+│   │   ├── password.ts             → Hash bcryptjs
 │   │   ├── require-auth.ts         → Guard centralizado para API routes (auth + org + role)
 │   │   └── reset-token.ts          → HMAC-SHA256 tokens para password reset
 │   ├── audit/
@@ -250,9 +224,17 @@ src/
 │   ├── api/
 │   │   ├── errors.ts               → Helpers de error estandarizados
 │   │   └── rate-limit.ts           → Rate limiter in-memory
-│   ├── insforge/
-│   │   ├── client.ts               → Browser client (token en localStorage + cookie edificia_session)
-│   │   └── server.ts               → Admin client (service role key)
+│   ├── insforge/                   → nombre histórico, sin SDK
+│   │   ├── client.ts               → Sesión browser (localStorage + refresh vía /api/auth/refresh)
+│   │   └── server.ts               → Re-export del cliente admin propio (src/lib/db)
+│   ├── db/
+│   │   ├── pool.ts                 → Pool pg singleton (timestamps como string ISO)
+│   │   ├── query-builder.ts        → Builder compatible SDK: {data,error,count}, nunca lanza
+│   │   ├── sql.ts                  → Escape hatch SQL raw (pgvector, agregaciones)
+│   │   ├── admin-client.ts         → Shim {database, storage, auth}
+│   │   └── types.ts                → AdminClient: contrato único de la capa de datos
+│   ├── storage/
+│   │   └── fs-adapter.ts           → Storage filesystem (STORAGE_DIR) con interfaz de adapter
 │   ├── ai/
 │   │   ├── agent.ts                → Config del agente + system prompt
 │   │   ├── agent-tools.ts          → Tools sin org-binding
@@ -263,8 +245,9 @@ src/
 │   │   ├── observability/          → Telemetría de tools y runtime
 │   │   └── session-learner.ts      → Aprendizaje de patrones post-sesión
 │   ├── rag/
-│   │   ├── ingest.ts               → Ingesta de documentos a Qdrant
-│   │   └── search.ts               → Búsqueda semántica en Qdrant
+│   │   ├── ingest.ts               → Ingesta: chunking + embeddings inline en document_chunks
+│   │   ├── search.ts               → Búsqueda híbrida: pgvector (coseno) + FTS spanish
+│   │   └── vector.ts               → Helpers pgvector (literal, disponibilidad)
 │   ├── obra/
 │   │   ├── phases.ts               → Detección de fase de obra
 │   │   └── coverage.ts             → Cálculo de cobertura documental
@@ -310,7 +293,7 @@ tests/
     ├── register-ts-loader.mjs      → Loader TS para node:test
     └── ts-resolve-loader.mjs       → Resolución de aliases en tests
 
-migrations/ (canónico, InsForge CLI)
+migrations/ (canónico, runner propio scripts/migrate.mjs)
     ├── 20260507195853_catchup-missing-columns.sql
     ├── 20260513215703_project-metadata.sql
     ├── 20260513220428_security-fixes.sql
@@ -571,3 +554,6 @@ Invariantes:
 | 2026-05-19 | display_name via InsForge profile | `/api/auth/me` ahora hidrata `displayName` con `client.auth.getProfile(userId)` cuando el JWT no trae `name`/`full_name`. InsForge guarda el nombre en `auth.users.profile.name` (jsonb), no en `user_metadata`. Sin necesidad de tabla `user_profiles` adicional. |
 | 2026-05-20 | Indexación estructural enterprise | `src/lib/rag/structure.ts` detecta estructura de PDF/DOCX, rubros Excel y capas DXF; `chunkDocument()` preserva `section_path`/`section_level`; `ingestDocument()` sincroniza cargas manuales con `enterprise_documents` y readiness enterprise. Fuentes muestra chips de estructura por documento. Tests en `tests/rag/structure.test.mjs`. |
 | 2026-05-20 | Shadcn blocks adaptados | CLI shadcn usado para instalar primitives locales sin dependencias nuevas (`Badge`, `Table`, `Tabs`, etc.). `@shadcn/dashboard-01` queda registrado como referencia en `docs/design/shadcn-blocks/`; adaptación productiva: `RiskRegisterBlock` y `EvidenceLedgerBlock` en el renderer generativo + demo. |
+| 2026-06-11 | Desconexión total InsForge/Qdrant | Capa de datos propia (`src/lib/db/` sobre pg), auth local (HS256 + refresh con rotación), storage filesystem, pgvector en `document_chunks`, runner de migraciones propio. `@insforge/sdk` y `@qdrant/js-client-rest` eliminados. Ver §-1 histórico en git (ROADMAP.md eliminado; estado vivo en `docs/00_PRODUCTO.md`). |
+| 2026-06-11 | Agente Python + aprendizaje real | `services/agent/` (FastAPI) detrás de `AGENT_BACKEND=python` con tool gateway `/api/internal/*`. Memoria episódica `agent_memories` + `agent_feedback`: reflexión LLM post-turno, feedback explícito, retrieval semántico con refuerzo/decay. |
+| 2026-06-11 | Identidad PM Digital | Prompt modular por capacidades (`src/lib/ai/prompt/`), apertura operativa con obra activa, tools filtradas por modo del turno, quick-prompts operativos en el greeting, evals de conducta en `evals/`. La auditoría pasa a ser capacidad bajo señal, no identidad. |
