@@ -56,30 +56,36 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 ## 3 · Stack real (lo que usa el código)
 
+> Desde 2026-06-11 EdificIA corre **100% sobre infraestructura propia**: sin InsForge ni Qdrant.
+
 | Capa | Tecnología | Archivo clave |
 |------|-----------|---------------|
 | Framework | Next.js 16 (App Router) + TypeScript strict | `next.config.ts` |
 | Modelo AI | **DeepSeek** vía OpenAI-compatible SDK | `src/app/api/chat/route.ts` |
-| Embeddings | NVIDIA NIM (`text-embedding-3-small`) | `src/lib/embeddings/index.ts` |
-| BaaS | InsForge (auth, DB, storage) | `src/lib/insforge/server.ts` (admin) · `client.ts` (browser) |
-| Vector DB | Qdrant | `src/lib/qdrant/client.ts` |
-| DB | PostgreSQL con RLS multi-tenant | `migrations/` (InsForge CLI) |
+| Agente (cerebro) | Servicio Python FastAPI detrás de flag `AGENT_BACKEND=python` | `services/agent/` |
+| Embeddings | NVIDIA NIM (`baai/bge-m3`, 1024 dims) | `src/lib/embeddings/index.ts` |
+| Capa de datos | Query-builder propio sobre `pg` (interfaz compatible `.from().select().eq()` → `{data,error}`) | `src/lib/db/` (`getInsForgeAdminClient()` en `src/lib/insforge/server.ts` es re-export histórico) |
+| Auth | Propia: `auth.users` + bcryptjs + JWT HS256 local (`AUTH_JWT_SECRET`) + refresh tokens con rotación | `src/lib/auth/local-auth.ts` · `local-jwt.ts` |
+| Storage | Filesystem local (`STORAGE_DIR`, default `./data/storage`) con interfaz de adapter | `src/lib/storage/fs-adapter.ts` |
+| Vector DB | pgvector en el mismo Postgres (`document_chunks.embedding`) | `src/lib/rag/vector.ts` |
+| DB | PostgreSQL 16 + pgvector con RLS multi-tenant | `migrations/` (runner propio `scripts/migrate.mjs`) |
+| Memoria del agente | `agent_memories` + `agent_feedback` (reflexión LLM + feedback + decay) | `services/agent/app/memory/` |
 | Validación | Zod v3 | `src/lib/validators/` |
 | Email | Resend | `src/lib/email/resend.ts` |
 | UI | Shadcn + Tailwind v4 + Framer Motion | `src/components/` |
 
 ## 4 · Autenticación — Cómo funciona
 
-1. **Proxy / Middleware** (`src/proxy.ts`): Protege `/dashboard/*`. Lee cookie `edificia_session`, valida JWT localmente, redirige a `/login` si no hay sesión. También maneja CORS para `/api/*`.
-2. **API routes**: Usan `requireAuth(req)` de `src/lib/auth/require-auth.ts`. Extrae Bearer token, verifica contra InsForge, resuelve org membership.
-3. **Cliente**: `getAuthToken()` en `src/lib/insforge/client.ts` maneja refresh automático del token.
+1. **Proxy / Middleware** (`src/proxy.ts`): Protege `/dashboard/*`. Lee cookie `edificia_session` y **verifica la firma HS256 localmente** (jose, `AUTH_JWT_SECRET`); redirige a `/login` si no hay sesión. También maneja CORS para `/api/*`.
+2. **API routes**: Usan `requireAuth(req)` de `src/lib/auth/require-auth.ts`. Extrae Bearer token, verifica firma local (`verifyUserId`), resuelve org membership.
+3. **Cliente**: `getAuthToken()` en `src/lib/insforge/client.ts` maneja refresh automático vía `POST /api/auth/refresh` (rotación server-side en `auth.refresh_tokens`).
 4. **Roles**: `admin` | `engineer` | `viewer`. Los admins acceden a `/api/admin/*`. Los viewers solo chatean.
 
-> ⚠️ **NO crear rutas de API sin `requireAuth()`**. Excepciones conocidas: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` (auth propia con `SUPER_ADMIN_KEY`).
+> ⚠️ **NO crear rutas de API sin `requireAuth()`**. Excepciones conocidas: `/api/health`, `/api/auth/register`, `/api/seed-demo`, `/api/super-admin/*` (auth propia con `SUPER_ADMIN_KEY`), `/api/internal/*` (tool gateway del agente Python, auth por `AGENT_GATEWAY_SECRET` — jamás exponer público).
 
 ## 5 · Multi-tenancy — Regla absoluta
 
-Toda query a la DB o Qdrant **DEBE** filtrar por `organization_id` (derivado de `auth.orgId`). Columna real: `organization_id`, **NO** `company_id`. Jamás asumir que los datos pueden cruzarse entre orgs.
+Toda query a la DB (incluida la búsqueda pgvector) **DEBE** filtrar por `organization_id` (derivado de `auth.orgId`). Columna real: `organization_id`, **NO** `company_id`. Jamás asumir que los datos pueden cruzarse entre orgs.
 
 ## 6 · Estructura principal
 
@@ -93,7 +99,8 @@ src/
 ├── contexts/         → SessionContext, ProjectContext
 ├── lib/ai/           → agent-prompt.ts (system prompt), agent-tools.ts (definiciones), agent-tools-bound.ts (con org-binding)
 ├── lib/rag/          → ingest.ts, search.ts (búsqueda híbrida: semántica + FTS + ilike)
-├── lib/auth/         → jwt.ts, require-auth.ts, reset-token.ts
+├── lib/auth/         → local-jwt.ts, local-auth.ts, password.ts, jwt.ts, require-auth.ts, reset-token.ts
+├── lib/db/           → pool.ts, query-builder.ts (compat SDK), sql.ts (raw), admin-client.ts, types.ts
 ├── lib/file-processor/ → PDF, Excel, DXF, DOCX, imagen
 ├── lib/export/       → Generadores de PDF (jsPDF), DOCX, XLSX
 └── lib/api/          → errors.ts (helpers estandarizados), rate-limit.ts

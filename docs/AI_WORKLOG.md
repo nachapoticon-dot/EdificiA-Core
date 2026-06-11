@@ -96,6 +96,15 @@ Formato:
 - Verificacion: `npm run type-check` OK; `npm run lint` OK; `npm test` OK (85/85); `npm run build` OK.
 - Pendiente: la bandeja `docs/design/shadcn-blocks/` queda lista para pegar bloques reales y registrarlos en `manifest.json`. Pendientes externos consolidados en `ROADMAP.md` §0.
 
+## 2026-06-11 - Claude Code - Desconexión InsForge/Qdrant + agente Python
+
+- Objetivo: eliminar dependencia de InsForge y Qdrant; preparar agente real (cerebro Python con aprendizaje genuino) portable a otra infraestructura.
+- Cambios: ver `ROADMAP.md` §-1 (7 fases, un commit por fase en `feat/desconexion-insforge-qdrant`). Resumen: capa de datos propia `src/lib/db/` (query-builder compatible sobre `pg`), auth local (`src/lib/auth/local-*`), storage filesystem, pgvector en `document_chunks`, runner de migraciones propio, servicio `services/agent/` (FastAPI) detrás de `AGENT_BACKEND=python` con tool gateway `/api/internal/*`, y loop de aprendizaje real (`agent_memories`/`agent_feedback`, reflexión LLM, retrieval semántico, decay).
+- Contexto clave: el proyecto InsForge cloud estaba caído (HTTP 503) — no había datos que migrar; cutover con base limpia. Colima+Docker instalados en esta máquina para correr Postgres local.
+- Verificación: `npm test` 98/98 · `npm run type-check` OK · `npm run build` OK · `npm run smoke:chat` OK · E2E manual: register/login/refresh/me, upload→reindex→búsqueda pgvector, chat streameado por ambos backends (TS y Python) con tool round-trip por gateway, reflexión → memoria → retrieval en conversación nueva, feedback → memoria de corrección.
+- Pendiente: migrar tools de a una a Python; deprecar `company_learned_patterns`; UI de feedback más rica; `docs/04_architecture_map.md` necesita una pasada para reflejar `src/lib/db/` y `services/agent/` (no actualizado en esta sesión).
+- Operación local: `docker compose up -d postgres` → `npm run migrate` → `npm run dev` + `cd services/agent && .venv/bin/uvicorn app.main:app --port 8000` (secrets en `.env.local` y `services/agent/.env`).
+
 ---
 
 ## Antes de empezar una sesión nueva
