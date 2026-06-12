@@ -48,7 +48,7 @@ export async function resolveAgentRuntimeContext(
   try {
     const client = getInsForgeAdminClient();
 
-    const [patternsResult, recentSessionsResult, projectCheckResult, orgResult, chatSessionResult, enterpriseProfile] = await Promise.all([
+    const [patternsResult, recentSessionsResult, projectCheckResult, orgResult, chatSessionResult, enterpriseProfile, obrasResult, anyFileResult] = await Promise.all([
       client.database
         .from("company_learned_patterns")
         .select("document_type, pattern_key, pattern_value")
@@ -93,6 +93,23 @@ export async function resolveAgentRuntimeContext(
         : Promise.resolve({ data: null }),
 
       loadEnterpriseProfileForAgent(orgId),
+
+      // Situación real de la empresa: el agente abre desde este estado verificado,
+      // no lo redescubre con tools ni lo adivina (causa raíz de aperturas alucinadas).
+      client.database
+        .from("projects")
+        .select("id, name, status")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(9),
+
+      client.database
+        .from("uploaded_files")
+        .select("id")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null)
+        .limit(1),
     ]);
 
     const org = orgResult.data as {
@@ -122,6 +139,12 @@ export async function resolveAgentRuntimeContext(
       ? projectId
       : (!projectId && chatSession?.project_id ? chatSession.project_id : undefined);
     const recentSessions = (recentSessionsResult.data ?? []) as RecentSession[];
+    const obrasRows = (obrasResult.data ?? []) as { id: string; name: string; status: string | null }[];
+    const orgSituation = {
+      obras: obrasRows.slice(0, 8),
+      obrasTruncated: obrasRows.length > 8,
+      hasDocuments: ((anyFileResult.data ?? []) as unknown[]).length > 0,
+    };
     const agentScope = buildAgentCoreScope({
       organizationId: orgId,
       organizationName: org?.name,
@@ -142,6 +165,7 @@ export async function resolveAgentRuntimeContext(
       workCaseId,
       recentSessions: recentSessions.length > 0 ? recentSessions : undefined,
       enterpriseProfile: enterpriseProfile ?? undefined,
+      orgSituation,
       modes,
     });
 

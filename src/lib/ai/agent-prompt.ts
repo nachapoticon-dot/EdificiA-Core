@@ -82,14 +82,16 @@ Antes del resumen final revisá en silencio: (1) cada cifra coincide exactamente
 2. Nunca confabules resultados de tools: si no se ejecutaron, no existen.
 3. Cálculos siempre con tools matemáticas, nunca mentales.
 4. Las fuentes empresariales son solo lectura.
-5. Los índices de precio son inmutables (la corrección es subir versión nueva desde Administración).`;
+5. Los índices de precio son inmutables (la corrección es subir versión nueva desde Administración).
+6. Nunca prometas acciones para las que no tenés tool (crear obras, conectar fuentes, dar de alta usuarios): orientá a la sección de la interfaz que corresponda.`;
 
 const MODULE_OPERATIONS = `
 ## Apertura operativa
-Cuando el usuario abre la conversación (saludo o pregunta general, sin archivo):
+Cuando el usuario abre la conversación (saludo o pregunta general, sin archivo), tu apertura sale de la **Situación actual de la empresa** del contexto — nunca la adivines ni la redescubras con tools:
 - **Con obra activa**: llamá **resumen_diario_obra** con el projectId (sumá clima si hay ubicación conocida) y abrí con el estado del día: 2-4 puntos concretos (tareas vencidas/bloqueadas, vencimientos HSE, acopios en riesgo, desvío financiero, alertas abiertas) + UNA acción sugerida. Si no hay nada urgente, decilo en una línea y preguntá por la prioridad del día.
-- **Sin obra activa**: panorama de empresa con **consultar_perfil_empresa** (obras con riesgo, cobertura) y ofrecé elegir obra.
-- **Empresa sin obras ni datos todavía** (perfil vacío): saludá cálido y breve, presentate en 2-3 líneas (qué resolvés como PM Digital: estado diario, vencimientos, finanzas, auditoría documental) y orientá el primer paso: crear la primera obra en la sección Obras o subir documentación en Contexto → Fuentes. NO interrogues pidiendo nombre/código de obra ni prometas "cargarla" vos: las obras se crean desde la interfaz.
+- **Sin obra activa, con UNA sola obra cargada**: esa obra es el foco natural del día — tratala como obra activa usando su projectId de la situación (resumen_diario_obra) y mencioná en una línea que estás sobre ella.
+- **Sin obra activa, con varias obras cargadas**: panorama breve (si hay perfil, usá **consultar_perfil_empresa** para riesgo/cobertura) y ofrecé seguir con una de las obras listadas en la situación, por nombre.
+- **Sin obras cargadas**: saludá cálido, presentate en 2-3 líneas (estado diario, vencimientos, finanzas, auditoría documental) y orientá el primer paso según la situación: crear la primera obra (sección Obras) o subir documentación (Contexto → Fuentes). Sin tools: no hay nada que consultar todavía.
 - Nunca abras pidiendo un documento para auditar: la auditoría se activa cuando el documento llega o el usuario la pide.
 
 ## Gestión integral de obra
@@ -163,6 +165,12 @@ const MODE_MODULES: Record<TurnMode, string> = {
   communications: MODULE_COMMUNICATIONS,
 };
 
+export interface OrgSituation {
+  obras: { id: string; name: string; status: string | null }[];
+  obrasTruncated: boolean;
+  hasDocuments: boolean;
+}
+
 export function buildSystemPrompt(ctx?: {
   companyName?: string;
   agentName?: string;
@@ -173,6 +181,8 @@ export function buildSystemPrompt(ctx?: {
   workCaseId?: string;
   recentSessions?: RecentSession[];
   enterpriseProfile?: EnterpriseProfilePromptContext;
+  /** Estado real de la empresa (obras, documentación) verificado server-side. */
+  orgSituation?: OrgSituation;
   /** Modos activos del turno (turn-modes.ts). Sin especificar: todos (back-compat). */
   modes?: TurnMode[];
 }): string {
@@ -190,6 +200,28 @@ export function buildSystemPrompt(ctx?: {
 
   const contextSection = contextLines.length
     ? `\n\n## Contexto de sesión (LEE PRIMERO)\n${contextLines.join("\n")}\n\nEn tu primera respuesta de la sesión mencioná la empresa y la obra activa una sola vez ("Trabajando para ${companyName ?? "tu empresa"}${ctx?.projectName ? ` en la obra ${ctx.projectName}` : ""}…"). Después NUNCA las repitas.`
+    : "";
+
+  // ── Situación real de la empresa: estado verificado server-side, presente
+  //    SIEMPRE que el runtime lo resuelva (incluso vacío: "no hay obras" es un
+  //    hecho que el modelo debe conocer, no descubrir ni suponer) ──
+  const situationSection = ctx?.orgSituation
+    ? (() => {
+        const s = ctx.orgSituation;
+        const lines: string[] = [];
+        if (s.obras.length === 0) {
+          lines.push("- Obras cargadas: **ninguna todavía** (las obras se crean desde la sección Obras de la interfaz).");
+        } else {
+          lines.push(`- Obras cargadas (${s.obras.length}${s.obrasTruncated ? "+" : ""}):`);
+          for (const o of s.obras) {
+            lines.push(`  - ${o.name}${o.status ? ` (${o.status})` : ""} — projectId: \`${o.id}\``);
+          }
+        }
+        lines.push(s.hasDocuments
+          ? "- Base documental: hay documentos cargados (usá **buscar_en_base_documental** para consultarlos)."
+          : "- Base documental: **vacía todavía** (la documentación se sube desde Contexto → Fuentes o adjuntando archivos al chat).");
+        return `\n\n## Situación actual de la empresa (estado real verificado — NO lo redescubras con tools ni lo contradigas)\n${lines.join("\n")}\n\nTus aperturas y ofrecimientos salen de esta situación: ofrecé solo obras que existen acá, usando el projectId de esta lista cuando una tool lo pida (jamás se lo pidas al usuario). Si no hay obras o documentos, orientá al usuario a crearlos desde la interfaz — vos no podés crearlos.`;
+      })()
     : "";
 
   const patternsSection = ctx?.learnedPatterns
@@ -220,7 +252,7 @@ export function buildSystemPrompt(ctx?: {
     .map((mode) => MODE_MODULES[mode])
     .join("\n");
 
-  return `Tu nombre es ${agentName}. Sos el Project Manager Digital de obra, especializado en construcción argentina.${contextSection}${enterpriseProfileSection}${patternsSection}${recentSessionsSection}
+  return `Tu nombre es ${agentName}. Sos el Project Manager Digital de obra, especializado en construcción argentina.${contextSection}${situationSection}${enterpriseProfileSection}${patternsSection}${recentSessionsSection}
 ${MODULE_CORE}
 ${moduleSections}`;
 }

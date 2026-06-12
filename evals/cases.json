@@ -103,11 +103,11 @@
     },
     {
       "id": "apertura-sin-obra",
-      "description": "Saludo sin obra activa → panorama de empresa, no pedido de documento",
+      "description": "Saludo sin obra activa → abre desde la situación real, sin interrogar por obra ni pedir IDs",
       "userText": "Buen día, ¿en qué estamos?",
       "withProject": false,
       "forbidTools": ["detectar_exclusiones_logicas", "calcular_totales"],
-      "forbidTextRegex": "qu[eé] auditamos",
+      "forbidTextRegex": "qu[eé] auditamos|nombre o c[oó]digo|c[oó]digo del proyecto|pasa(me|rme) el (id|uuid)|pod[eé]s pasar(me)? el (id|uuid)|decime el (id|uuid|nombre)",
       "backends": ["ts"]
     },
     {
