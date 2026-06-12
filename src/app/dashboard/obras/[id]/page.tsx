@@ -6,12 +6,26 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, MessageSquare, Building2,
+  MessageSquare, Building2,
   FileSpreadsheet, FileText, FileCode2, FileType2, Image,
   CheckCircle2, Circle, ChevronDown, ChevronRight,
   Pencil, Check, X, Hash, MapPin, Banknote, CalendarDays,
   BriefcaseBusiness, Clock3, ArrowUpRight,
 } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { useSessionContext } from "@/contexts/SessionContext";
 import { useProjectCoverage } from "@/hooks/useProjectCoverage";
@@ -212,24 +226,28 @@ function WorkCaseRow({
           </span>
         </div>
       </div>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={() => onOpenDetail(workCase)}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+        className="h-8 shrink-0 gap-1.5 rounded-[8px] text-[12px]"
       >
         Ver
         <ArrowUpRight className="h-3 w-3" />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         disabled={!canOpenChat}
         onClick={() => onOpenChat(workCase)}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+        className="h-8 shrink-0 gap-1.5 rounded-[8px] text-[12px]"
       >
         <MessageSquare className="h-3.5 w-3.5" />
         Abrir
         <ArrowUpRight className="h-3 w-3" />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -315,20 +333,24 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
       <div className="border-b border-border bg-card px-8 py-5">
         <div className="mx-auto max-w-5xl">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push("/dashboard/obras")}
-              className="flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Mis Obras
-            </button>
-            <span className="text-muted-foreground/40">/</span>
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" strokeWidth={1.5} />
-              <h1 className="font-display text-[18px] font-medium tracking-[-0.01em] text-foreground">
-                {projectName}
-              </h1>
-            </div>
+            <Breadcrumb>
+              <BreadcrumbList className="text-[12px]">
+                <BreadcrumbItem>
+                  <BreadcrumbLink render={<Link href="/dashboard/obras" />}>
+                    Mis Obras
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" strokeWidth={1.5} />
+                    <span className="font-display text-[18px] font-medium tracking-[-0.01em] text-foreground">
+                      {projectName}
+                    </span>
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
 
             <div className="ml-auto flex items-center gap-3">
               {coverage && (
@@ -343,20 +365,21 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
                   </span>
                 </div>
               )}
-              <button
+              <Button
+                variant="outline"
                 onClick={() => router.push(`/dashboard/obras/${id}/today` as Route)}
-                className="flex items-center gap-2 rounded-[10px] border border-border bg-background px-4 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-accent"
+                className="gap-2 rounded-[10px] px-4 text-[13px] font-semibold"
               >
                 <CalendarDays className="h-4 w-4" />
                 Día en la obra
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleConverse}
-                className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                className="gap-2 rounded-[10px] px-4 text-[13px] font-semibold"
               >
                 <MessageSquare className="h-4 w-4" />
                 Conversar sobre esta obra
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -388,13 +411,15 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
                   {Number(meta.contract_amount).toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })}
                 </span>
               )}
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={startEdit}
-                className="ml-auto flex items-center gap-1.5 rounded-[8px] border border-border px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+                className="ml-auto gap-1.5 rounded-[8px] text-[12px] text-muted-foreground hover:text-foreground"
               >
                 <Pencil className="h-3 w-3" />
                 Editar datos
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-end gap-3">
@@ -410,29 +435,29 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Código</label>
-                <input value={editCode} onChange={(e) => setEditCode(e.target.value)} placeholder="OP-001"
-                  className="w-24 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+                <Input value={editCode} onChange={(e) => setEditCode(e.target.value)} placeholder="OP-001"
+                  className="h-8 w-24 rounded-[8px] text-[12px]" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Ubicación</label>
-                <input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="Ciudad, Provincia"
-                  className="w-44 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+                <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="Ciudad, Provincia"
+                  className="h-8 w-44 rounded-[8px] text-[12px]" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monto contrato</label>
-                <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} placeholder="0.00"
-                  className="w-32 rounded-[8px] border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40" />
+                <Input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} placeholder="0.00"
+                  className="h-8 w-32 rounded-[8px] text-[12px]" />
               </div>
               <div className="flex items-center gap-2 pb-0.5">
-                <button onClick={() => { void saveEdit(); }} disabled={saving}
-                  className="flex items-center gap-1.5 rounded-[8px] bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground transition-opacity disabled:opacity-50 hover:opacity-90">
-                  {saving ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <Check className="h-3 w-3" />}
+                <Button size="sm" onClick={() => { void saveEdit(); }} disabled={saving}
+                  className="gap-1.5 rounded-[8px] text-[12px] font-semibold">
+                  {saving ? <Spinner className="size-3" /> : <Check className="h-3 w-3" />}
                   Guardar
-                </button>
-                <button onClick={() => setEditing(false)}
-                  className="flex items-center gap-1 rounded-[8px] border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent">
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(false)}
+                  className="gap-1 rounded-[8px] text-[12px] text-muted-foreground">
                   <X className="h-3 w-3" /> Cancelar
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -455,15 +480,19 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
           {workCasesLoading && (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-14 animate-pulse rounded-[10px] border border-border bg-card" />
+                <Skeleton key={i} className="h-14 rounded-[10px] border border-border" />
               ))}
             </div>
           )}
 
           {!workCasesLoading && workCases.length === 0 && (
-            <div className="rounded-[12px] border border-dashed border-border px-6 py-8 text-center">
-              <p className="text-[13px] text-muted-foreground">Todavía no hay expedientes asociados a esta obra.</p>
-            </div>
+            <Empty className="rounded-[12px] border border-dashed border-border py-8">
+              <EmptyHeader>
+                <EmptyDescription className="text-[13px]">
+                  Todavía no hay expedientes asociados a esta obra.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
 
           {!workCasesLoading && workCases.length > 0 && (
@@ -497,20 +526,22 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
             {filesLoading && (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-12 animate-pulse rounded-[8px] bg-card border border-border" />
+                  <Skeleton key={i} className="h-12 rounded-[8px] border border-border" />
                 ))}
               </div>
             )}
 
             {!filesLoading && files.length === 0 && (
-              <div className="rounded-[12px] border border-dashed border-border px-6 py-10 text-center">
-                <p className="text-[13px] text-muted-foreground">
-                  No hay archivos subidos a esta obra todavía.
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground/60">
-                  Activá la obra y subí documentos desde el asistente.
-                </p>
-              </div>
+              <Empty className="rounded-[12px] border border-dashed border-border py-10">
+                <EmptyHeader>
+                  <EmptyDescription className="text-[13px]">
+                    No hay archivos subidos a esta obra todavía.
+                  </EmptyDescription>
+                  <EmptyDescription className="text-[11px] text-muted-foreground/60">
+                    Activá la obra y subí documentos desde el asistente.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
 
             {!filesLoading && files.length > 0 && (
@@ -539,7 +570,7 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
             {coverageLoading && (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-12 animate-pulse rounded-[10px] border border-border bg-card" />
+                  <Skeleton key={i} className="h-12 rounded-[10px] border border-border" />
                 ))}
               </div>
             )}

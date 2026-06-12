@@ -864,6 +864,34 @@ export const projectDetailsResponseSchema = z.object({
   storage: storageStatsSchema,
 });
 
+const expectedDocSchema = z.object({
+  doc_type: z.enum(["plano", "computo", "presupuesto", "memoria", "remito"]),
+  label: z.string(),
+  required: z.boolean(),
+});
+
+const phaseCoverageSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  order: z.number().int().positive(),
+  expected: z.array(expectedDocSchema),
+  coveredDocTypes: z.array(z.string()),
+  missingRequired: z.array(expectedDocSchema),
+  status: z.enum(["complete", "partial", "empty"]),
+});
+
+export const projectCoverageResponseSchema = z.object({
+  projectId: z.string(),
+  phases: z.array(phaseCoverageSchema),
+  totalPhases: z.number().int().nonnegative(),
+  completePhases: z.number().int().nonnegative(),
+  partialPhases: z.number().int().nonnegative(),
+  emptyPhases: z.number().int().nonnegative(),
+  overallPct: z.number().int().min(0).max(100),
+  nextSuggestion: z.string().nullable(),
+  docCount: z.number().int().nonnegative(),
+});
+
 const priceIndexSourceSchema = z.enum(["CAC", "INDEC", "company_list", "company_learned"]);
 
 export const priceIndexRowSchema = z.object({

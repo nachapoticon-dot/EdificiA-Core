@@ -24,6 +24,11 @@ import {
   type EnterpriseContextResponse,
 } from "@/lib/validators/api-responses";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type DocumentResult = EnterpriseContextResponse["documents"][number];
 type ProjectResult = EnterpriseContextResponse["projects"][number];
@@ -112,33 +117,36 @@ export default function EnterpriseContextPage() {
                 </div>
               )}
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => void contextQuery.refetch()}
               disabled={contextQuery.isFetching}
-              className="ml-auto inline-flex h-9 items-center gap-2 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+              className="ml-auto h-9 gap-2 rounded-[8px] text-[12px]"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", contextQuery.isFetching && "animate-spin")} />
               Actualizar
-            </button>
+            </Button>
           </div>
 
           <form onSubmit={submitSearch} className="mt-5 flex flex-col gap-2 md:flex-row">
-            <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
+            <InputGroup className="h-11 min-w-0 flex-1 rounded-[8px] bg-background">
+              <InputGroupAddon>
+                <Search className="text-muted-foreground" />
+              </InputGroupAddon>
+              <InputGroupInput
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="Preguntá por una obra, proveedor, contrato, rubro, faltante, contradicción o decisión pendiente..."
-                className="h-11 w-full rounded-[8px] border border-border bg-background pl-9 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="text-[13px]"
               />
-            </div>
-            <button
+            </InputGroup>
+            <Button
               type="submit"
-              className="h-11 rounded-[8px] bg-primary px-5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              className="h-11 rounded-[8px] px-5 text-[13px] font-semibold"
             >
               Analizar
-            </button>
+            </Button>
           </form>
         </div>
       </div>
@@ -157,9 +165,11 @@ export default function EnterpriseContextPage() {
 
         {contextQuery.isLoading && <LoadingState />}
         {!contextQuery.isLoading && !data && (
-          <div className="rounded-[8px] border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
-            No se pudo cargar la inteligencia empresarial.
-          </div>
+          <Alert variant="destructive" className="rounded-[8px]">
+            <AlertDescription>
+              No se pudo cargar la inteligencia empresarial. Probá actualizar; si persiste, revisá tu sesión.
+            </AlertDescription>
+          </Alert>
         )}
 
         {data && (
@@ -522,12 +532,18 @@ function LoadingState() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="h-28 animate-pulse rounded-[10px] border border-border bg-card" />
+        <Skeleton key={index} className="h-28 rounded-[10px] border border-border" />
       ))}
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">{text}</div>;
+  return (
+    <Empty className="px-4 py-8">
+      <EmptyHeader>
+        <EmptyDescription className="text-[13px]">{text}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }

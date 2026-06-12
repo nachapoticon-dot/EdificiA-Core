@@ -3,7 +3,12 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function ResetPasswordPage() {
   return (
@@ -26,11 +31,13 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm text-center">
-        <p className="text-sm text-destructive">
-          Link inválido. Solicitá un nuevo link desde la pantalla de inicio de sesión.
-        </p>
-        <Link href="/login" className="text-sm font-medium text-primary hover:underline">
+      <div className="space-y-3 p-5 text-center sm:p-6">
+        <Alert variant="destructive" className="rounded-[8px] text-left">
+          <AlertDescription>
+            Link inválido. Solicitá un nuevo link desde la pantalla de inicio de sesión.
+          </AlertDescription>
+        </Alert>
+        <Link href="/login" className="inline-block text-sm font-medium text-primary hover:underline">
           Volver al inicio de sesión
         </Link>
       </div>
@@ -39,13 +46,15 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm text-center">
-        <div className="text-2xl">✅</div>
-        <h2 className="text-base font-semibold">Contraseña actualizada</h2>
+      <div className="space-y-3 p-5 text-center sm:p-6">
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <CheckCircle2 className="h-5 w-5" />
+        </div>
+        <h2 className="font-display text-lg font-medium text-foreground">Contraseña actualizada</h2>
         <p className="text-sm text-muted-foreground">
           Tu contraseña fue cambiada correctamente. Podés iniciar sesión con la nueva contraseña.
         </p>
-        <Button className="w-full mt-2" onClick={() => router.push("/login")}>
+        <Button className="mt-2 h-10 w-full rounded-[8px]" onClick={() => router.push("/login")}>
           Ir al inicio de sesión
         </Button>
       </div>
@@ -86,58 +95,59 @@ function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
-      <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4 p-5 sm:p-6">
+      <FieldGroup className="gap-4">
         <p className="text-sm text-muted-foreground">
           Elegí una nueva contraseña para tu cuenta.
         </p>
 
-        <div className="space-y-1">
-          <label htmlFor="password" className="text-sm font-medium text-foreground">
+        <Field>
+          <FieldLabel htmlFor="password" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Nueva contraseña
-          </label>
-          <input
+          </FieldLabel>
+          <Input
             id="password"
             type="password"
             autoComplete="new-password"
             value={password}
             onChange={(e) => { setPassword(e.target.value); setError(null); }}
             placeholder="Mínimo 10 caracteres"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
+            className="h-10 rounded-[8px] bg-background/80"
             required
           />
-        </div>
+        </Field>
 
-        <div className="space-y-1">
-          <label htmlFor="password2" className="text-sm font-medium text-foreground">
+        <Field>
+          <FieldLabel htmlFor="password2" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Confirmar contraseña
-          </label>
-          <input
+          </FieldLabel>
+          <Input
             id="password2"
             type="password"
             autoComplete="new-password"
             value={password2}
             onChange={(e) => { setPassword2(e.target.value); setError(null); }}
             placeholder="Repetí la contraseña"
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30"
+            className="h-10 rounded-[8px] bg-background/80"
             required
           />
-        </div>
+        </Field>
 
         {error && (
-          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
+          <Alert variant="destructive" className="rounded-[8px]">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         <Button
           type="submit"
-          className="w-full"
+          className="h-10 w-full rounded-[8px]"
           disabled={loading || !password || !password2}
         >
+          {loading && <Spinner />}
           {loading ? "Actualizando..." : "Cambiar contraseña"}
         </Button>
-      </div>
+      </FieldGroup>
     </form>
   );
 }

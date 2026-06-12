@@ -4,11 +4,34 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Building2, Plus, LayoutGrid } from "lucide-react";
 import { useProjectContext } from "@/contexts/ProjectContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { ProjectCard } from "./_components/ProjectCard";
 
 export default function ObrasPage() {
   const { projects, createProject, isLoading, isCreating } = useProjectContext();
-  const [showForm, setShowForm] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -18,11 +41,81 @@ export default function ObrasPage() {
     try {
       await createProject(newName.trim());
       setNewName("");
-      setShowForm(false);
+      setDialogOpen(false);
     } catch {
       setCreateError("No se pudo crear la obra. Verificá tu conexión e intentá de nuevo.");
     }
   }
+
+  function handleOpenChange(open: boolean) {
+    setDialogOpen(open);
+    if (!open) {
+      setNewName("");
+      setCreateError(null);
+    }
+  }
+
+  const createDialog = (
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+      <DialogTrigger
+        render={
+          <Button className="h-9 gap-2 rounded-[8px] text-[13px] font-semibold">
+            <Plus className="h-4 w-4" />
+            Nueva obra
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display font-medium">Nueva obra</DialogTitle>
+          <DialogDescription>
+            Creá el proyecto para empezar a organizar documentos, expedientes y seguimiento de obra.
+          </DialogDescription>
+        </DialogHeader>
+
+        {createError && (
+          <Alert variant="destructive" className="rounded-[8px]">
+            <AlertDescription className="text-xs">{createError}</AlertDescription>
+          </Alert>
+        )}
+
+        <Field>
+          <FieldLabel htmlFor="obra-name" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Nombre de la obra
+          </FieldLabel>
+          <Input
+            id="obra-name"
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleCreate();
+            }}
+            placeholder="Nombre de la obra o proyecto…"
+            className="h-10 rounded-[8px]"
+          />
+        </Field>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            className="rounded-[8px]"
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => void handleCreate()}
+            disabled={!newName.trim() || isCreating}
+            className="gap-2 rounded-[8px]"
+          >
+            {isCreating ? <Spinner /> : <Plus className="h-4 w-4" />}
+            {isCreating ? "Creando…" : "Crear obra"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-background">
@@ -46,64 +139,8 @@ export default function ObrasPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => setShowForm((v) => !v)}
-              className="flex h-9 items-center gap-2 rounded-[8px] bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" />
-              Nueva obra
-            </button>
+            {createDialog}
           </div>
-
-          {/* Inline create form */}
-          {showForm && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="mt-4 overflow-hidden"
-            >
-              {createError && (
-                <p className="mb-2 rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {createError}
-                </p>
-              )}
-              <div className="flex flex-col gap-2 md:flex-row">
-                <div className="relative flex-1">
-                  <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
-                  <input
-                    autoFocus
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreate();
-                      if (e.key === "Escape") { setShowForm(false); setNewName(""); }
-                    }}
-                    placeholder="Nombre de la obra o proyecto…"
-                    className="w-full rounded-[10px] border border-border bg-background py-2.5 pl-10 pr-4 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-                  />
-                </div>
-                <button
-                  onClick={handleCreate}
-                  disabled={!newName.trim() || isCreating}
-                  className="flex h-10 items-center justify-center gap-2 rounded-[8px] bg-primary px-4 text-[13px] font-semibold text-primary-foreground transition-opacity disabled:opacity-40 hover:opacity-90"
-                >
-                  {isCreating
-                    ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                    : <Plus className="h-4 w-4" />
-                  }
-                  {isCreating ? "Creando…" : "Crear"}
-                </button>
-                <button
-                  onClick={() => { setShowForm(false); setNewName(""); setCreateError(null); }}
-                  className="h-10 rounded-[8px] border border-border bg-card px-4 text-[13px] text-muted-foreground transition-colors hover:bg-accent"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </motion.div>
-          )}
         </div>
       </div>
 
@@ -114,7 +151,7 @@ export default function ObrasPage() {
         {isLoading && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-52 animate-pulse rounded-[14px] border border-border bg-card" />
+              <Skeleton key={i} className="h-52 rounded-[14px] border border-border" />
             ))}
           </div>
         )}
@@ -125,24 +162,29 @@ export default function ObrasPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-              className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-border bg-card/70 px-4 py-20 text-center"
           >
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-[16px] border border-border bg-card text-muted-foreground">
-              <Building2 className="h-7 w-7" strokeWidth={1.25} />
-            </div>
-            <h2 className="font-display text-[20px] font-medium text-foreground">
-              Sin obras todavía
-            </h2>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Creá tu primer proyecto para empezar a organizar documentos y auditar presupuestos.
-            </p>
-            <button
-              onClick={() => setShowForm(true)}
-              className="mt-6 flex items-center gap-2 rounded-[10px] bg-primary px-5 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <Plus className="h-4 w-4" />
-              Crear primera obra
-            </button>
+            <Empty className="rounded-[10px] border border-dashed border-border bg-card/70 py-20">
+              <EmptyHeader>
+                <EmptyMedia variant="icon" className="h-16 w-16 rounded-[16px] border border-border bg-card text-muted-foreground">
+                  <Building2 className="h-7 w-7" strokeWidth={1.25} />
+                </EmptyMedia>
+                <EmptyTitle className="font-display text-[20px] font-medium text-foreground">
+                  Sin obras todavía
+                </EmptyTitle>
+                <EmptyDescription className="max-w-xs text-sm leading-relaxed">
+                  Creá tu primer proyecto para empezar a organizar documentos y auditar presupuestos.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  onClick={() => setDialogOpen(true)}
+                  className="gap-2 rounded-[10px] px-5 text-[13px] font-semibold"
+                >
+                  <Plus className="h-4 w-4" />
+                  Crear primera obra
+                </Button>
+              </EmptyContent>
+            </Empty>
           </motion.div>
         )}
 

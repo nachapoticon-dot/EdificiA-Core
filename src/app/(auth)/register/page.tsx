@@ -4,6 +4,10 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Spinner } from "@/components/ui/spinner";
 import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { signUpSchema, loginSchema, type SignUpInput } from "@/lib/validators";
 import { apiErrorResponseSchema, okResponseSchema, registerInvitationCheckResponseSchema } from "@/lib/validators/api-responses";
@@ -38,7 +42,9 @@ function RegisterForm() {
   useEffect(() => {
     if (!emailParam || !tokenParam) return;
     void (async () => {
-      const res = await fetch(`/api/auth/register?email=${encodeURIComponent(emailParam)}`);
+      const res = await fetch(
+        `/api/auth/register?email=${encodeURIComponent(emailParam)}&token=${encodeURIComponent(tokenParam)}`,
+      );
       const parsed = registerInvitationCheckResponseSchema.safeParse(await res.json());
       if (parsed.success && parsed.data.authorized) {
         setOrgName(parsed.data.organizationName);
@@ -69,7 +75,8 @@ function RegisterForm() {
     setLoading(true);
     setServerError(null);
     try {
-      const res = await fetch(`/api/auth/register?email=${encodeURIComponent(trimmed)}`);
+      const tokenQuery = inviteToken ? `&token=${encodeURIComponent(inviteToken)}` : "";
+      const res = await fetch(`/api/auth/register?email=${encodeURIComponent(trimmed)}${tokenQuery}`);
       const data: unknown = await res.json();
 
       if (!res.ok) {
@@ -157,19 +164,19 @@ function RegisterForm() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-5 sm:p-6">
       {step === "check" ? (
-        <form onSubmit={handleCheckEmail} noValidate className="space-y-4">
-          <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm">
+        <form onSubmit={handleCheckEmail} noValidate>
+          <FieldGroup className="gap-4">
             <p className="text-xs text-muted-foreground">
               El acceso es por invitación. Ingresá tu email corporativo para verificar si tenés una invitación activa.
             </p>
 
-            <div className="space-y-1">
-              <label htmlFor="email" className="text-sm font-medium text-foreground">
+            <Field data-invalid={!!errors.email || undefined}>
+              <FieldLabel htmlFor="email" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Email corporativo
-              </label>
-              <input
+              </FieldLabel>
+              <Input
                 id="email"
                 name="email"
                 type="email"
@@ -177,41 +184,43 @@ function RegisterForm() {
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setErrors({}); setServerError(null); }}
                 placeholder="ingeniero@empresa.com"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
+                className="h-10 rounded-[8px] bg-background/80"
                 aria-invalid={!!errors.email}
               />
-              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-            </div>
+              <FieldError className="text-xs">{errors.email}</FieldError>
+            </Field>
 
             {serverError && (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{serverError}</p>
+              <Alert variant="destructive" className="rounded-[8px]">
+                <AlertDescription>{serverError}</AlertDescription>
+              </Alert>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading || !email.trim()}>
+            <Button type="submit" className="h-10 w-full rounded-[8px]" disabled={loading || !email.trim()}>
+              {loading && <Spinner />}
               {loading ? "Verificando..." : "Verificar invitación"}
             </Button>
-          </div>
+          </FieldGroup>
         </form>
       ) : (
-        <form onSubmit={handleRegister} noValidate className="space-y-4">
-          <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm">
-            <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary font-medium">
+        <form onSubmit={handleRegister} noValidate>
+          <FieldGroup className="gap-4">
+            <div className="rounded-[8px] border border-primary/20 bg-primary/[0.06] px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">
               Invitación verificada · {orgName}
             </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Email</label>
-              <input
-                type="email"
-                value={email}
-                disabled
-                className="w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
-              />
-            </div>
+            <Field>
+              <FieldLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Email
+              </FieldLabel>
+              <Input type="email" value={email} disabled className="h-10 rounded-[8px]" />
+            </Field>
 
-            <div className="space-y-1">
-              <label htmlFor="name" className="text-sm font-medium text-foreground">Nombre completo</label>
-              <input
+            <Field data-invalid={!!errors.name || undefined}>
+              <FieldLabel htmlFor="name" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Nombre completo
+              </FieldLabel>
+              <Input
                 id="name"
                 name="name"
                 type="text"
@@ -219,15 +228,17 @@ function RegisterForm() {
                 value={form.name}
                 onChange={handleFieldChange}
                 placeholder="Juan García"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
+                className="h-10 rounded-[8px] bg-background/80"
                 aria-invalid={!!errors.name}
               />
-              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-            </div>
+              <FieldError className="text-xs">{errors.name}</FieldError>
+            </Field>
 
-            <div className="space-y-1">
-              <label htmlFor="password" className="text-sm font-medium text-foreground">Contraseña</label>
-              <input
+            <Field data-invalid={!!errors.password || undefined}>
+              <FieldLabel htmlFor="password" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Contraseña
+              </FieldLabel>
+              <Input
                 id="password"
                 name="password"
                 type="password"
@@ -235,15 +246,17 @@ function RegisterForm() {
                 value={form.password}
                 onChange={handleFieldChange}
                 placeholder="Mínimo 10 caracteres, 1 mayúscula, 1 número"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
+                className="h-10 rounded-[8px] bg-background/80"
                 aria-invalid={!!errors.password}
               />
-              {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
-            </div>
+              <FieldError className="text-xs">{errors.password}</FieldError>
+            </Field>
 
-            <div className="space-y-1">
-              <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">Confirmar contraseña</label>
-              <input
+            <Field data-invalid={!!errors.confirmPassword || undefined}>
+              <FieldLabel htmlFor="confirmPassword" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Confirmar contraseña
+              </FieldLabel>
+              <Input
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
@@ -251,28 +264,31 @@ function RegisterForm() {
                 value={form.confirmPassword}
                 onChange={handleFieldChange}
                 placeholder="Repetí tu contraseña"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive"
+                className="h-10 rounded-[8px] bg-background/80"
                 aria-invalid={!!errors.confirmPassword}
               />
-              {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
-            </div>
+              <FieldError className="text-xs">{errors.confirmPassword}</FieldError>
+            </Field>
 
             {serverError && serverError !== "__already_exists__" && (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{serverError}</p>
+              <Alert variant="destructive" className="rounded-[8px]">
+                <AlertDescription>{serverError}</AlertDescription>
+              </Alert>
             )}
             {serverError === "__already_exists__" && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 px-3 py-2 text-sm">
-                <p className="font-medium text-amber-800 dark:text-amber-300">Tu cuenta ya existe.</p>
-                <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                  <Link href="/login" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+              <Alert className="rounded-[8px] border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                <AlertTitle>Tu cuenta ya existe.</AlertTitle>
+                <AlertDescription className="text-amber-700 dark:text-amber-400">
+                  <Link href="/login" className="font-medium underline hover:text-amber-900 dark:hover:text-amber-200">
                     Iniciá sesión
                   </Link>
                   {" "}— tu empresa se activará automáticamente al ingresar.
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading || serverError === "__already_exists__"}>
+            <Button type="submit" className="h-10 w-full rounded-[8px]" disabled={loading || serverError === "__already_exists__"}>
+              {loading && <Spinner />}
               {loading ? "Creando cuenta..." : "Crear cuenta"}
             </Button>
 
@@ -283,11 +299,11 @@ function RegisterForm() {
             >
               ← Cambiar email
             </button>
-          </div>
+          </FieldGroup>
         </form>
       )}
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="border-t border-border/70 pt-4 text-center text-sm text-muted-foreground">
         ¿Ya tenés cuenta?{" "}
         <Link href="/login" className="font-medium text-primary hover:underline">
           Iniciar sesión

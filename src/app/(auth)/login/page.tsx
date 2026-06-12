@@ -4,6 +4,10 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Spinner } from "@/components/ui/spinner";
 import { getInsForgeClient, persistAuthToken } from "@/lib/insforge/client";
 import { loginSchema, type LoginInput } from "@/lib/validators";
 import { ArrowRight, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
@@ -13,6 +17,7 @@ interface LoginApiResponse {
   accessToken?: string;
   refreshToken?: string | null;
   error?: string;
+  code?: "no_invitation" | "invitation_pending";
 }
 
 type FieldErrors = Partial<Record<keyof LoginInput, string>>;
@@ -31,6 +36,7 @@ function LoginForm() {
   const [form, setForm] = useState<LoginInput>({ email: "", password: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
+  const [serverErrorCode, setServerErrorCode] = useState<LoginApiResponse["code"] | null>(null);
   const [loading, setLoading] = useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -38,6 +44,7 @@ function LoginForm() {
     setForm((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: undefined }));
     setServerError(null);
+    setServerErrorCode(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -73,6 +80,7 @@ function LoginForm() {
 
     if (!res.ok || !loginData.accessToken) {
       setServerError(loginData.error ?? "Email o contraseña incorrectos.");
+      setServerErrorCode(loginData.code ?? null);
       return;
     }
 
@@ -119,14 +127,19 @@ function LoginForm() {
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      <FieldGroup className="gap-4">
+        <Field data-invalid={!!errors.email || undefined}>
+          <FieldLabel
+            htmlFor="email"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+          >
             Email
-          </label>
-          <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/55" />
-            <input
+          </FieldLabel>
+          <InputGroup className="h-10 rounded-[8px] bg-background/80 shadow-sm">
+            <InputGroupAddon>
+              <Mail className="text-muted-foreground/55" />
+            </InputGroupAddon>
+            <InputGroupInput
               id="email"
               name="email"
               type="email"
@@ -134,20 +147,20 @@ function LoginForm() {
               value={form.email}
               onChange={handleChange}
               placeholder="nombre@constructora.com"
-              className="w-full rounded-[8px] border border-input bg-background/80 px-3 py-2.5 pl-10 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 aria-invalid:border-destructive"
               aria-invalid={!!errors.email}
             />
-          </div>
-          {errors.email && (
-            <p className="text-xs text-destructive">{errors.email}</p>
-          )}
-        </div>
+          </InputGroup>
+          <FieldError className="text-xs">{errors.email}</FieldError>
+        </Field>
 
-        <div className="space-y-1.5">
+        <Field data-invalid={!!errors.password || undefined}>
           <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <FieldLabel
+              htmlFor="password"
+              className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+            >
               Contraseña
-            </label>
+            </FieldLabel>
             <Link
               href="/forgot-password"
               className="text-xs text-muted-foreground hover:text-primary hover:underline"
@@ -155,9 +168,11 @@ function LoginForm() {
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
-          <div className="relative">
-            <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/55" />
-            <input
+          <InputGroup className="h-10 rounded-[8px] bg-background/80 shadow-sm">
+            <InputGroupAddon>
+              <LockKeyhole className="text-muted-foreground/55" />
+            </InputGroupAddon>
+            <InputGroupInput
               id="password"
               name="password"
               type="password"
@@ -165,26 +180,31 @@ function LoginForm() {
               value={form.password}
               onChange={handleChange}
               placeholder="••••••••••••"
-              className="w-full rounded-[8px] border border-input bg-background/80 px-3 py-2.5 pl-10 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 aria-invalid:border-destructive"
               aria-invalid={!!errors.password}
             />
-          </div>
-          {errors.password && (
-            <p className="text-xs text-destructive">{errors.password}</p>
-          )}
-        </div>
+          </InputGroup>
+          <FieldError className="text-xs">{errors.password}</FieldError>
+        </Field>
 
         {serverError && (
-          <p className="rounded-[8px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {serverError}
-          </p>
+          <Alert variant="destructive" className="rounded-[8px]">
+            <AlertDescription>
+              {serverError}
+              {serverErrorCode === "invitation_pending" && (
+                <Link href="/register" className="mt-1 block font-medium underline underline-offset-2">
+                  Ir a activar mi cuenta →
+                </Link>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
 
         <Button type="submit" className="h-10 w-full gap-2 rounded-[8px]" disabled={loading}>
+          {loading && <Spinner />}
           {loading ? "Ingresando..." : "Entrar al panel"}
           {!loading && <ArrowRight className="h-4 w-4" />}
         </Button>
-      </div>
+      </FieldGroup>
 
       <p className="border-t border-border/70 pt-4 text-center text-sm text-muted-foreground">
         ¿Primera vez?{" "}

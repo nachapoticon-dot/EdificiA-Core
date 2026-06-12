@@ -19,6 +19,16 @@ import { useProjectContext } from "@/contexts/ProjectContext";
 import { useSessionContext } from "@/contexts/SessionContext";
 import { useWorkCases, type WorkCaseEntry } from "@/hooks/useWorkCases";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type GroupMode = "desk" | "status" | "verdict";
 type Status = WorkCaseEntry["status"];
@@ -203,15 +213,16 @@ export default function ExpedientesPage() {
                 <DeskPill label={`${decisionCount} para decidir`} tone={decisionCount > 0 ? "warn" : "neutral"} />
               </div>
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className="ml-auto inline-flex h-9 items-center gap-2 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+              className="ml-auto h-9 gap-2 rounded-[8px] text-[12px]"
             >
               <RotateCcw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
               Actualizar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -224,15 +235,17 @@ export default function ExpedientesPage() {
         </div>
 
         <div className="mt-6 flex flex-col gap-3 rounded-[10px] border border-border bg-card/70 p-3 md:flex-row md:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
+          <InputGroup className="h-10 min-w-0 flex-1 rounded-[8px] bg-card">
+            <InputGroupAddon>
+              <Search className="text-muted-foreground" />
+            </InputGroupAddon>
+            <InputGroupInput
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar por título, resumen, obra o tipo…"
-              className="h-10 w-full rounded-[8px] border border-border bg-card pl-9 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              className="text-[13px]"
             />
-          </div>
+          </InputGroup>
           <div className="flex flex-wrap items-center gap-2">
             <SegmentedButton
               active={groupMode === "desk"}
@@ -268,19 +281,23 @@ export default function ExpedientesPage() {
         {isLoading && (
           <div className="mt-6 space-y-3">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-20 animate-pulse rounded-[8px] border border-border bg-card" />
+              <Skeleton key={index} className="h-20 rounded-[8px] border border-border" />
             ))}
           </div>
         )}
 
         {!isLoading && grouped.length === 0 && (
-          <div className="mt-10 rounded-[8px] border border-border bg-card px-4 py-8 text-center">
-            <BriefcaseBusiness className="mx-auto h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
-            <p className="mt-3 text-[14px] font-medium text-foreground">Sin expedientes para mostrar</p>
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              Los expedientes se crean desde obras, auditorías documentales y sesiones operativas.
-            </p>
-          </div>
+          <Empty className="mt-10 rounded-[8px] border border-border bg-card py-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon" className="text-muted-foreground">
+                <BriefcaseBusiness className="h-6 w-6" strokeWidth={1.5} />
+              </EmptyMedia>
+              <EmptyTitle className="text-[14px] font-medium">Sin expedientes para mostrar</EmptyTitle>
+              <EmptyDescription className="text-[12px]">
+                Los expedientes se crean desde obras, auditorías documentales y sesiones operativas.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
 
         {!isLoading && grouped.length > 0 && (
@@ -417,26 +434,30 @@ function WorkCaseRow({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => onOpenDetail(workCase)}
           disabled={!workCase.projectId}
-          className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+          className="h-8 gap-1.5 rounded-[8px] text-[12px]"
         >
           <ShieldCheck className="h-3.5 w-3.5" />
           Expediente
           <ArrowUpRight className="h-3 w-3" />
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => onOpenChat(workCase)}
           disabled={!workCase.chatSessionId}
-          className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+          className="h-8 gap-1.5 rounded-[8px] text-[12px]"
         >
           <MessageSquare className="h-3.5 w-3.5" />
           Chat
           <ArrowUpRight className="h-3 w-3" />
-        </button>
+        </Button>
       </div>
     </div>
   );

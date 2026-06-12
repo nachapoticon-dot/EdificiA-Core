@@ -1,7 +1,7 @@
 /**
  * Universal File Processor — dispatches to the correct engine based on file type.
  * Supported now: Excel, PDF, DXF, DOCX, Images.
- * Not supported: DWG (binary proprietary — see docs/05_future_roadmap.md).
+ * Not supported: DWG (binary proprietary — rejected with guidance to export DXF).
  */
 
 export * from "./types";

@@ -20,7 +20,6 @@ export interface DbError {
 
 // `data` es `any` deliberadamente: replica el tipado laxo del SDK de InsForge;
 // los call-sites existentes castean el shape concreto con `as`.
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface DbResult<T = any> {
   data: T | null;
   error: DbError | null;
@@ -71,7 +70,6 @@ export interface AdminAuth {
   getProfile(userId: string): Promise<{ data: any; error: DbError | null }>;
   refreshSession(args: { refreshToken: string }): Promise<{ data: any; error: DbError | null }>;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export interface AdminClient {
   database: { from(table: string): DbQueryBuilder };
