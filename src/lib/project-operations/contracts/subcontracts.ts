@@ -62,6 +62,8 @@ export interface AuditSubcontractsResult {
   currency: string;
   byStatus: Record<string, { count: number; amount: number }>;
   byTrade: Array<{ trade: string; count: number; amount: number; incidencePct: number }>;
+  /** Quién hace qué: sin esto el agente no puede responder "¿con quién hacemos X rubro?". */
+  contracts: Array<{ vendorName: string; trade: string | null; amount: number | null; currency: string | null; status: string; endDate: string | null }>;
   endingSoon: Array<{ id: string; vendorName: string; trade: string | null; endDate: string; daysToEnd: number; amount: number | null }>;
   expired: Array<{ id: string; vendorName: string; trade: string | null; endDate: string; daysOverdue: number; amount: number | null }>;
   summary: string;
@@ -223,6 +225,15 @@ export async function auditSubcontracts(input: AuditSubcontractsInput): Promise<
   ];
   if (totalRetentionAmount > 0) summaryParts.push(`retenciones estimadas ${currency} ${roundMoney(totalRetentionAmount)}`);
 
+  const contracts = rows.slice(0, 30).map((row) => ({
+    vendorName: row.vendor_name,
+    trade: row.trade,
+    amount: toNumber(row.contract_amount),
+    currency: row.currency,
+    status: row.status,
+    endDate: row.end_date,
+  }));
+
   return {
     ok: true,
     projectId: input.projectId,
@@ -234,6 +245,7 @@ export async function auditSubcontracts(input: AuditSubcontractsInput): Promise<
     currency,
     byStatus,
     byTrade,
+    contracts,
     endingSoon: endingSoon.slice(0, 12),
     expired: expired.slice(0, 12),
     summary: summaryParts.join(" · "),
@@ -252,6 +264,7 @@ function emptyAudit(projectId: string, summary: string): AuditSubcontractsResult
     currency: "ARS",
     byStatus: {},
     byTrade: [],
+    contracts: [],
     endingSoon: [],
     expired: [],
     summary,

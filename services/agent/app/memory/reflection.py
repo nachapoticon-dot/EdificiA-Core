@@ -17,6 +17,33 @@ from app.memory.store import save_memory
 
 log = logging.getLogger("agent.reflection")
 
+
+def _extract_json_array(raw: str) -> list | None:
+    """Extrae el primer array JSON del texto del modelo.
+
+    Los modelos thinking suelen envolver el JSON en preámbulo, razonamiento o
+    fences; parsear el texto crudo directo falla casi siempre. Se busca el
+    primer '[' y se intenta desde ahí hasta cada ']' candidato (de atrás hacia
+    adelante) para tolerar texto posterior.
+    """
+    raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else None
+    except json.JSONDecodeError:
+        pass
+    start = raw.find("[")
+    if start == -1:
+        return None
+    end = raw.rfind("]")
+    while end > start:
+        try:
+            parsed = json.loads(raw[start : end + 1])
+            return parsed if isinstance(parsed, list) else None
+        except json.JSONDecodeError:
+            end = raw.rfind("]", start, end)
+    return None
+
 REFLECTION_PROMPT = """Sos el módulo de memoria de un agente de gestión de obras de construcción.
 Analizá el intercambio y extraé SOLO aprendizajes durables que sirvan en futuras conversaciones
 con esta misma constructora: preferencias del usuario, hechos de la empresa u obra, correcciones
@@ -61,10 +88,11 @@ async def reflect_on_turn(
             temperature=0.1,
             max_tokens=600,
         )
-        raw = (completion.choices[0].message.content or "").strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        items = json.loads(raw)
-        if not isinstance(items, list):
+        message = completion.choices[0].message
+        raw = (message.content or "").strip() or (getattr(message, "reasoning_content", None) or "").strip()
+        items = _extract_json_array(raw)
+        if items is None:
+            log.warning("reflection output sin JSON array (primeros 200 chars): %r", raw[:200])
             return 0
 
         saved = 0
@@ -150,10 +178,11 @@ async def reflect_on_case_closure(
             temperature=0.1,
             max_tokens=500,
         )
-        raw = (completion.choices[0].message.content or "").strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        items = json.loads(raw)
-        if not isinstance(items, list):
+        message = completion.choices[0].message
+        raw = (message.content or "").strip() or (getattr(message, "reasoning_content", None) or "").strip()
+        items = _extract_json_array(raw)
+        if items is None:
+            log.warning("case reflection output sin JSON array (primeros 200 chars): %r", raw[:200])
             return 0
 
         saved = 0

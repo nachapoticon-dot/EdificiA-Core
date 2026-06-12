@@ -817,15 +817,15 @@ export const agentTools = {
 
   registrar_snapshot_financiero: tool({
     description:
-      "Registra un snapshot de inversión de la obra (planificado / real / comprometido / facturado / pagado) en una fecha dada. Si ya existe un snapshot para esa fecha, lo actualiza. Úsala cuando el usuario informa cifras concretas como 'al 31/08 llevamos invertidos $X'. NO inventes montos — solo registralos cuando el usuario los provee. Requiere obra activa.",
+      "Registra un snapshot de inversión de la obra en una fecha dada. Si ya existe snapshot para esa fecha, la actualización REEMPLAZA todos los montos: pasá los campos vigentes completos; los que omitas quedan vacíos (null) — nunca uses 0 para 'borrar' un campo, simplemente omitilo. Úsala cuando el usuario informa cifras concretas. MAPEO DE VOCABULARIO → CAMPO (respetalo siempre): 'certificado / certificación / avance certificado / facturado' → invoicedAmount · 'invertido / ejecutado / gastado / costo real' → actualAmount · 'planificado / presupuestado / curva teórica' → plannedAmount · 'comprometido / OC firmadas' → committedAmount · 'pagado / abonado' → paidAmount. CONSISTENCIA DE SERIE: si los snapshots anteriores de esta obra usan un campo (p. ej. invoicedAmount), los valores siguientes de la misma serie van al MISMO campo — no alternes campos entre fechas; ante duda preguntá. NO inventes montos — solo registralos cuando el usuario los provee. Requiere obra activa.",
     inputSchema: z.object({
       projectId:        z.string().describe("UUID de la obra activa"),
       organizationId:   z.string().describe("ID de la organización activa"),
       snapshotDate:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Fecha del snapshot YYYY-MM-DD"),
-      plannedAmount:    z.number().nullable().optional().describe("Monto planificado a esa fecha"),
-      actualAmount:     z.number().nullable().optional().describe("Monto realmente invertido"),
+      plannedAmount:    z.number().nullable().optional().describe("Acumulado planificado/presupuestado a esa fecha (curva teórica)"),
+      actualAmount:     z.number().nullable().optional().describe("Costo real incurrido acumulado ('invertido', 'ejecutado', 'gastado')"),
       committedAmount:  z.number().nullable().optional().describe("Monto comprometido (OC + contratos firmados)"),
-      invoicedAmount:   z.number().nullable().optional().describe("Monto facturado por contratistas"),
+      invoicedAmount:   z.number().nullable().optional().describe("Acumulado certificado/facturado ('certificamos', 'avance certificado')"),
       paidAmount:       z.number().nullable().optional().describe("Monto efectivamente pagado"),
       currency:         z.string().min(3).max(8).optional().describe("Moneda ISO (default ARS)"),
       note:             z.string().max(280).optional().describe("Nota breve de contexto"),
