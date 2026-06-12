@@ -36,6 +36,10 @@ def finish(reason: str = "stop") -> str:
     return event({"type": "finish", "finishReason": reason})
 
 
+def error(error_text: str) -> str:
+    return event({"type": "error", "errorText": error_text})
+
+
 def reasoning_start(block_id: str) -> str:
     return event({"type": "reasoning-start", "id": block_id})
 

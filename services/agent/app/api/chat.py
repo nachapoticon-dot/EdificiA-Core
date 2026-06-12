@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.core import sse
 from app.core.loop import TurnContext, TurnResult, run_turn
 from app.core.proactive import fetch_operational_signals, render_signals_block
 from app.core.router import route_model, text_from_ui_message
@@ -19,6 +20,16 @@ from app.memory.store import render_memories_block, retrieve_memories
 
 log = logging.getLogger("agent.chat")
 router = APIRouter()
+
+# Referencias fuertes a las tareas post-turno (contabilidad + reflexión): sin
+# esto asyncio puede recolectarlas a mitad de ejecución y se pierde trazabilidad.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    task = asyncio.get_running_loop().create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 class ChatRequest(BaseModel):
@@ -104,9 +115,14 @@ async def chat_stream(
         try:
             async for event in run_turn(ctx, body.messages, gateway, result):
                 yield event
+        except Exception:  # noqa: BLE001 — el stream jamás muere mudo: el frontend necesita error+[DONE]
+            log.exception("turn crashed mid-stream org=%s session=%s", ctx.org_id, ctx.chat_session_id)
+            yield sse.error("El agente tuvo un problema procesando este turno. Reintentá en unos segundos.")
+            yield sse.finish("error")
+            yield sse.done()
         finally:
             # Contabilidad + reflexión fuera del stream para no demorar el [DONE]
-            asyncio.get_running_loop().create_task(_account_and_reflect(ctx, result, user_text))
+            _spawn_background(_account_and_reflect(ctx, result, user_text))
 
     return StreamingResponse(
         stream(),
