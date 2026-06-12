@@ -2,10 +2,23 @@
 
 import { useState } from "react";
 import { FileSpreadsheet, FileText, FileCode2, FileType2, Image, Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
 import type { SessionEntry } from "@/hooks/useSessionHistory";
 import { cn } from "@/lib/utils";
+
+type PendingDelete =
+  | { kind: "one"; id: string; title: string }
+  | { kind: "all" };
 
 const FILE_ICONS = {
   excel: FileSpreadsheet,
@@ -34,6 +47,20 @@ interface Props {
 
 export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect }: Props) {
   const { sessions, clearAll, deleteSession } = useSessionHistory();
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    if (pendingDelete.kind === "all") {
+      clearAll();
+      onNewSession();
+    } else {
+      deleteSession(pendingDelete.id);
+      // If deleting the active session, start a new one
+      if (pendingDelete.id === currentSessionId) onNewSession();
+    }
+    setPendingDelete(null);
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -44,7 +71,7 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
         </span>
         {sessions.length > 0 && (
           <button
-            onClick={clearAll}
+            onClick={() => setPendingDelete({ kind: "all" })}
             title="Limpiar todo el historial"
             className="text-muted-foreground/40 hover:text-destructive transition-colors"
           >
@@ -74,15 +101,37 @@ export function SessionSidebar({ currentSessionId, onNewSession, onSessionSelect
                 onClick={() => onSessionSelect(s)}
                 onDelete={(e) => {
                   e.stopPropagation();
-                  deleteSession(s.id);
-                  // If deleting the active session, start a new one
-                  if (s.id === currentSessionId) onNewSession();
+                  setPendingDelete({ kind: "one", id: s.id, title: s.title });
                 }}
               />
             ))}
           </div>
         </ScrollArea>
       )}
+
+      {/* Confirmación antes de borrar (una conversación o todo el historial) */}
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingDelete?.kind === "all" ? "Limpiar todo el historial" : "Eliminar conversación"}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingDelete?.kind === "all"
+                ? "Se van a eliminar todas las conversaciones del historial. Esta acción no se puede deshacer."
+                : `Se va a eliminar «${pendingDelete?.kind === "one" ? pendingDelete.title : ""}». Esta acción no se puede deshacer.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPendingDelete(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" size="sm" onClick={confirmDelete}>
+              {pendingDelete?.kind === "all" ? "Eliminar todo" : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

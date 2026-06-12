@@ -75,15 +75,19 @@ async def chat_stream(
     route = route_model(body.messages)
     scope = runtime_ctx.get("agentScope") or {}
 
-    # Memoria episódica (aprendizaje real) + señales operativas vivas (PM continuo)
+    # Memoria episódica (aprendizaje real) + señales operativas vivas (PM continuo).
+    # En paralelo: la memoria embebe el texto vía NVIDIA (~cientos de ms) y las
+    # señales solo leen Postgres — secuenciarlas suma latencia al primer token.
     user_text = text_from_ui_message(body.messages[-1]) if body.messages else ""
-    memories = await retrieve_memories(
-        org_id=body.orgId,
-        query_text=user_text,
-        project_id=runtime_ctx.get("auditProjectId"),
-        work_case_id=scope.get("workCaseId"),
+    memories, signals = await asyncio.gather(
+        retrieve_memories(
+            org_id=body.orgId,
+            query_text=user_text,
+            project_id=runtime_ctx.get("auditProjectId"),
+            work_case_id=scope.get("workCaseId"),
+        ),
+        fetch_operational_signals(body.orgId, runtime_ctx.get("auditProjectId")),
     )
-    signals = await fetch_operational_signals(body.orgId, runtime_ctx.get("auditProjectId"))
     system_prompt = runtime_ctx["systemPrompt"] + render_signals_block(signals) + render_memories_block(memories)
 
     ctx = TurnContext(
