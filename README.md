@@ -27,7 +27,7 @@ Estado actual: el producto corre **100% sobre infraestructura propia** (PostgreS
 ## Documentación y Planificación
 
 - 📌 **[docs/00_PRODUCTO.md](./docs/00_PRODUCTO.md)**: Visión canónica, estado del sistema y pendientes vigentes.
-- 📚 **[/docs](./docs)**: Documentación de arquitectura, dominio y stack.
+- 🧭 **[docs/EXPLICACION_PROYECTO_PARA_VOS.md](./docs/EXPLICACION_PROYECTO_PARA_VOS.md)**: Mapa técnico — stack y cómo se conectan frontend, backend, agente y DB.
 
 ---
 

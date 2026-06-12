@@ -11,7 +11,7 @@
 ## Verificación (QA)
 - [ ] El código compila localmente sin errores de TypeScript.
 - [ ] Se revisó el diseño con Puppeteer/Visión (si aplica).
-- [ ] El Mapa de Arquitectura (`docs/04_architecture_map.md`) fue actualizado (si aplica).
+- [ ] La documentación (`docs/EXPLICACION_PROYECTO_PARA_VOS.md` / `docs/00_PRODUCTO.md`) fue actualizada (si aplica).
 
 ## Capturas de Pantalla (Opcional)
 <!-- Si este PR cambia la UI, añade capturas de pantalla del Antes y Después. -->
