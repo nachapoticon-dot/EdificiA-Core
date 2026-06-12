@@ -16,7 +16,7 @@ Este proyecto se desarrolla mediante una colaboración híbrida (Humano + IA). L
 - Todo el código debe estar escrito en **TypeScript** estricto.
 - Utiliza **Zod** para la validación de esquemas de datos.
 - Sigue el patrón de "Responsabilidad Única" (Single Responsibility Principle) en los componentes de React.
-- Si agregas una librería nueva o un servicio, **actualiza obligatoriamente** el archivo `docs/04_architecture_map.md`.
+- Si agregas una librería nueva o un servicio, **actualiza obligatoriamente** la tabla de stack en `docs/EXPLICACION_PROYECTO_PARA_VOS.md`.
 
 ## 4. Reporte de Errores
 Si encuentras un error, por favor utiliza la pestaña "Issues" de GitHub y selecciona la plantilla de "Bug Report".
