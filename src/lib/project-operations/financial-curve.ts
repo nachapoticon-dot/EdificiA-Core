@@ -19,6 +19,7 @@ export interface CurveDataPoint {
   planned: number | null;
   actual: number | null;
   committed: number | null;
+  invoiced: number | null;
   deviationPct: number | null;
 }
 
@@ -91,8 +92,11 @@ export async function auditInvestmentCurve(input: {
     const planned = toNumber(row.planned_amount);
     const actual = toNumber(row.actual_amount);
     const committed = toNumber(row.committed_amount);
-    const reference = Math.max(actual ?? 0, committed ?? 0);
-    const deviationPct = planned && planned > 0 && (actual != null || committed != null)
+    const invoiced = toNumber(row.invoiced_amount);
+    // Sin costo real cargado, el certificado es el proxy estándar de avance.
+    const progressValue = actual ?? invoiced;
+    const reference = Math.max(progressValue ?? 0, committed ?? 0);
+    const deviationPct = planned && planned > 0 && (progressValue != null || committed != null)
       ? round2(((reference - planned) / planned) * 100)
       : null;
     return {
@@ -100,6 +104,7 @@ export async function auditInvestmentCurve(input: {
       planned,
       actual,
       committed,
+      invoiced,
       deviationPct,
     };
   });
@@ -111,11 +116,12 @@ export async function auditInvestmentCurve(input: {
   const invoiced = toNumber(latestRow.invoiced_amount);
   const paid = toNumber(latestRow.paid_amount);
 
-  const actualVsPlannedPct = planned && planned > 0 && actual != null ? round2((actual / planned) * 100) : null;
+  const latestProgress = actual ?? invoiced;
+  const actualVsPlannedPct = planned && planned > 0 && latestProgress != null ? round2((latestProgress / planned) * 100) : null;
   const committedVsPlannedPct = planned && planned > 0 && committed != null ? round2((committed / planned) * 100) : null;
 
-  const referenceLatest = Math.max(actual ?? 0, committed ?? 0);
-  const deviationPct = planned && planned > 0 && (actual != null || committed != null)
+  const referenceLatest = Math.max(latestProgress ?? 0, committed ?? 0);
+  const deviationPct = planned && planned > 0 && (latestProgress != null || committed != null)
     ? round2(((referenceLatest - planned) / planned) * 100)
     : null;
   const overrunPct = deviationPct != null && deviationPct > 0 ? deviationPct : null;
@@ -128,6 +134,15 @@ export async function auditInvestmentCurve(input: {
     seenDates.add(date);
   }
   if (planned == null) warnings.push("El último snapshot no tiene planned_amount, no es posible auditar el desvío.");
+
+  // Serie inconsistente: algunas fechas con costo real y otras solo con certificado
+  // (típico de registros que alternaron campo). El avance igual se computa con el
+  // proxy, pero conviene normalizar la serie.
+  const hasActualOnly = rows.some((r) => toNumber(r.actual_amount) != null && toNumber(r.invoiced_amount) == null);
+  const hasInvoicedOnly = rows.some((r) => toNumber(r.actual_amount) == null && toNumber(r.invoiced_amount) != null);
+  if (hasActualOnly && hasInvoicedOnly) {
+    warnings.push("La serie mezcla snapshots con costo real (actual) y snapshots solo con certificado (invoiced); conviene unificar el campo de la serie para comparar períodos.");
+  }
 
   let status: CurveStatus;
   if (deviationPct == null) status = "sin_datos";
