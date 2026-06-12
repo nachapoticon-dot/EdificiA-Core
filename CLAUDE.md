@@ -24,8 +24,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 ### Coordinación entre agentes
 
 - Este archivo (`CLAUDE.md`) es la **única guía operativa canónica**. Si otro agente necesita guía, debe leer este archivo; no mantener copias paralelas.
-- Al terminar una tarea relevante o dejar trabajo incompleto, agregar una entrada breve en `docs/AI_WORKLOG.md`.
-- Antes de retomar una tarea iniciada por otro agente, revisar `docs/AI_WORKLOG.md`.
+- No existe worklog entre agentes: el handoff es el historial de git (commits descriptivos) y los pendientes en `docs/00_PRODUCTO.md`.
 
 ### Toma de decisiones
 
@@ -67,7 +66,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 | Auth | Propia: `auth.users` + bcryptjs + JWT HS256 local (`AUTH_JWT_SECRET`) + refresh tokens con rotación | `src/lib/auth/local-auth.ts` · `local-jwt.ts` |
 | Storage | Filesystem local (`STORAGE_DIR`, default `./data/storage`) con interfaz de adapter | `src/lib/storage/fs-adapter.ts` |
 | Vector DB | pgvector en el mismo Postgres (`document_chunks.embedding`) | `src/lib/rag/vector.ts` |
-| DB | PostgreSQL 16 + pgvector con RLS multi-tenant | `migrations/` (runner propio `scripts/migrate.mjs`) |
+| DB | PostgreSQL 16 + pgvector — aislamiento multi-tenant **app-level** (las policies RLS existen en migraciones pero el backend conecta como owner y las bypassea) | `migrations/` (runner propio `scripts/migrate.mjs`) |
 | Memoria del agente | `agent_memories` + `agent_feedback` (reflexión LLM + feedback + decay) | `services/agent/app/memory/` |
 | Validación | Zod v3 | `src/lib/validators/` |
 | Email | Resend | `src/lib/email/resend.ts` |
@@ -85,6 +84,8 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 ## 5 · Multi-tenancy — Regla absoluta
 
 Toda query a la DB (incluida la búsqueda pgvector) **DEBE** filtrar por `organization_id` (derivado de `auth.orgId`). Columna real: `organization_id`, **NO** `company_id`. Jamás asumir que los datos pueden cruzarse entre orgs. No confiar en IDs enviados por el cliente para aislar tenant: usar siempre el `auth.orgId` resuelto server-side.
+
+> ⚠️ El RLS de las migraciones **no aplica hoy** (el pool conecta como owner, sin GUC por transacción). El filtro `organization_id` en código es la única línea de defensa: omitirlo en una query es un cross-tenant leak directo. Activar RLS real es pendiente en `docs/00_PRODUCTO.md`.
 
 ## 6 · Estructura principal
 
@@ -105,26 +106,21 @@ src/
 └── lib/api/          → errors.ts (helpers estandarizados), rate-limit.ts
 ```
 
-## 7 · Documentación de planificación
+## 7 · Documentación
 
-**ANTES de proponer cambios arquitectónicos, leer estos archivos:**
+Solo hay dos documentos (el resto vive en git y en el código):
 
 | Archivo | Cuándo leerlo |
 |---------|---------------|
-| `docs/00_PRODUCTO.md` | **Siempre al inicio**. Visión canónica, estado del sistema y pendientes vigentes. |
-| `docs/10_plan_agente_especializado.md` | Plan vigente del rediseño del agente (PM Digital). |
-| `docs/04_architecture_map.md` | Para ver el grafo de dependencias y el stack de paquetes. |
-| `docs/03_domain_knowledge.md` | Antes de tocar lógica de auditoría / dominio de obra. |
-| `docs/06_enterprise_context_layer.md` | Antes de tocar Contexto/Inteligencia Empresarial, Fuentes, conectores, RAG empresarial o auditoría transversal. |
-| `docs/07_agentic_document_reading.md` | Antes de modificar prompt, tools de documentos o UX de auditoría. |
-| `docs/08_agent_core_redesign.md` | Antes de tocar chat, sesiones, expedientes o el scope del agente (modelo Empresa → Obra → Expediente). |
+| `docs/00_PRODUCTO.md` | **Al inicio de tareas de producto**. Visión canónica, estado del sistema y pendientes vigentes. |
+| `docs/EXPLICACION_PROYECTO_PARA_VOS.md` | Mapa técnico: stack, flujos frontend↔backend, agente, RAG, auth y tablas. Antes de cambios arquitectónicos. |
 
 ## 7.1 · Decisiones de producto vigentes
 
-1. **Base Documental ya no es un producto separado: vive dentro de Inteligencia / Contexto Empresarial.** EdificIA no debe pensarse como un repositorio de archivos subidos. La carga y preparación de archivos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto a Radar y Mapa Vivo. El objetivo es conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal. Ver `docs/06_enterprise_context_layer.md`.
-2. **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias. Ver `docs/07_agentic_document_reading.md`.
+1. **Base Documental ya no es un producto separado: vive dentro de Inteligencia / Contexto Empresarial.** EdificIA no debe pensarse como un repositorio de archivos subidos. La carga y preparación de archivos es la pestaña **Fuentes** dentro de `/dashboard/contexto`, junto a Radar y Mapa Vivo. El objetivo es conectarse de forma segura y principalmente de solo lectura a fuentes reales de la constructora, construir contexto de empresa, detectar obras activas, clasificar documentos y habilitar auditoría transversal.
+2. **Lectura agéntica de documentos.** El agente no debe comportarse como pipeline hardcodeado de tools. Debe clasificar, formar hipótesis, extraer señales, contrastar con contexto, verificar con tools y sintetizar hechos/riesgos/inferencias.
 3. **Las tools son instrumentos, no el razonamiento.** No diseñar UX ni prompts que digan "ejecutando 9 reglas" o expongan mecánicas internas como si fueran el producto.
-4. **Bloques Shadcn externos como referencia, no código productivo directo.** Nunca correr `npx shadcn add` de un bloque directamente contra `src/` (puede pisar archivos productivos y traer dependencias nuevas). Revisar el código del bloque y adaptarlo a tokens, componentes e identidad de EdificIA antes de incorporar algo a `src/components/`. `docs/design/shadcn-blocks/` es archivo histórico de referencia; no requiere mantenimiento de manifest.
+4. **Bloques Shadcn externos como referencia, no código productivo directo.** Nunca correr `npx shadcn add` de un bloque directamente contra `src/` (puede pisar archivos productivos y traer dependencias nuevas). Revisar el código del bloque y adaptarlo a tokens, componentes e identidad de EdificIA antes de incorporar algo a `src/components/`.
 5. **La identidad del agente es Project Manager Digital; la auditoría es una capacidad bajo señal, no la apertura por defecto.** Con obra activa y sin archivo, el agente abre con el estado operativo del día. El playbook de auditoría se activa cuando llega un documento o el usuario lo pide. No reintroducir el sesgo "¿qué auditamos hoy?" en prompts, quick-prompts ni UX.
 
 ## 8 · Reglas de código
@@ -141,5 +137,4 @@ src/
 - `src/lib/file-processor/` — Procesadores de PDF, Excel, DXF, DOCX, imagen. Funcionan.
 - `src/lib/db/` — Capa de datos compatible. Su semántica ({data,error}, nunca lanza) está codificada en tests; no cambiarla sin actualizar contratos.
 - `migrations/` — ruta canónica de migraciones. Crear con `npm run migrate:new` y aplicar con `npm run migrate`.
-- `docs/archive/db-migrations-legacy/` — histórico read-only de migraciones raw SQL previas.
 - `src/components/chat/blocks/` — 6 bloques de UI Generativa completos y funcionando (metrics, media, comparison, timeline, risk_register, evidence_ledger).
