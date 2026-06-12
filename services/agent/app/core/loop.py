@@ -57,14 +57,38 @@ class TurnResult:
         return rows
 
 
+MAX_PRIOR_TOOL_OUTPUT_CHARS = 600
+
+
 def ui_messages_to_openai(messages: list[dict], system_prompt: str) -> list[dict]:
-    """Convierte UI messages (parts) al formato chat de OpenAI/DeepSeek."""
+    """Convierte UI messages (parts) al formato chat de OpenAI/DeepSeek.
+
+    Los resultados de tools de turnos previos se reinyectan compactados en el
+    mensaje del assistant: sin esto el modelo pierde la evidencia que él mismo
+    verificó (cifras, hallazgos) y re-razona a ciegas en conversaciones largas.
+    """
     out: list[dict] = [{"role": "system", "content": system_prompt}]
     for m in messages:
         role = m.get("role")
         if role not in ("user", "assistant"):
             continue
-        text = "".join(p.get("text") or "" for p in (m.get("parts") or []) if p.get("type") == "text")
+        parts = m.get("parts") or []
+        text = "".join(p.get("text") or "" for p in parts if p.get("type") == "text")
+        if role == "assistant":
+            evidence: list[str] = []
+            for p in parts:
+                ptype = p.get("type") or ""
+                if not (ptype.startswith("tool-") or ptype == "dynamic-tool"):
+                    continue
+                if p.get("state") != "output-available":
+                    continue
+                name = p.get("toolName") or ptype.removeprefix("tool-")
+                output = json.dumps(p.get("output"), ensure_ascii=False, default=str)
+                if len(output) > MAX_PRIOR_TOOL_OUTPUT_CHARS:
+                    output = output[:MAX_PRIOR_TOOL_OUTPUT_CHARS] + "…"
+                evidence.append(f"[evidencia verificada con {name}] {output}")
+            if evidence:
+                text = "\n".join(evidence) + (f"\n{text}" if text.strip() else "")
         if text.strip():
             out.append({"role": role, "content": text})
     return out
@@ -145,12 +169,15 @@ async def run_turn(
                 yield sse.text_delta(tid, delta.content)
 
             for tc in delta.tool_calls or []:
-                entry = tool_calls.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
-                if tc.id:
+                entry = tool_calls.setdefault(tc.index, {"id": "", "name": "", "arguments": "", "sse_id": ""})
+                if tc.id and not entry["id"]:
                     entry["id"] = tc.id
                 if tc.function and tc.function.name:
                     if not entry["name"]:
-                        yield sse.tool_input_start(tc.id or f"call_{step_index}_{tc.index}", tc.function.name)
+                        # Fijar acá el id que verá el frontend: si DeepSeek manda el id
+                        # en un delta posterior, los eventos siguientes deben reusar este.
+                        entry["sse_id"] = entry["id"] or tc.id or f"call_{step_index}_{tc.index}"
+                        yield sse.tool_input_start(entry["sse_id"], tc.function.name)
                     entry["name"] = tc.function.name
                 if tc.function and tc.function.arguments:
                     entry["arguments"] += tc.function.arguments
@@ -176,7 +203,7 @@ async def run_turn(
             "content": content_text or None,
             "tool_calls": [
                 {
-                    "id": call["id"] or f"call_{step_index}_{idx}",
+                    "id": call["sse_id"] or call["id"] or f"call_{step_index}_{idx}",
                     "type": "function",
                     "function": {"name": call["name"], "arguments": call["arguments"] or "{}"},
                 }
@@ -189,7 +216,7 @@ async def run_turn(
         messages.append(assistant_msg)
 
         for idx, call in sorted(tool_calls.items()):
-            call_id = call["id"] or f"call_{step_index}_{idx}"
+            call_id = call["sse_id"] or call["id"] or f"call_{step_index}_{idx}"
             name = call["name"]
             try:
                 parsed_input = json.loads(call["arguments"]) if call["arguments"] else {}
@@ -209,6 +236,7 @@ async def run_turn(
 
             counters = result.tool_telemetry.setdefault(name, {"calls": 0, "errors": 0, "retries": 0})
             counters["calls"] += 1
+            counters["retries"] += int(gw.get("retries") or 0)
             if not gw.get("ok") or _looks_like_error(output):
                 counters["errors"] += 1
 

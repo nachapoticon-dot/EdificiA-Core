@@ -6,6 +6,7 @@ org-binding server-side. Migración gradual de tools a Python después.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
@@ -67,25 +68,38 @@ class ToolGateway:
         project_id: str | None,
         work_case_id: str | None,
     ) -> dict[str, Any]:
-        """Devuelve {ok, output|error}. Nunca lanza por fallas de la tool."""
-        try:
-            res = await self._client.post(
-                f"{self._base}/api/internal/tools/execute",
-                headers=self._headers,
-                json={
-                    "toolName": tool_name,
-                    "input": tool_input,
-                    "context": {
-                        "orgId": org_id,
-                        "userId": user_id,
-                        **({"projectId": project_id} if project_id else {}),
-                        **({"workCaseId": work_case_id} if work_case_id else {}),
-                    },
-                },
-            )
-            return res.json()
-        except Exception as err:  # noqa: BLE001 — el loop decide cómo informar al modelo
-            return {"ok": False, "error": f"tool gateway error: {err}"}
+        """Devuelve {ok, output|error, retries}. Nunca lanza por fallas de la tool.
+
+        Reintenta UNA vez solo ante fallas de transporte (red/timeout de connect);
+        los errores de la tool en sí no se reintentan: el modelo decide qué hacer.
+        """
+        body = {
+            "toolName": tool_name,
+            "input": tool_input,
+            "context": {
+                "orgId": org_id,
+                "userId": user_id,
+                **({"projectId": project_id} if project_id else {}),
+                **({"workCaseId": work_case_id} if work_case_id else {}),
+            },
+        }
+        retries = 0
+        for attempt in (1, 2):
+            try:
+                res = await self._client.post(
+                    f"{self._base}/api/internal/tools/execute", headers=self._headers, json=body,
+                )
+                payload = res.json()
+                payload["retries"] = retries
+                return payload
+            except httpx.TransportError as err:
+                if attempt == 2:
+                    return {"ok": False, "error": f"tool gateway error: {err}", "retries": retries}
+                retries += 1
+                await asyncio.sleep(0.5)
+            except Exception as err:  # noqa: BLE001 — el loop decide cómo informar al modelo
+                return {"ok": False, "error": f"tool gateway error: {err}", "retries": retries}
+        return {"ok": False, "error": "tool gateway error: unreachable", "retries": retries}
 
 
 def manifest_to_openai_tools(manifest: list[dict[str, Any]]) -> list[dict[str, Any]]:
