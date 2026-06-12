@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { localUpdatePassword } from "@/lib/auth/local-auth";
 import { verifyResetToken } from "@/lib/auth/reset-token";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,10 @@ const schema = z.object({
 });
 
 export async function PUT(req: Request) {
+  if (!checkRateLimit(rateLimitKey(req, "reset-password"), "auth")) {
+    return Response.json({ error: "Demasiados intentos. Esperá un minuto." }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await req.json();

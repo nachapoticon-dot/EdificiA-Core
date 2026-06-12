@@ -2,10 +2,15 @@ import { z } from "zod";
 import { localFindUserIdByEmail } from "@/lib/auth/local-auth";
 import { signResetToken } from "@/lib/auth/reset-token";
 import { sendPasswordResetEmail } from "@/lib/email/resend";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  if (!checkRateLimit(rateLimitKey(req, "forgot-password"), "auth")) {
+    return Response.json({ error: "Demasiados intentos. Esperá un minuto." }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
