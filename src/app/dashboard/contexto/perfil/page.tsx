@@ -23,6 +23,10 @@ import {
   type EnterpriseProfileResponse,
 } from "@/lib/validators/api-responses";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type EntityRow = EnterpriseProfileResponse["entities"][number];
 type PatternRow = EnterpriseProfileResponse["patterns"][number];
@@ -139,35 +143,40 @@ export default function EnterpriseProfilePage() {
                 Snapshot v{data.meta.latestSnapshotVersion} · {new Date(data.meta.latestSnapshotAt).toLocaleString("es-AR")}
               </span>
             )}
-            <button
+            <Button
               type="button"
               onClick={() => refreshMutation.mutate()}
               disabled={refreshMutation.isPending || profileQuery.isFetching}
-              className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-primary px-3 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="h-9 gap-2 rounded-[8px] text-[12px] font-semibold"
             >
               <Sparkles className={cn("h-3.5 w-3.5", refreshMutation.isPending && "animate-pulse")} />
               {refreshMutation.isPending ? "Recalculando…" : "Recalcular perfil"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => void profileQuery.refetch()}
               disabled={profileQuery.isFetching}
-              className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+              className="h-9 gap-2 rounded-[8px] text-[12px]"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", profileQuery.isFetching && "animate-spin")} />
               Refrescar
-            </button>
+            </Button>
           </div>
         </div>
         {refreshMutation.isError && (
-          <div className="mx-auto mt-4 max-w-6xl rounded-[8px] border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
-            No se pudo recalcular el perfil. Revisá los logs y volvé a intentar.
-          </div>
+          <Alert variant="destructive" className="mx-auto mt-4 max-w-6xl rounded-[8px]">
+            <AlertDescription className="text-[12px]">
+              No se pudo recalcular el perfil. Revisá los logs y volvé a intentar.
+            </AlertDescription>
+          </Alert>
         )}
         {refreshMutation.isSuccess && (
-          <div className="mx-auto mt-4 max-w-6xl rounded-[8px] border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">
-            Perfil actualizado a v{refreshMutation.data?.version}. {refreshMutation.data?.entityCount} entidades · {refreshMutation.data?.patternCount} patrones · {refreshMutation.data?.coverageCount} obras.
-          </div>
+          <Alert className="mx-auto mt-4 max-w-6xl rounded-[8px] border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <AlertDescription className="text-[12px] text-emerald-600 dark:text-emerald-400">
+              Perfil actualizado a v{refreshMutation.data?.version}. {refreshMutation.data?.entityCount} entidades · {refreshMutation.data?.patternCount} patrones · {refreshMutation.data?.coverageCount} obras.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 
@@ -175,9 +184,11 @@ export default function EnterpriseProfilePage() {
         {profileQuery.isLoading && <LoadingState />}
 
         {!profileQuery.isLoading && !data && (
-          <div className="rounded-[8px] border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
-            No se pudo cargar el perfil. Probá recalcular para generarlo desde los datos actuales.
-          </div>
+          <Alert variant="destructive" className="rounded-[8px]">
+            <AlertDescription className="text-[13px]">
+              No se pudo cargar el perfil. Probá recalcular para generarlo desde los datos actuales.
+            </AlertDescription>
+          </Alert>
         )}
 
         {data && (
@@ -442,14 +453,20 @@ function LoadingState() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="h-24 animate-pulse rounded-[10px] border border-border bg-card" />
+        <Skeleton key={index} className="h-24 rounded-[10px] border border-border" />
       ))}
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">{text}</div>;
+  return (
+    <Empty className="px-4 py-8">
+      <EmptyHeader>
+        <EmptyDescription className="text-[13px]">{text}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }
 
 function formatPatternValue(kind: PatternRow["patternKind"], value: Record<string, unknown>): string {

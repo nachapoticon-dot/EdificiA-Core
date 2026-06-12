@@ -10,6 +10,11 @@ import { Pool, types } from "pg";
 types.setTypeParser(types.builtins.TIMESTAMPTZ, (v) => new Date(v).toISOString());
 types.setTypeParser(types.builtins.TIMESTAMP, (v) => new Date(`${v}Z`).toISOString());
 types.setTypeParser(types.builtins.DATE, (v) => v); // "YYYY-MM-DD" tal cual
+// PostgREST serializa bigint/numeric como número JSON; pg los devuelve como
+// string. Los schemas Zod del codebase esperan number (file_size_bytes,
+// storage_quota_bytes, contract_amount, etc.).
+types.setTypeParser(types.builtins.INT8, (v) => Number(v));
+types.setTypeParser(types.builtins.NUMERIC, (v) => Number(v));
 
 const globalForPg = globalThis as unknown as { __edificiaPgPool?: Pool };
 

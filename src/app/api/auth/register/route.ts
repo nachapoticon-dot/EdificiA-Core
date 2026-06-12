@@ -130,6 +130,7 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const email = searchParams.get("email")?.toLowerCase().trim() ?? "";
+  const inviteToken = searchParams.get("token")?.trim() ?? "";
 
   if (!email) {
     return Response.json({ error: "Email requerido." }, { status: 400 });
@@ -140,14 +141,28 @@ export async function GET(req: Request) {
   // Primero verificar si es un fundador pre-autorizado
   const { data: founderRows } = await admin.database
     .from("org_founder_invitations")
-    .select("id, company_name")
+    .select("id, company_name, invite_token")
     .eq("email", email)
     .eq("status", "pending")
     .gt("expires_at", new Date().toISOString())
     .limit(1);
 
-  const founder = (founderRows ?? [])[0] as { id: string; company_name: string } | undefined;
+  const founder = (founderRows ?? [])[0] as { id: string; company_name: string; invite_token?: string | null } | undefined;
   if (founder) {
+    if (founder.invite_token) {
+      if (!inviteToken) {
+        return Response.json(
+          { error: "El link de invitación está incompleto. Copiá el link completo desde Super Admin." },
+          { status: 403 },
+        );
+      }
+      if (founder.invite_token !== inviteToken) {
+        return Response.json(
+          { error: "Token de invitación inválido. Copiá nuevamente el link desde Super Admin." },
+          { status: 403 },
+        );
+      }
+    }
     return Response.json(registerInvitationCheckResponseSchema.parse({
       authorized: true,
       organizationName: founder.company_name,

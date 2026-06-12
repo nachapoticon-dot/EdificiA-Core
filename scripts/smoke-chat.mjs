@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Smoke test E2E del agente — corre 3 turnos contra DeepSeek real validando
- * el ciclo reasoning_content que rompió en prod (ver AI_WORKLOG entrada del
- * 2026-05-18 "Hardening de boundaries").
+ * el ciclo reasoning_content de DeepSeek (regresión histórica: el provider
+ * debe reinyectar reasoning_content en la siguiente request).
  *
  * Run con DEEPSEEK_API_KEY ya en env, o como:
  *   node --env-file=.env.local scripts/smoke-chat.mjs
