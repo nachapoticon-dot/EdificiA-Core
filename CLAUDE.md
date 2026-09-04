@@ -10,9 +10,17 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 1. **Leer antes de actuar.** Antes de proponer o escribir código, leer los archivos involucrados. No asumir contenido.
 2. **Verificar tareas activas.** Antes de trabajar sobre el producto (features, arquitectura, prioridades), leer `docs/00_PRODUCTO.md` (visión, estado y pendientes vigentes). No es necesario para consultas puntuales o fixes acotados.
-3. **Preguntar ante ambigüedad.** Si una instrucción admite más de una interpretación, preguntar. No inventar requerimientos.
+3. **Preguntar solo ante ambigüedad material.** Si cambia alcance, usuarios,
+   datos, costo, integración o una decisión difícil de revertir, preguntar. Para
+   detalles pequeños y reversibles, elegir el supuesto más seguro, declararlo y
+   avanzar. No inventar requerimientos.
 4. **Un cambio, un propósito.** Cada edición debe resolver exactamente lo que se pidió. No refactorizar "de paso", no mejorar nombres, no reordenar imports, a menos que se pida explícitamente.
 5. **Probar lo que se toca.** Después de cada cambio, verificar que compila (`npm run type-check`) si es un cambio de tipos, o validar lógica si es runtime. Reportar resultado.
+
+Si la sesión se abrió desde la raíz del Taller, consultar primero
+`.context/INDEX.md` mediante `$recuperar-contexto` para ubicar rutas y líneas.
+Ese índice es regenerable: no sustituye este archivo, `docs/00_PRODUCTO.md` ni
+la lectura del código que se modificará.
 
 ### Comunicación
 
@@ -41,6 +49,7 @@ EdificIA es un **Sistema de Operaciones Autónomo para la Construcción**. El ag
 
 | Regla | Detalle |
 |-------|---------|
+| **Índice acotado** | Antes de explorar muchas carpetas, ejecutar desde la raíz `python3 sistema/contexto/context_index.py query "<necesidad>" --scope EdifcIA --max-tokens 1200`. |
 | **Lectura incremental** | No leer archivos enteros si solo se necesita una sección. Leer por rangos de líneas. |
 | **Ediciones quirúrgicas** | Editar solo las líneas que cambian. Nunca reescribir un archivo completo para cambiar una función. |
 | **No repetir código** | No copiar el archivo entero en la respuesta. Mostrar solo el diff o las líneas relevantes. |

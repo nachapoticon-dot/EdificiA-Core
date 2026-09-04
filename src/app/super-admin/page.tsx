@@ -340,7 +340,7 @@ export default function SuperAdminPage() {
                   </div>
 
                   <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <LoginSignal icon={Building2} label="TENANTS" value="RLS" />
+                    <LoginSignal icon={Building2} label="TENANTS" value="ORG_ID" />
                     <LoginSignal icon={Users} label="ROLES" value="Admin" />
                     <LoginSignal icon={HardDrive} label="CUOTAS" value="Storage" />
                   </div>

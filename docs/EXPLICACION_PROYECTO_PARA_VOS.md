@@ -132,7 +132,7 @@ docker compose up -d postgres   # PostgreSQL 16 + pgvector
 npm run migrate
 npm run dev                     # http://localhost:3000
 # opcional, cerebro Python:
-cd services/agent && uvicorn app.main:app --port 8000
+cd services/agent && .venv/bin/python -m uvicorn app.main:app --port 8000
 colima stop                     # apagar todo
 ```
 

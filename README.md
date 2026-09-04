@@ -18,7 +18,9 @@ Estado actual: el producto corre **100% sobre infraestructura propia** (PostgreS
 - **Generación Autónoma de Documentos** — Produce informes en PDF, memorias descriptivas (.docx) y presupuestos exportables a Excel (.xlsx).
 - **Dashboard Integral** — Vista completa por obra que consolida cobertura documental, expedientes recientes, contactos, agenda, certificaciones y brief diario.
 - **Observabilidad Operativa** — Alerting local multi-tenant para errores de sistema, con panel admin para listar y resolver eventos críticos.
-- **Seguridad Multi-Tenant** — Aislamiento total de datos por constructora con Row-Level Security, ideal para consultores que operan con múltiples firmas.
+- **Seguridad Multi-Tenant** — Aislamiento aplicado en código mediante
+  `organization_id`; activar y probar RLS real sigue pendiente y no debe
+  presentarse como una garantía vigente.
 - **Persistencia Cross-Device** — Las sesiones de chat se sincronizan entre dispositivos vía base de datos.
 - **Memoria Activa Confirmada** — El agente puede guardar aprendizajes empresariales solo con confirmación explícita del usuario y evidencia asociada.
 
@@ -44,7 +46,7 @@ Estado actual: el producto corre **100% sobre infraestructura propia** (PostgreS
 | Vector DB | pgvector (en el mismo PostgreSQL) |
 | Auth | Propia: JWT HS256 local + refresh tokens con rotación |
 | Storage | Filesystem local con interfaz de adapter (`STORAGE_DIR`) |
-| Base de datos | PostgreSQL 16 + pgvector con Row-Level Security multi-tenant |
+| Base de datos | PostgreSQL 16 + pgvector; aislamiento app-level por `organization_id` (RLS real pendiente) |
 | Email transaccional | Resend |
 | Generación de documentos | jsPDF · docx · xlsx |
 
@@ -133,9 +135,9 @@ npm run migrate
 npm run dev
 
 # (Opcional) Cerebro Python del agente — requiere AGENT_BACKEND=python en .env.local
-cd services/agent && python3 -m venv .venv && .venv/bin/pip install -e . \
+cd services/agent && python3 -m venv .venv && .venv/bin/python -m pip install -e . \
   && cp .env.example .env  # completar secrets
-.venv/bin/uvicorn app.main:app --port 8000
+.venv/bin/python -m uvicorn app.main:app --port 8000
 ```
 
 El servidor queda disponible en `http://localhost:3000`.
