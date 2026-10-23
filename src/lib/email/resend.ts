@@ -1,6 +1,12 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Instanciación perezosa: el constructor de Resend lanza si falta la API key,
+// y hacerlo a nivel de módulo rompía `next build` sin RESEND_API_KEY.
+let resendClient: Resend | null = null;
+function getResend(): Resend {
+  resendClient ??= new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
+}
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -30,7 +36,7 @@ export async function sendPasswordResetEmail({
 }: PasswordResetEmailParams): Promise<void> {
   const resetUrl = `${APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: toEmail,
     subject: "Recuperación de contraseña — EdificIA",
@@ -116,7 +122,7 @@ export async function sendInvitationEmail({
   const registerUrl = `${APP_URL}/register?email=${encodeURIComponent(toEmail)}&token=${token}`;
   const roleLabel = ROLE_LABELS[role] ?? role;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: toEmail,
     subject: `Fuiste invitado a ${orgName} en EdificIA`,
