@@ -47,7 +47,3 @@ export async function embedText(text: string): Promise<number[] | null> {
     return null;
   }
 }
-
-export function isEmbeddingConfigured(): boolean {
-  return Boolean(process.env.NVIDIA_API_KEY);
-}

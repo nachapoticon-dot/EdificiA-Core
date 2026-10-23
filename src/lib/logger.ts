@@ -18,7 +18,6 @@ export const logger = pino({
 });
 
 export const httpLogger = logger.child({ module: "http" });
-export const authLogger = logger.child({ module: "auth" });
 export const aiLogger   = logger.child({ module: "ai" });
 export const ragLogger  = logger.child({ module: "rag" });
 export const dbLogger   = logger.child({ module: "db" });

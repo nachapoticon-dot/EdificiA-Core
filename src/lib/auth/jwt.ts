@@ -23,14 +23,6 @@ export function isAuthStrictMode(env: NodeJS.ProcessEnv = process.env): boolean 
   return env.NODE_ENV === "production";
 }
 
-/**
- * Decodes and validates a JWT's `sub` claim.
- * Does NOT verify the signature — use verifyUserId for server-side auth.
- */
-export function decodeUserId(jwt: string): string | null {
-  return decodeClaims(jwt)?.sub ?? null;
-}
-
 /** Decodes userId + profile hints from the JWT payload without verifying signature. */
 export function decodeClaims(jwt: string): { sub: string; email: string | null; name: string | null } | null {
   try {

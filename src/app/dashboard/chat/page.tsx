@@ -8,7 +8,7 @@ import { DefaultChatTransport, type FileUIPart } from "ai";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/input/ChatInput";
 import { DropZone } from "@/components/chat/input/DropZone";
-import { UploadProgressCard } from "@/components/chat/cards/FileCard";
+import { UploadProgressCard } from "@/components/chat/cards/UploadProgressCard";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
 import { AlertTriangle, Compass, Download, Sheet, TrendingUp } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";

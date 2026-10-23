@@ -29,11 +29,6 @@ export function loadMessages(sessionId: string): UIMessage[] {
   }
 }
 
-export function deleteMessages(sessionId: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(PREFIX + sessionId);
-}
-
 // ── Remote helpers ────────────────────────────────────────────────────────────
 
 async function getApiHeaders(): Promise<Record<string, string>> {

@@ -17,7 +17,7 @@ const ROLE_RANK: Record<AuthRole, number> = {
   admin: 2,
 };
 
-export function isAtLeast(role: string, minRole: AuthRole): boolean {
+function isAtLeast(role: string, minRole: AuthRole): boolean {
   const rank = ROLE_RANK[role as AuthRole];
   return rank !== undefined && rank >= ROLE_RANK[minRole];
 }

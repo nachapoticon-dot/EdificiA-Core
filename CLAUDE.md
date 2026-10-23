@@ -88,7 +88,7 @@ src/
 ├── app/api/          → 31 API routes (auth, chat, upload, projects, documents, admin, super-admin, etc.)
 ├── app/dashboard/    → Chat principal, obras/[id], documents, admin, blocks-demo
 ├── app/(auth)/       → Login, registro, forgot/reset password
-├── components/chat/  → ChatInput, MessageBubble, FileCard, DropZone, DxfViewerModal, bloques UI generativa
+├── components/chat/  → ChatInput, MessageBubble, UploadProgressCard, DropZone, DxfViewerModal, bloques UI generativa
 ├── hooks/            → useProjects, useOrgMember, useOrgs, useSessionHistory, useProjectDetails, etc.
 ├── contexts/         → SessionContext, ProjectContext
 ├── lib/ai/           → agent-prompt.ts (system prompt), agent-tools.ts (definiciones), agent-tools-bound.ts (con org-binding)

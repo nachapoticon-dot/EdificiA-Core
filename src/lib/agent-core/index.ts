@@ -1,4 +1,4 @@
-export { AGENT_CAPABILITIES, getCapabilitiesForScope } from "./capability-registry";
+export { getCapabilitiesForScope } from "./capability-registry";
 export { buildAgentCoreScope } from "./context-builder";
 export { buildIdentityModule, composePromptModules } from "./prompt-modules";
 export { ensureWorkCaseForChatSession } from "./work-case-writer";

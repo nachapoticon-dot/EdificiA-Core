@@ -6,7 +6,7 @@ import type { ProcessedFile } from "@/lib/file-processor/types";
 export type ObraRelationType = "contradicts" | "derives_from" | "supersedes" | "references" | "duplicates";
 export type ObraRelationDetector = "system" | "agent" | "user";
 
-export interface UpsertRelationInput {
+interface UpsertRelationInput {
   organizationId: string;
   projectId: string | null;
   sourceFileId: string;
@@ -52,7 +52,7 @@ export interface SemanticRelationCandidate {
  * unique index (org, source, target, type) where detected_by='system' means
  * we can safely upsert. For agent/user, we always insert (caller dedupes).
  */
-export async function upsertObraRelation(input: UpsertRelationInput): Promise<void> {
+async function upsertObraRelation(input: UpsertRelationInput): Promise<void> {
   if (input.sourceFileId === input.targetFileId) return;
   const client = getInsForgeAdminClient();
   const detectedBy: ObraRelationDetector = input.detectedBy ?? "system";
