@@ -2,21 +2,16 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { sendInvitationEmail } from "@/lib/email/resend";
 import { dbLogger, httpLogger } from "@/lib/logger";
 import { superAdminMemberInviteResponseSchema } from "@/lib/validators/api-responses";
+import { isSuperAdminRequest } from "@/lib/auth/super-admin";
 
 export const runtime = "nodejs";
 
-const SUPER_ADMIN_KEY = process.env.SUPER_ADMIN_KEY ?? "";
 // Placeholder UUID for super-admin-created invitations (no real user involved)
 const SYSTEM_INVITER_UUID = "00000000-0000-0000-0000-000000000000";
 
-function authorized(req: Request): boolean {
-  const key = req.headers.get("authorization")?.replace("Bearer ", "");
-  return !!key && key === SUPER_ADMIN_KEY;
-}
-
 /** POST /api/super-admin/members — invite a user to an existing org */
 export async function POST(req: Request): Promise<Response> {
-  if (!authorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as { orgId?: string; email?: string; role?: string };
   const { orgId, role = "admin" } = body;

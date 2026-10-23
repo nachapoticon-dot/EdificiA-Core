@@ -1,14 +1,8 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { okResponseSchema, superAdminCompaniesResponseSchema } from "@/lib/validators/api-responses";
+import { isSuperAdminRequest } from "@/lib/auth/super-admin";
 
 export const runtime = "nodejs";
-
-const SUPER_ADMIN_KEY = process.env.SUPER_ADMIN_KEY ?? "";
-
-function authorized(req: Request): boolean {
-  const key = req.headers.get("authorization")?.replace("Bearer ", "");
-  return !!key && key === SUPER_ADMIN_KEY;
-}
 
 interface OrgRow {
   id: string;
@@ -21,7 +15,7 @@ interface OrgRow {
 
 /** GET /api/super-admin/companies — list all orgs with stats */
 export async function GET(req: Request) {
-  if (!authorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const client = getInsForgeAdminClient();
 
@@ -84,7 +78,7 @@ export async function GET(req: Request) {
 
 /** PATCH /api/super-admin/companies — toggle org disabled state or update subscription */
 export async function PATCH(req: Request) {
-  if (!authorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as { id: string; disabled?: boolean; subscriptionStatus?: string };
   if (!body.id) return Response.json({ error: "id required" }, { status: 400 });

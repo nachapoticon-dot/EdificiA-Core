@@ -1,6 +1,7 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { getQdrantClient, COLLECTION_NAME, EMBEDDING_DIM } from "@/lib/qdrant/client";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { isSuperAdminRequest } from "@/lib/auth/super-admin";
 import {
   superAdminResetRequestSchema,
   superAdminResetResponseSchema,
@@ -9,13 +10,6 @@ import {
 export const runtime = "nodejs";
 
 type DbClient = ReturnType<typeof getInsForgeAdminClient>["database"];
-
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.SUPER_ADMIN_KEY;
-  if (!secret) return false;
-  const auth = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  return auth === secret;
-}
 
 // Tablas globales — orden hoja → raíz para el scope "all"
 const ALL_TABLES = [
@@ -197,7 +191,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "super-admin-reset"), { limit: 6, windowMs: 3_600_000 })) {
     return Response.json({ error: "Too many requests" }, { status: 429 });
   }
-  if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: unknown;
   try {

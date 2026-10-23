@@ -2,6 +2,7 @@ import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { slugify } from "@/lib/utils";
 import { randomBytes } from "crypto";
 import { okResponseSchema, superAdminFounderResponseSchema, superAdminFoundersResponseSchema } from "@/lib/validators/api-responses";
+import { isSuperAdminRequest } from "@/lib/auth/super-admin";
 
 export const runtime = "nodejs";
 
@@ -17,15 +18,8 @@ interface FounderInvitation {
   invite_token?: string | null;
 }
 
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.SUPER_ADMIN_KEY;
-  if (!secret) return false;
-  const auth = (req.headers.get("authorization") ?? "").replace("Bearer ", "");
-  return auth === secret;
-}
-
 export async function GET(req: Request): Promise<Response> {
-  if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const client = getInsForgeAdminClient();
   const { data, error } = await client.database
@@ -38,7 +32,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as { email?: string; company_name?: string; notes?: string };
   if (!body.email || !body.company_name) {
@@ -87,7 +81,7 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 export async function PATCH(req: Request): Promise<Response> {
-  if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as { id?: string };
   if (!body.id) return Response.json({ error: "id requerido" }, { status: 400 });
@@ -111,7 +105,7 @@ export async function PATCH(req: Request): Promise<Response> {
 }
 
 export async function DELETE(req: Request): Promise<Response> {
-  if (!isAuthorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSuperAdminRequest(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
