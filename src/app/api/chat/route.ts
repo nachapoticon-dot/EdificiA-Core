@@ -197,10 +197,10 @@ export async function POST(req: Request) {
       context: { latencyMs, model: route.model, tier: route.tier, chatSessionId: chatSessionId ?? null },
     });
     if (msg.includes("429") || msg.toLowerCase().includes("rate limit")) {
-      return Response.json({ error: "Cuota NVIDIA agotada. Intentá en unos minutos." }, { status: 429 });
+      return Response.json({ error: "Cuota del proveedor de IA (DeepSeek) agotada. Intentá en unos minutos." }, { status: 429 });
     }
     if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
-      return Response.json({ error: "API key NVIDIA inválida." }, { status: 500 });
+      return Response.json({ error: "API key de DeepSeek inválida." }, { status: 500 });
     }
     throw err;
   }
