@@ -36,7 +36,7 @@ graph TD
     %% InsForge
     BrowserClient[InsForge Browser Client\nsrc/lib/insforge/client.ts]
     AdminClient[InsForge Admin Client\nsrc/lib/insforge/server.ts]
-    InsForgeBackend[InsForge BaaS\nhttps://daw63k5s.us-east.insforge.app]
+    InsForgeBackend[InsForge BaaS\nhttps://<appkey>.<region>.insforge.app]
 
     %% DB
     DB[(PostgreSQL RLS\norganizations · organization_members\nprojects · uploaded_files\nchat_sessions · document_chunks\norg_founder_invitations\ncompany_learned_patterns\nproject_phase_docs\naudit_log_events · agent_runs · app_error_events\ndocument_intelligence_reports · operational_findings\nenterprise_sources · enterprise_documents · enterprise_sync_runs\nenterprise_entities · enterprise_entity_aliases · enterprise_patterns\nenterprise_project_coverage · enterprise_profile_snapshots\nproject_schedule_tasks · project_financial_snapshots\nproject_subcontracts · project_hse_records · project_supply_items\nwork_cases · work_case_events · work_case_evidence)]
