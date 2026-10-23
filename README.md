@@ -279,19 +279,6 @@ El proyecto se desarrolló en sprints cortos, en buena parte con asistentes de I
 
 ---
 
-## Posibles próximos pasos
-
-Tomados de `ROADMAP.md`, en orden razonable:
-
-1. Conseguir una URL pública estable (InsForge Deployments, Vercel o Docker propio) y registrar el cron diario de proactividad.
-2. Script reproducible para crear una base desde cero (esquema base + migraciones + bucket `presupuestos`).
-3. Tests de integración de las rutas críticas (`/api/chat`, `/api/upload`, `/api/work-cases`) contra una org de staging.
-4. Conectores read-only de la Etapa 2 (Drive/SharePoint/SQL) con manejo seguro de credenciales.
-5. Rate limiting distribuido y fallback de proveedor LLM.
-6. Rol "auditor externo" con links temporales, entrada por voz y PWA/offline para uso en obra.
-
----
-
 ## Licencia
 
 Copyright (c) 2026 EdificIA. Todos los derechos reservados.
