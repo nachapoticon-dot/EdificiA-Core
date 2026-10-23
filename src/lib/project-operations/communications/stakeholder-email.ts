@@ -3,7 +3,7 @@ import { writeAuditLogEvent } from "@/lib/audit/audit-log";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { dbLogger } from "@/lib/logger";
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+const FROM = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 const MAX_RECIPIENTS = 5;
 const MAX_SUBJECT_LEN = 160;
 const MAX_BODY_LEN = 5000;

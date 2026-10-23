@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 }
 
 function isAuthorizedCronRequest(req: Request): boolean {
-  const secret = process.env.CRON_SECRET ?? process.env.SUPER_ADMIN_KEY;
+  const secret = process.env.CRON_SECRET || process.env.SUPER_ADMIN_KEY;
   if (!secret) return process.env.NODE_ENV !== "production";
 
   const auth = req.headers.get("authorization");

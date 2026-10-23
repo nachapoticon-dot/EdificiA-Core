@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-// CORS is handled dynamically by src/middleware.ts (supports multiple origins correctly).
+// CORS is handled dynamically by src/proxy.ts (supports multiple origins correctly).
 const nextConfig: NextConfig = {
   output: "standalone",
   typedRoutes: true,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // DeepSeek API — V4 Flash por defecto; `deepseek-chat` queda como alias legacy.
-export const AI_MODEL = process.env.AI_MODEL ?? "deepseek-v4-flash";
+export const AI_MODEL = process.env.AI_MODEL || "deepseek-v4-flash";
 
 // Shared schemas used by tools
 export const geometrySummarySchema = z.object({

@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 const SESSION_COOKIE = "edificia_session";
 const REQUEST_ID_HEADER = "x-request-id";
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000")
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);

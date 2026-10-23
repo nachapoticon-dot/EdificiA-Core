@@ -15,7 +15,7 @@
  */
 
 const API_URL = "https://api.deepseek.com/chat/completions";
-const MODEL = process.env.AI_MODEL ?? "deepseek-v4-flash";
+const MODEL = process.env.AI_MODEL || "deepseek-v4-flash";
 const TIMEOUT_MS = 60_000;
 
 const SYSTEM_PROMPT = "Sos un asistente breve. Respondé en una frase corta.";

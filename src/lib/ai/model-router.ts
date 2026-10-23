@@ -23,8 +23,8 @@ export interface ModelRouteDecision {
  * GPT-4 mini, etc.). Until then DEEP falls back to FAST and the routing
  * still records intent so future swaps are zero-cost.
  */
-const FAST_MODEL = process.env.AI_MODEL_FAST ?? AI_MODEL;
-const DEEP_MODEL = process.env.AI_MODEL_DEEP ?? FAST_MODEL;
+const FAST_MODEL = process.env.AI_MODEL_FAST || AI_MODEL;
+const DEEP_MODEL = process.env.AI_MODEL_DEEP || FAST_MODEL;
 
 const CROSS_DOC_KEYWORDS = [
   "cruzar", "cruz ", "cruza ",

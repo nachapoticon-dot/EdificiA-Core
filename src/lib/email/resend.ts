@@ -8,8 +8,8 @@ function getResend(): Resend {
   return resendClient;
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const FROM = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
