@@ -98,7 +98,6 @@ graph TD
 | zod | ^3.24.3 | Validación de schemas E2E |
 | @insforge/sdk | ^1.2.5 | BaaS client — auth, database, storage |
 | ai | ^6.0.168 | Vercel AI SDK — streaming + tools |
-| @ai-sdk/openai | ^3.0.62 | Provider OpenAI estándar (no usado para DeepSeek desde 2026-05-18; queda disponible para futuros providers OpenAI nativos) |
 | @ai-sdk/openai-compatible | ^2.0.46 | Provider DeepSeek — extrae y reinyecta `reasoning_content` que `@ai-sdk/openai` ignora |
 | @ai-sdk/react | ^3.0.171 | React hooks (useChat) |
 | @qdrant/js-client-rest | ^1.17.0 | Qdrant vector DB client |
@@ -110,7 +109,6 @@ graph TD
 | xlsx | ^0.18.5 | Excel parser |
 | pdf-parse | ^2.4.5 | PDF parser |
 | mammoth | ^1.12.0 | DOCX parser |
-| dxf-parser | ^1.1.2 | DXF parser |
 | dxf-viewer | ^1.0.47 | DXF WebGL viewer |
 | docx | ^9.6.1 | DOCX generator |
 | jspdf + jspdf-autotable | ^4.2.1 | PDF generator |
@@ -331,7 +329,6 @@ migrations/ (canónico, InsForge CLI)
 
 scripts/ (operaciones manuales / smoke tests)
     ├── install-git-hooks.mjs       → Configura core.hooksPath=.githooks para hooks versionados
-    ├── migrate.js                  → Wrapper de migración legacy
     ├── verify-wal.sh               → Verificación de WAL/replication
     └── smoke-chat.mjs              → Smoke E2E del agente: 3 turnos multi-turn contra DeepSeek real,
                                       valida ciclo reasoning_content. Ejecutable con `npm run smoke:chat`.

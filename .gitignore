@@ -1,59 +1,41 @@
 # Dependencias
 node_modules/
-.pnp
-.pnp.js
 
-# Testing
-coverage/
-
-# Next.js
+# Build / testing
 .next/
 out/
 build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
 
-# Archivos de Entorno (¡Nunca subir secretos a GitHub!)
+# Entorno (nunca subir secretos)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*.local
 .env.docker
+*.pem
 
-# Logs y Debug
+# Logs y sistema
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .DS_Store
-*.pem
 
 # Vercel
 .vercel
 
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
-
-# Claude Code runtime (settings.local.json tiene permisos aprobados — no versionar)
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
-
-# Ruflo / Claude Flow runtime (estado local, no va al repo)
-.claude-flow/
-.swarm/
-agentdb.rvf
-agentdb.rvf.lock
-ruvector.db
-mcp-servers/
-
-# Scripts de debugging one-off (contienen datos de prueba, no van al repo)
+# Scripts de debugging one-off (contienen datos de prueba)
 scripts/test-*.mjs
 scripts/test-*.js
 
-# Código legado y prototipos de diseño — propiedad privada, excluidos del repo público
+# Código legado y prototipos de diseño (privados, fuera del repo público)
 _referencias_legadas/
 design_handoff_edificia/
 
-# InsForge & AI agent skills (excepto Claude Code settings que sí se versiona)
+# Estado local de herramientas de IA / InsForge CLI
+.claude/
+.claude-flow/
+.swarm/
 .insforge
 .agent
 .agents
@@ -66,6 +48,3 @@ design_handoff_edificia/
 .roo
 .trae
 .windsurf
-
-# InsForge & AI agent skills
-.claude

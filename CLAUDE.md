@@ -121,7 +121,7 @@ src/
 
 1. **TypeScript estricto**. Validar con Zod. No usar `any` sin justificación.
 2. **Ediciones quirúrgicas**: No reescribir archivos enteros si solo cambia una función.
-3. **No instalar dependencias** sin autorización. Priorizar lo que ya está: Vercel AI SDK, xlsx, pdf-parse, jsPDF, mammoth, dxf-parser.
+3. **No instalar dependencias** sin autorización. Priorizar lo que ya está: Vercel AI SDK, xlsx, pdf-parse, jsPDF, mammoth, dxf-viewer.
 4. **UI Generativa**: Bloques visuales bajo `src/components/chat/blocks/`. No imprimir tablas en Markdown cuando existe un bloque.
 5. **Identidad**: Nunca llamar al producto "startup", "bot" o "SaaS". Es un **Sistema Integral de Gestión** o **Infraestructura Empresarial**.
 
