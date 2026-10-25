@@ -53,42 +53,14 @@ function fileTypeSummary(fileType?: SessionEntry["fileType"]): string {
 
 const ACCEPTED_EXTENSIONS = ".xlsx,.xls,.csv,.pdf,.dxf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp";
 
-const GENERIC_EMAIL_NAMES = new Set([
-  "admin", "administracion", "info", "contacto", "obra", "obras", "proyecto", "proyectos",
-  "ventas", "comercial", "soporte", "contabilidad", "facturacion", "rrhh", "usuario", "user",
-]);
-
-function inferFirstName(identity?: string): string | undefined {
-  const value = identity?.trim();
-  if (!value) return undefined;
-
-  if (!value.includes("@")) {
-    const first = value.replace(/\s+/g, " ").split(" ")[0];
-    return formatNameToken(first);
-  }
-
-  const localPart = value.split("@")[0]?.toLowerCase() ?? "";
-  if (!localPart || /\d/.test(localPart)) return undefined;
-
-  const parts = localPart
-    .split(/[._-]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (parts.length < 2) return undefined;
-  const first = parts[0];
-  if (!first) return undefined;
-  if (GENERIC_EMAIL_NAMES.has(first)) return undefined;
-  return formatNameToken(first);
-}
-
-function formatNameToken(token?: string): string | undefined {
-  if (!token || token.length < 2 || !/^[a-záéíóúñü]+$/i.test(token)) return undefined;
-  return token.charAt(0).toLocaleUpperCase("es-AR") + token.slice(1).toLocaleLowerCase("es-AR");
+/** Primer nombre del usuario; si solo hay email, no se intenta adivinarlo. */
+function firstNameOf(identity?: string): string | undefined {
+  if (!identity || identity.includes("@")) return undefined;
+  return identity.trim().split(/\s+/)[0] || undefined;
 }
 
 export function AgentGreeting({ userName, companyName, agentName, onQuickAction, onSessionSelect, onFileSelect }: AgentGreetingProps) {
-  const firstName = inferFirstName(userName);
+  const firstName = firstNameOf(userName);
   const { sessions } = useSessionHistory();
   const { projects, activeProject, createProject, activateProject, isLoading, isCreating } = useProjectContext();
   const { data: coverage } = useProjectCoverage(activeProject?.id ?? null);
@@ -119,7 +91,6 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
     setNewProjectName("");
   }
 
-  /* ── PROJECT PICKER — no active project ─────────────────────── */
   if (!activeProject) {
     return (
       <div className="py-6">
@@ -130,7 +101,7 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
           >
             <span className="h-px w-4 bg-primary" />
             <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-primary">
-              {companyName ? `${companyName} · ${agentName ?? "EdificIA"}` : "EdificIA · auditoría asistida"}
+              {companyName ? `${companyName} · ${agentName ?? "EdificIA"}` : "EdificIA"}
             </span>
             <span className="h-px w-4 bg-primary" />
           </motion.div>
@@ -243,7 +214,6 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
     );
   }
 
-  /* ── NORMAL WELCOME — project selected ───────────────────────── */
   return (
     <div className="py-6">
       <div className="mx-auto max-w-[720px] px-6">
@@ -412,8 +382,6 @@ export function AgentGreeting({ userName, companyName, agentName, onQuickAction,
     </div>
   );
 }
-
-/* ── Shared sub-components ───────────────────────────────────── */
 
 function ProjectRow({ project, isLast, onClick }: { project: Project; isLast: boolean; onClick: () => void }) {
   return (

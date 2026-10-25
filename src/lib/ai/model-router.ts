@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { AI_MODEL } from "./agent-prompt";
+import { AI_MODEL } from "./prompt";
 
 export type ModelTier = "fast" | "deep";
 

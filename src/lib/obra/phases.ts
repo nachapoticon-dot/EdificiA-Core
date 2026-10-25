@@ -101,8 +101,6 @@ export const OBRA_PHASES: ObraPhase[] = [
   },
 ];
 
-// ── Keyword classifier ────────────────────────────────────────
-
 const PHASE_KEYWORDS: { key: string; words: string[] }[] = [
   { key: "fundaciones",        words: ["fundacion", "fundaciones", "cimiento", "cimientos", "zapata", "pilote", "excavacion"] },
   { key: "estructura",         words: ["estructura", "estructural", "columna", "viga", "losa", "hormigon", "armado", "reticulado"] },

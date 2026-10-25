@@ -25,13 +25,6 @@ export interface AuditIssue {
   ruleId: string;
 }
 
-/** @deprecated use AuditIssue */
-export interface ExclusionLogica {
-  code: string;
-  description: string;
-  issue: string;
-}
-
 export interface IncidenceResult {
   subgroupCodes: string[];
   subgroupTotal: number;
@@ -63,8 +56,8 @@ export function validarCierreDeTotal(
   const ok = relativeDeltaPct <= tolerancePct && lineErrors.length === 0;
 
   const summary = ok
-    ? `✓ El presupuesto cierra correctamente. Costo directo calculado: $${computedTotal.toLocaleString("es-AR")}.`
-    : `✗ Se detectaron ${lineErrors.length} línea(s) con error y una diferencia total de $${absoluteDelta.toFixed(2)} (${(relativeDeltaPct * 100).toFixed(2)}%).`;
+    ? `El presupuesto cierra correctamente. Costo directo calculado: $${computedTotal.toLocaleString("es-AR")}.`
+    : `Se detectaron ${lineErrors.length} línea(s) con error y una diferencia total de $${absoluteDelta.toFixed(2)} (${(relativeDeltaPct * 100).toFixed(2)}%).`;
 
   return {
     ok,

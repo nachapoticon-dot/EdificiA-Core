@@ -51,7 +51,6 @@ export function scanForPii(text: string): PiiScanResult {
     phone: new Set(),
   };
 
-  // ── CUIT / CUIL ─────────────────────────────────────────────────────────
   // Acepta XX-XXXXXXXX-X o 11 dígitos seguidos; valida checksum.
   const CUIT_RE = /\b(\d{2})[-\s]?(\d{8})[-\s]?(\d)\b/g;
   for (const m of text.matchAll(CUIT_RE)) {
@@ -59,7 +58,6 @@ export function scanForPii(text: string): PiiScanResult {
     if (isValidCuit(digits)) matches.cuit.add(digits);
   }
 
-  // ── DNI ─────────────────────────────────────────────────────────────────
   // 7-8 dígitos, opcionalmente con puntos. Requiere contexto léxico para
   // evitar falsos positivos sobre montos, códigos de ítem, etc.
   const DNI_RE = /\b(?:DNI|D\.N\.I\.?|documento(?:\s+nacional)?(?:\s+de\s+identidad)?)\s*(?:N[º°o]?\.?\s*)?[:#]?\s*(\d{1,2}[.\s]?\d{3}[.\s]?\d{3}|\d{7,8})\b/gi;
@@ -68,20 +66,17 @@ export function scanForPii(text: string): PiiScanResult {
     if (digits.length >= 7 && digits.length <= 8) matches.dni.add(digits);
   }
 
-  // ── CBU ─────────────────────────────────────────────────────────────────
   // 22 dígitos consecutivos. Validar checksum (2 bloques de 11).
   const CBU_RE = /\b\d{22}\b/g;
   for (const m of text.matchAll(CBU_RE)) {
     if (isValidCbu(m[0])) matches.cbu.add(m[0]);
   }
 
-  // ── Email ───────────────────────────────────────────────────────────────
   const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
   for (const m of text.matchAll(EMAIL_RE)) {
     matches.email.add(m[0].toLowerCase());
   }
 
-  // ── Teléfono móvil AR ───────────────────────────────────────────────────
   // +54 9 11 XXXX-XXXX, 011 15-XXXX-XXXX, etc. Requiere contexto numérico
   // con suficiente longitud y separadores típicos.
   const PHONE_RE = /(?:\+?54\s?9?\s?|0)(?:11|2\d{2}|3\d{2})[\s-]?\d{4}[\s-]?\d{4}\b/g;
@@ -137,7 +132,6 @@ function anonymize(type: PiiType, value: string): string {
   }
 }
 
-// ── CUIT checksum (módulo 11) ────────────────────────────────────────────
 function isValidCuit(d: string): boolean {
   if (d.length !== 11) return false;
   const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
@@ -148,7 +142,6 @@ function isValidCuit(d: string): boolean {
   return check === Number(d[10]);
 }
 
-// ── CBU checksum (bloques de 8+14 con dígitos verificadores en pos 8 y 22) ─
 function isValidCbu(d: string): boolean {
   if (d.length !== 22) return false;
   const checkBlock = (block: string, weights: number[]): boolean => {

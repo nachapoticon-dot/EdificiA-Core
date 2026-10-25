@@ -4,12 +4,6 @@ const isDev = process.env.NODE_ENV !== "production";
 
 export const logger = pino({
   level: process.env.LOG_LEVEL || (isDev ? "debug" : "info"),
-  ...(isDev && {
-    transport: {
-      target: "pino/file",
-      options: { destination: 1 }, // stdout with pretty-print via NODE_OPTIONS or plain JSON
-    },
-  }),
   base: { service: "edificia" },
   timestamp: pino.stdTimeFunctions.isoTime,
   formatters: {
@@ -24,12 +18,7 @@ export const dbLogger   = logger.child({ module: "db" });
 
 export const REQUEST_ID_HEADER = "x-request-id";
 
-/**
- * Devuelve un child logger con `requestId` extraído del header `x-request-id`.
- * El middleware (`proxy.ts`) garantiza que el header esté presente en cualquier
- * request que pase por la matriz de matchers. Si no hay header (test, llamada
- * directa interna), se devuelve el base logger sin contexto.
- */
+/** Child logger con el `x-request-id` que agrega `proxy.ts`, si está presente. */
 export function getRequestLogger(req: Request | Headers, base: Logger = logger): Logger {
   const headers = req instanceof Headers ? req : req.headers;
   const requestId = headers.get(REQUEST_ID_HEADER);

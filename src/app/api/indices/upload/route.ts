@@ -1,5 +1,4 @@
 import { requireAuth } from "@/lib/auth/require-auth";
-import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { parsePriceListBuffer, toIndexInserts } from "@/lib/indices/upload-parser";
 import { insertPriceIndices } from "@/lib/indices/query";
 import { dbLogger } from "@/lib/logger";

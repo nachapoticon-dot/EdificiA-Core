@@ -124,8 +124,6 @@ export function parseExcelBudget(
   return { fileName, sheetName, items, detectedTotal };
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 function findHeaderRow(rows: unknown[][]): number {
   for (let i = 0; i < Math.min(rows.length, 20); i++) {
     const row = rows[i] ?? [];

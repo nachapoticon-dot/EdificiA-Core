@@ -2,7 +2,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { processFile } from "@/lib/file-processor";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
-import { extractPatterns } from "@/lib/pattern-extractor";
+import { resolveOrgProjectId } from "@/lib/projects";
+import { detectPhaseKey, detectDocType } from "@/lib/obra/phases";
 import { ingestDocument } from "@/lib/rag/ingest";
 import { cacheItems } from "@/lib/file-cache";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
@@ -11,9 +12,7 @@ import { dbLogger, ragLogger, getRequestLogger, REQUEST_ID_HEADER } from "@/lib/
 import { scanForPii } from "@/lib/security/pii-detector";
 import { uploadResponseSchema } from "@/lib/validators/api-responses";
 import { writeAuditLogEvent } from "@/lib/audit/audit-log";
-import { scanDocumentContext } from "@/lib/document-intelligence/context-scan";
-import { writeDocumentIntelligenceReport } from "@/lib/document-intelligence/report-writer";
-import { writeRelationsFromContextScan, writeSemanticRelationsForUpload } from "@/lib/knowledge-graph/relations";
+import { scanDocumentContext } from "@/lib/documents/context-scan";
 import { captureAppError } from "@/lib/observability/error-events";
 
 export const runtime = "nodejs";
@@ -86,18 +85,13 @@ export async function POST(req: Request) {
   const requestedProjectId = req.headers.get("x-project-id") ?? null;
   const chatSessionId = req.headers.get("x-chat-session-id") ?? null;
   const client = getInsForgeAdminClient();
-  const headerProjectId = requestedProjectId
-    ? await validateProjectId(client, orgId, requestedProjectId)
-    : null;
+  const headerProjectId = await resolveOrgProjectId(orgId, requestedProjectId);
 
   if (requestedProjectId && !headerProjectId) {
     return apiBadRequest("Obra inválida.");
   }
 
-  const sessionContext = chatSessionId
-    ? await resolveUploadSessionContext(client, orgId, userId, chatSessionId)
-    : { projectId: null, workCaseId: null };
-  const projectId = headerProjectId ?? sessionContext.projectId;
+  const projectId = headerProjectId ?? (chatSessionId ? await sessionProjectId(client, orgId, userId, chatSessionId) : null);
 
   const buffer = await file.arrayBuffer();
   const processed = await processFile(buffer, file.name, file.type || undefined);
@@ -154,7 +148,7 @@ export async function POST(req: Request) {
     });
   }
 
-  void persistPatternsAndIngest(processed, userId, orgId, fileId, projectId);
+  void ingestInBackground(processed, userId, orgId, fileId, projectId);
 
   const cacheId = processed.type === "excel" ? cacheItems(processed.items) : null;
 
@@ -190,35 +184,7 @@ export async function POST(req: Request) {
       },
       "upload: contextual contradictions detected",
     );
-    if (fileId) {
-      void writeRelationsFromContextScan({
-        organizationId: orgId,
-        projectId: projectId ?? null,
-        fileId,
-        scan: contextScan,
-      });
-    }
   }
-
-  if (fileId) {
-    void writeSemanticRelationsForUpload({
-      organizationId: orgId,
-      projectId: projectId ?? null,
-      fileId,
-      processed,
-    });
-  }
-
-  void writeDocumentIntelligenceReport({
-    organizationId: orgId,
-    projectId,
-    workCaseId: sessionContext.workCaseId,
-    fileId,
-    actorUserId: userId,
-    processed,
-    piiScan,
-    contextScan,
-  });
 
   const response = uploadResponseSchema.safeParse({ ...processed, fileId, cacheId, piiScan, contextScan });
   if (!response.success) {
@@ -264,44 +230,21 @@ export async function POST(req: Request) {
   return Response.json(response.data);
 }
 
-async function validateProjectId(
-  client: ReturnType<typeof getInsForgeAdminClient>,
-  orgId: string,
-  projectId: string,
-): Promise<string | null> {
-  const result = await client.database
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .eq("organization_id", orgId)
-    .is("deleted_at", null)
-    .limit(1)
-    .maybeSingle();
-
-  return result.data ? projectId : null;
-}
-
-async function resolveUploadSessionContext(
+async function sessionProjectId(
   client: ReturnType<typeof getInsForgeAdminClient>,
   orgId: string,
   userId: string,
   chatSessionId: string,
-): Promise<{ projectId: string | null; workCaseId: string | null }> {
+): Promise<string | null> {
   const result = await client.database
     .from("chat_sessions")
-    .select("project_id, work_case_id")
+    .select("project_id")
     .eq("id", chatSessionId)
     .eq("organization_id", orgId)
     .eq("user_id", userId)
     .is("deleted_at", null)
-    .limit(1)
     .maybeSingle();
-
-  const row = result.data as { project_id: string | null; work_case_id: string | null } | null;
-  return {
-    projectId: row?.project_id ?? null,
-    workCaseId: row?.work_case_id ?? null,
-  };
+  return (result.data as { project_id: string | null } | null)?.project_id ?? null;
 }
 
 /** Extrae el texto auditable de un archivo procesado para escanear PII. */
@@ -322,81 +265,35 @@ function extractTextForPii(p: ProcessedFile): string {
   }
 }
 
-async function persistPatternsAndIngest(
-  processed: Awaited<ReturnType<typeof processFile>>,
+/** Indexa en el RAG y, si hay obra, registra a qué fase corresponde el documento. */
+async function ingestInBackground(
+  processed: ProcessedFile,
   userId: string,
   orgId: string,
   fileId: string | null,
   projectId: string | null,
 ): Promise<void> {
   try {
-    void ingestDocument(processed, { organizationId: orgId, fileId, projectId });
+    await ingestDocument(processed, { organizationId: orgId, fileId, projectId });
 
-    if (projectId && fileId) {
-      const { detectPhaseKey, detectDocType } = await import("@/lib/obra/phases");
-      const contentHint = "text" in processed ? (processed.text as string).slice(0, 500) : undefined;
-      const hasPrices = "items" in processed && Array.isArray(processed.items)
-        ? (processed.items as { unitPrice?: number }[]).some((i) => (i.unitPrice ?? 0) > 0)
-        : false;
+    if (!projectId || !fileId) return;
+    const contentHint = "text" in processed ? processed.text.slice(0, 500) : undefined;
+    const hasPrices = processed.type === "excel" && processed.items.some((i) => i.unitPrice > 0);
+    const phaseKey = detectPhaseKey(processed.fileName, contentHint);
+    if (!phaseKey) return;
 
-      const phaseKey = detectPhaseKey(processed.fileName, contentHint);
-      const docType  = detectDocType(processed.type, hasPrices);
-
-      if (phaseKey) {
-        const client = getInsForgeAdminClient();
-        await client.database
-          .from("project_phase_docs")
-          .upsert({
-            project_id:      projectId,
-            organization_id: orgId,
-            phase_key:       phaseKey,
-            doc_type:        docType,
-            file_id:         fileId,
-            file_name:       processed.fileName,
-          }, { onConflict: "project_id,phase_key,doc_type" });
-      }
-    }
-
-    const extracted = extractPatterns(processed);
-    if (!extracted) return;
-
-    const client = getInsForgeAdminClient();
-
-    const existingResult = await client.database
-      .from("company_learned_patterns")
-      .select("id, pattern_key, sample_count")
-      .eq("organization_id", orgId)
-      .eq("document_type", extracted.documentType);
-
-    const existingMap = new Map(
-      ((existingResult.data ?? []) as { id: string; pattern_key: string; sample_count: number }[])
-        .map((row) => [row.pattern_key, row]),
-    );
-
-    for (const [key, value] of Object.entries(extracted.patterns)) {
-      const existing = existingMap.get(key);
-      if (existing) {
-        await client.database
-          .from("company_learned_patterns")
-          .update({
-            pattern_value: value,
-            sample_count: existing.sample_count + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-      } else {
-        await client.database
-          .from("company_learned_patterns")
-          .insert({
-            organization_id: orgId,
-            document_type: extracted.documentType,
-            pattern_key: key,
-            pattern_value: value,
-          });
-      }
-    }
+    await getInsForgeAdminClient()
+      .database.from("project_phase_docs")
+      .upsert({
+        project_id: projectId,
+        organization_id: orgId,
+        phase_key: phaseKey,
+        doc_type: detectDocType(processed.type, hasPrices),
+        file_id: fileId,
+        file_name: processed.fileName,
+      }, { onConflict: "project_id,phase_key,doc_type" });
   } catch (err) {
-    ragLogger.warn({ err }, "upload: pattern/ingest background task failed (non-fatal)");
+    ragLogger.warn({ err }, "upload: background ingest failed");
     void captureAppError({
       err,
       organizationId: orgId,
@@ -404,7 +301,7 @@ async function persistPatternsAndIngest(
       actorUserId: userId,
       route: "/api/upload",
       severity: "warning",
-      context: { stage: "pattern_or_ingest_background", fileId },
+      context: { stage: "background_ingest", fileId },
     });
   }
 }

@@ -22,7 +22,6 @@ export function proxy(req: NextRequest) {
   // Respetar el ID inyectado por el cliente (útil para correlación cross-system) o generar uno nuevo.
   const requestId = req.headers.get(REQUEST_ID_HEADER) ?? crypto.randomUUID();
 
-  // ── CORS preflight ───────────────────────────────────────────────────────
   if (req.method === "OPTIONS" && pathname.startsWith("/api/")) {
     const res = new NextResponse(null, { status: 204 });
     if (ALLOWED_ORIGINS.includes(origin)) {
@@ -34,7 +33,6 @@ export function proxy(req: NextRequest) {
     return res;
   }
 
-  // ── Dashboard auth gate ──────────────────────────────────────────────────
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const isAuthed = isValidToken(token);
 

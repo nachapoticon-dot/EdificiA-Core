@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -11,7 +12,7 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
-        <span className="text-xl">⚠</span>
+        <AlertTriangle className="h-5 w-5 text-destructive" />
       </div>
       <div>
         <h2 className="text-base font-semibold">Error en el panel</h2>

@@ -5,7 +5,7 @@ import { dbLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
-/** DELETE /api/documents/[id] — removes a file from storage, Qdrant, and PostgreSQL. */
+/** Borra un archivo de Storage, Qdrant y la base. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: fileId } = await params;
   const auth = await requireAuth(req);

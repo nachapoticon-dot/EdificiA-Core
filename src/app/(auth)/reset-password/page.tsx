@@ -40,7 +40,6 @@ function ResetPasswordForm() {
   if (done) {
     return (
       <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm text-center">
-        <div className="text-2xl">✅</div>
         <h2 className="text-base font-semibold">Contraseña actualizada</h2>
         <p className="text-sm text-muted-foreground">
           Tu contraseña fue cambiada correctamente. Podés iniciar sesión con la nueva contraseña.

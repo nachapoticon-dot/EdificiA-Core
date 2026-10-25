@@ -196,13 +196,13 @@ function buildEmailHtml(params: {
                       Detalles de la invitación
                     </p>
                     <p style="margin:4px 0;font-size:13px;color:#18181b;">
-                      📧 <strong>Email:</strong> ${toEmail}
+                      <strong>Email:</strong> ${toEmail}
                     </p>
                     <p style="margin:4px 0;font-size:13px;color:#18181b;">
-                      🏢 <strong>Empresa:</strong> ${orgName}
+                      <strong>Empresa:</strong> ${orgName}
                     </p>
                     <p style="margin:4px 0 0;font-size:13px;color:#18181b;">
-                      🔑 <strong>Rol:</strong> ${roleLabel}
+                      <strong>Rol:</strong> ${roleLabel}
                     </p>
                   </td>
                 </tr>

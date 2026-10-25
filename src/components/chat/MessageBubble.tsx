@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  getToolName,
   isTextUIPart,
   isToolUIPart,
   type UIMessage,
@@ -13,18 +14,11 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Wrench, CheckCircle2, ThumbsDown, FileSpreadsheet, FileText, FileCode2, FileType2 } from "lucide-react";
 import { ChartBlock, type ChartSpec } from "./cards/ChartBlock";
-import { DocumentProposalCard, type FileProposal } from "./cards/DocumentProposalCard";
 import { FindingCallout, type FindingSpec } from "./cards/FindingCallout";
 import { ComparisonTable, type ComparisonTableSpec } from "./cards/ComparisonTable";
 import { GeneratedDocCard, type DocGenerationProposal } from "./cards/GeneratedDocCard";
-import { PlanBlock, PlanPendingPlaceholder, extractPlan } from "./cards/PlanBlock";
-import { HypothesisBlock, HypothesisPendingPlaceholder, extractHypothesis } from "./cards/HypothesisBlock";
-import { ResponseBlock } from "./blocks";
-import { BlockSpec, type BlockKind } from "@/lib/validators/blocks";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useState } from "react";
-
-// ── File attachment card (shown in user messages) ────────────────────────────
 
 interface FileMeta {
   fileName: string;
@@ -46,9 +40,6 @@ const FILE_ICONS: Record<FileMeta["type"], React.ElementType> = {
   image: FileType2,
 };
 
-// Each file type gets a distinct accent tint. Both the icon tile background
-// and the icon foreground use the same hue so the card reads as a single
-// "chip" instead of an icon floating on a generic surface.
 const FILE_ACCENTS: Record<FileMeta["type"], { tile: string; icon: string; badge: string }> = {
   excel: { tile: "bg-[oklch(0.62_0.13_145/0.18)]", icon: "text-[oklch(0.78_0.16_145)]", badge: "XLSX" },
   pdf:   { tile: "bg-[oklch(0.62_0.18_25/0.18)]",  icon: "text-[oklch(0.78_0.16_25)]",  badge: "PDF"  },
@@ -76,7 +67,6 @@ function FileAttachmentCard({ meta }: { meta: FileMeta }) {
   const Icon = FILE_ICONS[meta.type] ?? FileType2;
   const accent = FILE_ACCENTS[meta.type] ?? FILE_ACCENTS.docx;
 
-  // Build metadata chunks separated by bullets
   const chunks: string[] = [accent.badge];
   if (meta.type === "excel") {
     if (meta.itemCount != null) chunks.push(`${meta.itemCount} ítems`);
@@ -91,7 +81,6 @@ function FileAttachmentCard({ meta }: { meta: FileMeta }) {
 
   return (
     <div className="group flex items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.06] px-3.5 py-3 backdrop-blur-sm transition-colors hover:bg-white/[0.09] max-w-[340px]">
-      {/* Icon tile */}
       <div className={cn(
         "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-white/10",
         accent.tile,
@@ -99,7 +88,6 @@ function FileAttachmentCard({ meta }: { meta: FileMeta }) {
         <Icon className={cn("h-5 w-5", accent.icon)} strokeWidth={1.5} />
       </div>
 
-      {/* Filename + metadata line */}
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="truncate text-[13.5px] font-medium leading-tight text-background">
           {meta.fileName}
@@ -118,85 +106,50 @@ interface MessageBubbleProps {
   onAdjustDocument?: (proposal: DocGenerationProposal, instructions: string) => void;
 }
 
-/* ── Tool label map ── */
 const TOOL_LABELS: Record<string, string> = {
-  calcular_totales:                "Verificando estructura financiera",
-  validar_cierre_de_total:         "Contrastando total declarado",
-  detectar_exclusiones_logicas:    "Leyendo consistencia del presupuesto",
-  calcular_incidencia_de_subgrupo: "Analizando peso de rubros",
-  analizar_geometria_plano:        "Analizando geometría del plano",
-  comparar_computo_con_plano:      "Comparando presupuesto con plano",
-  generar_grafica:                 "Generando gráfica",
-  buscar_en_base_documental:       "Contrastando con contexto de obra",
-  sugerir_formato:                 "Comparando con estándares del sector",
-  generar_archivo:                 "Generando archivo",
-  generar_presupuesto_excel:       "Generando presupuesto Excel",
-  generar_memoria_descriptiva:     "Generando memoria descriptiva",
-  generar_informe_pdf:             "Generando informe de auditoría PDF",
-  reportar_hallazgo:               "Registrando hallazgo",
-  reportar_hallazgos_batch:        "Preparando síntesis de riesgos",
-  comparar_presupuestos:           "Generando tabla comparativa",
-  analizar_estado_obra:            "Analizando estado documental de la obra",
-  comparar_con_indices:            "Comparando precios con índices de mercado",
-  evaluar_impacto_clima:           "Consultando pronóstico meteorológico",
-  verificar_ingreso_personal:      "Verificando legajo HSE de la cuadrilla",
-  reprogramar_e_informar:          "Reprogramando tarea y registrando evento",
-  auditar_curva_inversion:         "Auditando curva S vs plan",
-  registrar_subcontrato:           "Registrando subcontrato de obra",
-  auditar_subcontratos:            "Auditando subcontratos y retenciones",
-  buscar_relaciones_documento:     "Consultando knowledge graph de obra",
-  registrar_snapshot_financiero:   "Registrando snapshot financiero",
-  registrar_hse_record:            "Registrando legajo HSE",
-  registrar_acopio:                "Registrando acopio de obra",
-  resolver_relacion_documental:    "Resolviendo relación del knowledge graph",
-  resumen_diario_obra:             "Armando brief diario de obra",
-  consultar_perfil_empresa:        "Consultando perfil de empresa",
-  generar_orden_compra:            "Armando orden de compra",
-  generar_acta_obra:               "Generando parte diario de obra",
-  enviar_email_stakeholder:        "Enviando email a stakeholders",
+  calcular_totales: "Calculando totales",
+  validar_cierre_de_total: "Validando cierre del total",
+  detectar_exclusiones_logicas: "Revisando consistencia",
+  calcular_incidencia_de_subgrupo: "Calculando incidencia",
+  comparar_con_indices: "Comparando con índices de precio",
+  analizar_geometria_plano: "Analizando geometría del plano",
+  comparar_computo_con_plano: "Comparando cómputo con plano",
+  comparar_presupuestos: "Armando tabla comparativa",
+  generar_grafica: "Generando gráfica",
+  buscar_en_base_documental: "Buscando en documentos",
+  analizar_estado_obra: "Revisando documentación de la obra",
+  reportar_hallazgos: "Preparando hallazgos",
+  generar_presupuesto_excel: "Preparando presupuesto Excel",
+  generar_memoria_descriptiva: "Preparando memoria descriptiva",
+  generar_informe_pdf: "Preparando informe PDF",
+  proponer_cierre_expediente: "Cerrando expediente",
 };
 
-const SPECIAL_TOOLS = new Set([
+/** Tools cuyo resultado se dibuja como un componente propio debajo del timeline. */
+const RENDERED_TOOLS = new Set([
   "generar_grafica",
-  "generar_archivo",
   "generar_presupuesto_excel",
   "generar_memoria_descriptiva",
   "generar_informe_pdf",
-  "generar_orden_compra",
-  "generar_acta_obra",
-  "reportar_hallazgo",
-  "reportar_hallazgos_batch",
+  "reportar_hallazgos",
   "comparar_presupuestos",
-  "proyectar_metricas",
-  "proyectar_legajo_grafico",
-  "proyectar_comparativa",
-  "proyectar_cronograma",
 ]);
 
-/* ── Segment types for the grouped renderer ── */
 type TextSegment        = { kind: "text";          part: UIMessagePart<UIDataTypes, UITools> };
 type ToolTimelineSegment = { kind: "tool-timeline"; parts: UIMessagePart<UIDataTypes, UITools>[] };
 type BlockResultSegment = { kind: "block-result"; part: UIMessagePart<UIDataTypes, UITools> };
 
 type Segment = TextSegment | ToolTimelineSegment | BlockResultSegment;
 
-// AI SDK v6: tool data lives inside part.toolInvocation (nested), not on part directly
-type ToolInvocationData = {
-  toolName?: string;
-  state?: string;
-  result?: unknown;
-};
+type ToolPart = Extract<UIMessagePart<UIDataTypes, UITools>, { toolCallId: string }>;
 
-function getToolInvocation(part: UIMessagePart<UIDataTypes, UITools>): ToolInvocationData | null {
-  const p = part as unknown as { toolInvocation?: ToolInvocationData };
-  return p.toolInvocation ?? null;
+function isDone(part: ToolPart): boolean {
+  return part.state === "output-available" || part.state === "output-error";
 }
 
 /**
- * Groups consecutive tool calls into ONE timeline segment, then emits the
- * visual block-results for any special tools after it. This collapses the
- * noisy 5-spinner experience into a single status indicator while keeping
- * the actual response blocks (charts, findings, doc cards) visible.
+ * Agrupa las tool calls consecutivas en un único timeline y, a continuación,
+ * los resultados que tienen componente propio (gráficas, hallazgos, documentos).
  */
 function buildSegments(parts: UIMessagePart<UIDataTypes, UITools>[]): Segment[] {
   const segments: Segment[] = [];
@@ -206,8 +159,7 @@ function buildSegments(parts: UIMessagePart<UIDataTypes, UITools>[]): Segment[] 
     if (pending.length === 0) return;
     segments.push({ kind: "tool-timeline", parts: pending });
     for (const p of pending) {
-      const name = getToolInvocation(p)?.toolName ?? "";
-      if (SPECIAL_TOOLS.has(name)) {
+      if (isToolUIPart(p) && RENDERED_TOOLS.has(getToolName(p))) {
         segments.push({ kind: "block-result", part: p });
       }
     }
@@ -228,8 +180,6 @@ function buildSegments(parts: UIMessagePart<UIDataTypes, UITools>[]): Segment[] 
 
   return segments;
 }
-
-/* ── Main component ── */
 
 export function MessageBubble({ message, onFeedback, onAdjustDocument }: MessageBubbleProps) {
   const isUser = message.role === "user";
@@ -278,7 +228,7 @@ export function MessageBubble({ message, onFeedback, onAdjustDocument }: Message
             );
           }
           if (seg.kind === "block-result") {
-            const toolName = getToolInvocation(seg.part)?.toolName ?? "";
+            const toolName = isToolUIPart(seg.part) ? getToolName(seg.part) : "";
             return (
               <ErrorBoundary key={i} label={TOOL_LABELS[toolName] ?? toolName}>
                 <BlockResultPart part={seg.part} onAdjustDocument={onAdjustDocument} />
@@ -288,7 +238,6 @@ export function MessageBubble({ message, onFeedback, onAdjustDocument }: Message
           return null;
         })}
 
-        {/* Feedback button — only on assistant messages */}
         {!isUser && onFeedback && (hovered || feedbackSent) && (
           <button
             onClick={handleFeedback}
@@ -310,8 +259,6 @@ export function MessageBubble({ message, onFeedback, onAdjustDocument }: Message
   );
 }
 
-/* ── Text bubble ── */
-
 function TextPart({
   part,
   isUser,
@@ -324,13 +271,12 @@ function TextPart({
   if (isUser) {
     const fileMeta = parseFileMeta(part.text);
 
-    // Extract action text: everything before the \n\n---\n separator
+    // El texto del usuario va antes del separador; después viene el contexto del archivo.
     let actionText = "";
     const sepIdx = part.text.indexOf("\n\n---\n");
     if (sepIdx > 0) {
       actionText = part.text.slice(0, sepIdx).trim();
     } else if (!fileMeta) {
-      // Plain user message with no file — apply original length-based cut
       let displayText = part.text;
       if (part.text.length > 400) {
         const cutMarkers = ["```json", "```", "---\n", "\nDatos"];
@@ -348,7 +294,6 @@ function TextPart({
       );
     }
 
-    // Message with file attachment
     return (
       <div className="flex flex-col gap-2 items-end">
         {fileMeta && <FileAttachmentCard meta={fileMeta} />}
@@ -361,18 +306,9 @@ function TextPart({
     );
   }
 
-  // Assistant message: extract optional <plan>{...}</plan> and
-  // <hypothesis>{...}</hypothesis> blocks so they render as dedicated cards
-  // instead of raw text inside the bubble.
-  const { plan, cleanText: textAfterPlan, pending: planPending } = extractPlan(part.text);
-  const { hypothesis, cleanText, pending: hypPending } = extractHypothesis(textAfterPlan);
-
+  const cleanText = part.text.trim();
   return (
     <div className="flex w-full flex-col gap-2">
-      {hypothesis && <HypothesisBlock spec={hypothesis} />}
-      {hypPending && <HypothesisPendingPlaceholder />}
-      {plan && <PlanBlock spec={plan} />}
-      {planPending && <PlanPendingPlaceholder />}
       {cleanText && (
         <div className="px-4 py-2.5 text-sm leading-relaxed bg-card border border-border text-foreground rounded-[2px_12px_12px_12px] prose prose-sm prose-neutral dark:prose-invert max-w-none">
           <ReactMarkdown
@@ -410,20 +346,6 @@ function TextPart({
   );
 }
 
-/* ── Tool result blocks (chart / findings / doc card / etc.) ── */
-
-const BLOCK_TOOLS: Record<string, BlockKind> = {
-  proyectar_metricas:       "metrics",
-  proyectar_legajo_grafico: "media",
-  proyectar_comparativa:    "comparison",
-  proyectar_cronograma:     "timeline",
-};
-
-/**
- * Renders the OUTPUT of a special tool as a visual block (chart, finding, doc card, etc).
- * Loading/pending state is NOT handled here — that lives in ToolTimeline above.
- * If the tool is still pending we return null so nothing duplicates.
- */
 function BlockResultPart({
   part,
   onAdjustDocument,
@@ -431,118 +353,43 @@ function BlockResultPart({
   part: UIMessagePart<UIDataTypes, UITools>;
   onAdjustDocument?: (proposal: DocGenerationProposal, instructions: string) => void;
 }) {
-  if (!isToolUIPart(part)) return null;
-  const ti = getToolInvocation(part);
-  const toolName = ti?.toolName ?? "";
-  const isPending = ti?.state === "call" || ti?.state === "partial-call";
-  const output = ti?.result;
-
-  if (isPending || !output) return null;
-
-  const blockKind = BLOCK_TOOLS[toolName];
-  if (blockKind) {
-    const parsed = BlockSpec.safeParse(output);
-    if (!parsed.success) return <FallbackErrorBlock toolName={toolName} />;
-    return <ResponseBlock spec={parsed.data} />;
-  }
+  if (!isToolUIPart(part) || part.state !== "output-available") return null;
+  const toolName = getToolName(part);
+  const output = part.output as Record<string, unknown> | null;
+  if (!output) return null;
 
   if (toolName === "generar_grafica") {
-    const spec = output as ChartSpec;
-    if (spec.data?.length > 0) return <ChartBlock {...spec} />;
+    const spec = output as unknown as ChartSpec;
+    return spec.data?.length > 0 ? <ChartBlock {...spec} /> : null;
   }
-
-  if (toolName === "generar_archivo") {
-    const o = output as Record<string, unknown>;
-    if (o.type === "file_proposal") {
-      const proposal: FileProposal = {
-        fileName: o.fileName as string,
-        content: o.content as string,
-        contentType: (o.contentType as string) ?? "text/plain",
-        description: o.description as string,
-        organizationId: o.organizationId as string,
-      };
-      return (
-        <DocumentProposalCard
-          proposal={proposal}
-          onDecision={(accepted, name) => { void accepted; void name; }}
-        />
-      );
-    }
+  if (output.type === "doc_generation_proposal") {
+    return <GeneratedDocCard proposal={output as unknown as DocGenerationProposal} onAdjust={onAdjustDocument} />;
   }
-
-  if (
-    toolName === "generar_presupuesto_excel" ||
-    toolName === "generar_memoria_descriptiva" ||
-    toolName === "generar_informe_pdf" ||
-    toolName === "generar_orden_compra" ||
-    toolName === "generar_acta_obra"
-  ) {
-    const o = output as Record<string, unknown>;
-    if (o.type === "doc_generation_proposal") {
-      const proposal = o as unknown as DocGenerationProposal;
-      return <GeneratedDocCard proposal={proposal} onAdjust={onAdjustDocument} />;
-    }
+  if (output.type === "finding_batch" && Array.isArray(output.hallazgos)) {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        {(output.hallazgos as FindingSpec[]).map((spec, i) => (
+          <FindingCallout key={i} spec={spec} />
+        ))}
+      </div>
+    );
   }
-
-  if (toolName === "reportar_hallazgo") {
-    const spec = output as FindingSpec;
-    if (spec.type === "finding_callout") return <FindingCallout spec={spec} />;
+  if (output.type === "comparison_table") {
+    return <ComparisonTable spec={output as unknown as ComparisonTableSpec} />;
   }
-
-  if (toolName === "reportar_hallazgos_batch") {
-    const batch = output as { type: string; hallazgos: FindingSpec[] };
-    if (batch.type === "finding_batch" && Array.isArray(batch.hallazgos)) {
-      return (
-        <div className="flex flex-col gap-2 w-full">
-          {batch.hallazgos.map((spec, i) => (
-            <FindingCallout key={i} spec={spec} />
-          ))}
-        </div>
-      );
-    }
-  }
-
-  if (toolName === "comparar_presupuestos") {
-    const spec = output as ComparisonTableSpec;
-    if (spec.type === "comparison_table") return <ComparisonTable spec={spec} />;
-  }
-
   return null;
 }
 
-/* ── Unified tool timeline (collapsible) ─────────────────────────────────── */
-
-/**
- * Collapses ALL tool calls in a turn into a single timeline card.
- * While streaming: shows "Procesando paso N de M — <label>".
- * When done: shows "✓ N pasos completados" — click to expand the per-step list.
- */
+/** Resume las tool calls de un turno en una tarjeta plegable. */
 function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] }) {
   const [expanded, setExpanded] = useState(false);
-  const relevant = parts.filter(isToolUIPart);
+  const relevant = parts.filter(isToolUIPart) as ToolPart[];
   if (relevant.length === 0) return null;
 
-  const totals = relevant.reduce(
-    (acc, p) => {
-      const state = getToolInvocation(p)?.state;
-      if (state === "result") acc.done++;
-      else if (state === "call" || state === "partial-call") acc.running++;
-      return acc;
-    },
-    { done: 0, running: 0 },
-  );
-
-  const allDone = totals.running === 0;
-  // While streaming: show the most recent pending tool's label
-  const currentPending = !allDone
-    ? relevant.find((p) => {
-        const s = getToolInvocation(p)?.state;
-        return s === "call" || s === "partial-call";
-      })
-    : null;
-  const currentLabel = currentPending
-    ? (TOOL_LABELS[getToolInvocation(currentPending)?.toolName ?? ""] ?? "Procesando")
-    : null;
+  const done = relevant.filter(isDone).length;
+  const allDone = done === relevant.length;
+  const currentPending = relevant.find((p) => !isDone(p));
+  const currentLabel = currentPending ? (TOOL_LABELS[getToolName(currentPending)] ?? "Procesando") : null;
 
   return (
     <div className="w-full overflow-hidden rounded-[10px] border border-border bg-card">
@@ -564,11 +411,11 @@ function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] 
         </div>
         <span className={cn("flex-1 text-[11.5px]", allDone ? "text-foreground" : "text-muted-foreground")}>
           {allDone
-            ? `Auditoría completada · ${relevant.length} paso${relevant.length === 1 ? "" : "s"}`
+            ? `${relevant.length} paso${relevant.length === 1 ? "" : "s"} completado${relevant.length === 1 ? "" : "s"}`
             : currentLabel ?? "Procesando…"}
         </span>
         <span className="font-mono text-[10px] text-muted-foreground">
-          {allDone ? `${relevant.length}/${relevant.length}` : `${totals.done}/${relevant.length}`}
+          {done}/{relevant.length}
         </span>
         {allDone && (
           <span className="font-mono text-[10px] text-muted-foreground/60">
@@ -580,8 +427,8 @@ function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] 
       {expanded && allDone && (
         <div className="border-t border-border">
           {relevant.map((p, i) => {
-            const ti = getToolInvocation(p);
-            const name = ti?.toolName ?? "herramienta";
+            const name = getToolName(p);
+            const failed = p.state === "output-error";
             return (
               <div
                 key={i}
@@ -594,21 +441,14 @@ function ToolTimeline({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] 
                 <span className="flex-1 text-foreground/85">
                   {TOOL_LABELS[name] ?? name}
                 </span>
-                <span className="font-mono text-[10px] text-[oklch(0.58_0.15_145)]">ok</span>
+                <span className={cn("font-mono text-[10px]", failed ? "text-destructive" : "text-[oklch(0.58_0.15_145)]")}>
+                  {failed ? "error" : "ok"}
+                </span>
               </div>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function FallbackErrorBlock({ toolName }: { toolName: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-[12px] text-muted-foreground">
-      <span className="font-mono text-[10px] text-[var(--warn)]">⚠</span>
-      No se pudo renderizar el resultado de <span className="font-mono text-foreground">{toolName}</span>.
     </div>
   );
 }

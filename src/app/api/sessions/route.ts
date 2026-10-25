@@ -3,7 +3,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { apiBadRequest, apiRateLimited } from "@/lib/api/errors";
 import { okResponseSchema, sessionsResponseSchema } from "@/lib/validators/api-responses";
-import { ensureWorkCaseForChatSession } from "@/lib/agent-core";
+import { createWorkCaseForChatSession } from "@/lib/work-cases/create";
+import { resolveOrgProjectId } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ interface SessionRow {
   project_id: string | null;
 }
 
-/** GET /api/sessions — Returns the last 30 sessions for the authenticated user+org */
+/** Últimas 30 sesiones del usuario en la organización activa. */
 export async function GET(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "sessions"), "standard")) return apiRateLimited();
   const auth = await requireAuth(req);
@@ -43,7 +44,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json(sessionsResponseSchema.parse({ sessions }));
 }
 
-/** POST /api/sessions — Upsert a session entry */
+/** Crea o actualiza una sesión. Si tiene obra, le abre un expediente. */
 export async function POST(req: Request): Promise<Response> {
   if (!checkRateLimit(rateLimitKey(req, "sessions"), "standard")) return apiRateLimited();
   const auth = await requireAuth(req);
@@ -58,9 +59,7 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   const client = getInsForgeAdminClient();
-  const projectId = body.projectId
-    ? await validateProjectId(client, auth.orgId, body.projectId)
-    : null;
+  const projectId = await resolveOrgProjectId(auth.orgId, body.projectId);
 
   if (body.projectId && !projectId) {
     return apiBadRequest("Obra inválida.");
@@ -77,7 +76,7 @@ export async function POST(req: Request): Promise<Response> {
     workCaseId = (existing.data as { work_case_id: string | null } | null)?.work_case_id ?? null;
 
     if (!workCaseId) {
-      workCaseId = await ensureWorkCaseForChatSession({
+      workCaseId = await createWorkCaseForChatSession({
         client,
         organizationId: auth.orgId,
         actorUserId: auth.userId,
@@ -106,7 +105,7 @@ export async function POST(req: Request): Promise<Response> {
   return Response.json(okResponseSchema.parse({ ok: true }));
 }
 
-/** DELETE /api/sessions?id=xxx  or  ?clearAll=true */
+/** Borrado lógico: `?id=...` o `?clearAll=true`. */
 export async function DELETE(req: Request): Promise<Response> {
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
@@ -130,32 +129,9 @@ export async function DELETE(req: Request): Promise<Response> {
   return Response.json(okResponseSchema.parse({ ok: true }));
 }
 
-function normalizeSessionFileType(value: string | null): "excel" | "pdf" | "dxf" | "docx" | "image" | undefined {
-  if (
-    value === "excel" ||
-    value === "pdf" ||
-    value === "dxf" ||
-    value === "docx" ||
-    value === "image"
-  ) {
-    return value;
-  }
-  return undefined;
-}
+const SESSION_FILE_TYPES = ["excel", "pdf", "dxf", "docx", "image"] as const;
+type SessionFileType = (typeof SESSION_FILE_TYPES)[number];
 
-async function validateProjectId(
-  client: ReturnType<typeof getInsForgeAdminClient>,
-  orgId: string,
-  projectId: string,
-): Promise<string | null> {
-  const result = await client.database
-    .from("projects")
-    .select("id")
-    .eq("id", projectId)
-    .eq("organization_id", orgId)
-    .is("deleted_at", null)
-    .limit(1)
-    .maybeSingle();
-
-  return result.data ? projectId : null;
+function normalizeSessionFileType(value: string | null): SessionFileType | undefined {
+  return SESSION_FILE_TYPES.find((t) => t === value);
 }

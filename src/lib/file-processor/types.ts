@@ -89,10 +89,8 @@ export interface UnsupportedFile extends BaseFile {
   suggestion: string;
 }
 
-// ── File type detection ──────────────────────────────────────────────────────
-
-export const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".tiff", ".bmp"];
-export const IMAGE_MIMES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff"];
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".tiff", ".bmp"];
+const IMAGE_MIMES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff"];
 
 export function detectFileType(fileName: string, mimeType?: string): SupportedFileType {
   const ext = "." + (fileName.split(".").pop()?.toLowerCase() ?? "");

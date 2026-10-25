@@ -3,7 +3,6 @@ import { createClient, type InsForgeClient } from "@insforge/sdk";
 const BASE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!;
 const TOKEN_KEY = "edificia:access_token";
 const REFRESH_KEY = "edificia:refresh_token";
-const SESSION_COOKIE = "edificia_session";
 
 let _client: InsForgeClient | null = null;
 

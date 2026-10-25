@@ -3,7 +3,7 @@ import { QdrantClient } from "@qdrant/js-client-rest";
 export const COLLECTION_NAME = "edificia_documents";
 
 /** Vector dimension for baai/bge-m3 via NVIDIA NIM */
-export const EMBEDDING_DIM = 1024;
+const EMBEDDING_DIM = 1024;
 
 let _client: QdrantClient | null = null;
 

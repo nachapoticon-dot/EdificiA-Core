@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { summarizeToolUsage, toTelemetryRows } from "../../src/lib/ai/observability/tool-telemetry.ts";
+import { summarizeToolUsage, toTelemetryRows } from "../../src/lib/ai/tool-telemetry.ts";
 
 test("summarizeToolUsage", async (t) => {
   await t.test("devuelve objeto vacío si no hay steps", () => {

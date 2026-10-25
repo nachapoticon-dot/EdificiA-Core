@@ -10,8 +10,6 @@ const remoteMessagesWrapperSchema = z.object({
   messages: z.array(z.unknown()),
 });
 
-// ── localStorage helpers ──────────────────────────────────────────────────────
-
 export function saveMessages(sessionId: string, messages: UIMessage[]): void {
   if (typeof window === "undefined") return;
   const trimmed = messages.slice(-MAX_MSGS);
@@ -28,8 +26,6 @@ export function loadMessages(sessionId: string): UIMessage[] {
     return [];
   }
 }
-
-// ── Remote helpers ────────────────────────────────────────────────────────────
 
 async function getApiHeaders(): Promise<Record<string, string>> {
   const token = await getAuthToken();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart } from "ai";
@@ -10,39 +10,24 @@ import { ChatInput } from "@/components/chat/input/ChatInput";
 import { DropZone } from "@/components/chat/input/DropZone";
 import { UploadProgressCard } from "@/components/chat/cards/UploadProgressCard";
 import { DxfViewerModal } from "@/components/chat/DxfViewerModal";
-import { AlertTriangle, Compass, Download, Sheet, TrendingUp } from "lucide-react";
+import { AlertTriangle, Compass, TrendingUp } from "lucide-react";
 import { AgentGreeting } from "@/components/chat/AgentGreeting";
 import { FileReadyView } from "@/components/chat/cards/FileReadyView";
 import { ComparisonReadyView } from "@/components/chat/cards/ComparisonReadyView";
 import { TopBarActions } from "@/components/chat/sidebar/TopBarActions";
-import { ProactivityAlertsBanner } from "@/components/chat/ProactivityAlertsBanner";
 import { useOrgMember } from "@/hooks/useOrgMember";
 import { usePriceIndices } from "@/hooks/usePriceIndices";
-import { Button } from "@/components/ui/button";
-import { exportAuditPdf } from "@/lib/export/generate-pdf";
-import { exportAuditXlsx } from "@/lib/export/generate-xlsx";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { useSessionContext } from "@/contexts/SessionContext";
 import { useProjectContext } from "@/contexts/ProjectContext";
 import { saveMessages, loadMessages, fetchRemoteMessages } from "@/hooks/useMessageHistory";
 import { apiErrorResponseSchema, uploadResponseSchema, type UploadResponse } from "@/lib/validators/api-responses";
+import { buildComparisonPrompt, buildFilePrompt, buildImagePrompt } from "@/lib/chat/file-prompts";
 
 type AttachedFile = UploadResponse;
 
-const STREAMING_WORDS = [
-  "encofrando",
-  "mezclando",
-  "replanteando",
-  "nivelando",
-  "cubicando",
-  "hormigonando",
-  "apuntalando",
-  "afinando",
-  "levantando",
-  "trazando",
-];
 
-// Pending state: the full context to send when the user submits
+// Archivo procesado que espera a que el usuario envíe el mensaje.
 interface PendingFile {
   processed: AttachedFile;
   prompt: string;
@@ -51,7 +36,7 @@ interface PendingFile {
 
 export default function ChatPage() {
   const { activeProject } = useProjectContext();
-  // Use a ref so the headers callback always reads the latest project without re-creating the transport
+  // Ref para que el callback de headers lea la obra activa sin recrear el transport.
   const activeProjectRef = useRef(activeProject);
   const chatSessionIdRef = useRef<string | null>(null);
   // eslint-disable-next-line react-hooks/refs
@@ -98,13 +83,9 @@ export default function ChatPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [streamingWord, setStreamingWord] = useState(
-    () => STREAMING_WORDS[Math.floor(Math.random() * STREAMING_WORDS.length)] ?? "trabajando",
-  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const comparisonFileInputRef = useRef<HTMLInputElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
-  const streamingWordPool = useMemo(() => STREAMING_WORDS, []);
 
   // Restore messages when session switches
   useEffect(() => {
@@ -141,130 +122,54 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    if (!isStreaming) return;
-    const id = window.setInterval(() => {
-      setStreamingWord((current) => {
-        const nextPool = streamingWordPool.filter((word) => word !== current);
-        return nextPool[Math.floor(Math.random() * nextPool.length)] ?? current;
-      });
-    }, 2200);
-    return () => window.clearInterval(id);
-  }, [isStreaming, streamingWordPool]);
-
   const handleFileSelect = useCallback(async (file: File) => {
     setUploadError(null);
     setIsUploading(true);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const { getAuthHeaders } = await import("@/lib/insforge/client");
-      const uploadHeaders = { ...(await getAuthHeaders()) };
-      const activeProject = activeProjectRef.current;
-      if (activeProject?.id) uploadHeaders["x-project-id"] = activeProject.id;
-      if (chatSessionIdRef.current) uploadHeaders["x-chat-session-id"] = chatSessionIdRef.current;
-
-      const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
-      const data: unknown = await res.json();
-
-      if (!res.ok) {
-        const error = apiErrorResponseSchema.safeParse(data);
-        const msg = error.success ? error.data.error : "Error al procesar el archivo.";
-        const suggestion = error.success ? error.data.suggestion : undefined;
-        setUploadError(suggestion ? `${msg} ${suggestion}` : msg);
-        return;
-      }
-
-      const parsed = uploadResponseSchema.safeParse(data);
-      if (!parsed.success) {
-        console.error("Invalid /api/upload response", parsed.error.flatten());
-        setUploadError("El servidor devolvió una respuesta inválida para el archivo.");
-        return;
-      }
-
-      const processed = parsed.data;
-      let dxfBlobUrl: string | undefined;
-
-      // Images: the server parser returns a dataUrl — send it as an inline image part
-      if (processed.type === "image") {
-        const imagePart: FileUIPart = {
-          type: "file",
-          mediaType: processed.mimeType,
-          filename: processed.fileName,
-          url: processed.dataUrl,
-        };
-        sendMessage({ text: buildImagePrompt(processed.fileName), files: [imagePart] });
-        recordSession(processed.fileName, "image", activeProjectRef.current?.id);
-        return;
-      }
-
-      // DXF: create blob URL for the WebGL viewer
-      if (processed.type === "dxf") {
-        dxfBlobUrl = URL.createObjectURL(file);
-      }
-
-      setPending((prev) => {
-        if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
-        return null;
-      });
-      setPendingB(null);
-
-      setPending({ processed, prompt: buildFilePrompt(processed), dxfBlobUrl });
-    } catch {
-      setUploadError("No se pudo conectar con el servidor.");
-    } finally {
-      setIsUploading(false);
+    const result = await uploadFile(file, activeProjectRef.current?.id, chatSessionIdRef.current);
+    setIsUploading(false);
+    if (!result.ok) {
+      setUploadError(result.error);
+      return;
     }
+    const processed = result.file;
+
+    // Las imágenes viajan como parte inline del mensaje (data URL).
+    if (processed.type === "image") {
+      const imagePart: FileUIPart = { type: "file", mediaType: processed.mimeType, filename: processed.fileName, url: processed.dataUrl };
+      sendMessage({ text: buildImagePrompt(processed.fileName), files: [imagePart] });
+      recordSession(processed.fileName, "image", activeProjectRef.current?.id);
+      return;
+    }
+
+    setPending((prev) => {
+      if (prev?.dxfBlobUrl) URL.revokeObjectURL(prev.dxfBlobUrl);
+      return {
+        processed,
+        prompt: buildFilePrompt(processed),
+        dxfBlobUrl: processed.type === "dxf" ? URL.createObjectURL(file) : undefined,
+      };
+    });
+    setPendingB(null);
   }, [sendMessage, recordSession]);
 
   const handleAddComparisonFile = useCallback(async (file: File) => {
     if (!pending || pending.processed.type !== "excel") {
-      setUploadError("La comparativa A vs B requiere un Excel cargado como archivo A.");
+      setUploadError("La comparación requiere un Excel cargado como archivo A.");
       return;
     }
     setUploadError(null);
     setIsUploading(true);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const { getAuthHeaders } = await import("@/lib/insforge/client");
-      const uploadHeaders = { ...(await getAuthHeaders()) };
-      const ap = activeProjectRef.current;
-      if (ap?.id) uploadHeaders["x-project-id"] = ap.id;
-      if (chatSessionIdRef.current) uploadHeaders["x-chat-session-id"] = chatSessionIdRef.current;
-
-      const res = await fetch("/api/upload", { method: "POST", body: formData, headers: uploadHeaders });
-      const data: unknown = await res.json();
-
-      if (!res.ok) {
-        const error = apiErrorResponseSchema.safeParse(data);
-        const msg = error.success ? error.data.error : "Error al procesar el archivo.";
-        setUploadError(msg);
-        return;
-      }
-
-      const parsed = uploadResponseSchema.safeParse(data);
-      if (!parsed.success) {
-        setUploadError("El servidor devolvió una respuesta inválida para el archivo.");
-        return;
-      }
-
-      const processed = parsed.data;
-      if (processed.type !== "excel") {
-        setUploadError("La comparativa A vs B solo admite Excel por ahora.");
-        return;
-      }
-
-      setPendingB({ processed, prompt: buildFilePrompt(processed) });
-    } catch {
-      setUploadError("No se pudo conectar con el servidor.");
-    } finally {
-      setIsUploading(false);
+    const result = await uploadFile(file, activeProjectRef.current?.id, chatSessionIdRef.current);
+    setIsUploading(false);
+    if (!result.ok) {
+      setUploadError(result.error);
+      return;
     }
+    if (result.file.type !== "excel") {
+      setUploadError("La comparación solo admite archivos Excel.");
+      return;
+    }
+    setPendingB({ processed: result.file, prompt: buildFilePrompt(result.file) });
   }, [pending]);
 
   const handleStartComparison = useCallback(() => {
@@ -348,8 +253,6 @@ export default function ChatPage() {
       proposal.docType === "presupuesto_excel" ? "presupuesto Excel"
       : proposal.docType === "memoria_descriptiva" ? "memoria descriptiva"
       : proposal.docType === "informe_pdf" ? "informe PDF"
-      : proposal.docType === "orden_compra" ? "orden de compra"
-      : proposal.docType === "acta_obra" ? "parte diario de obra"
       : "documento";
     const payloadJson = JSON.stringify(proposal.payload).slice(0, 12_000);
     const text = `Ajustá el ${docLabel} "${proposal.fileName}" que generaste recién según estas indicaciones:
@@ -361,7 +264,7 @@ Volvé a llamar la herramienta de generación correspondiente con el payload mod
 ${payloadJson}
 \`\`\`
 
-No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios solicitados y regenerá el archivo.`;
+No vuelvas a auditar: aplicá los cambios y regenerá el archivo.`;
     sendMessage({ text });
   }
 
@@ -379,50 +282,20 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
     ? { name: `${pending.processed.fileName}  vs  ${pendingB.processed.fileName}`, subtitle: "comparativa A vs B lista", fileType: "excel" as const }
     : pending ? buildChip(pending.processed) : null;
 
-  const exportTitle = pending?.processed.fileName ?? messages[0]?.id ?? "Auditoría EdificIA";
-
   return (
     <div className="flex h-full flex-col bg-background/55">
       {/* Header */}
       <header className="relative z-40 flex shrink-0 items-center gap-2 border-b bg-card/85 px-6 py-3 backdrop-blur">
         <Compass className="h-3.5 w-3.5 text-primary" />
-        <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Asistente de Obra</h1>
+        <h1 className="font-display text-[13px] font-medium tracking-[-0.01em]">Chat</h1>
         {isStreaming && (
           <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
             <span className="eb-pulse h-1.5 w-1.5 rounded-full bg-primary" />
-            {streamingWord}…
+            procesando
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          {messages.length > 0 && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground"
-                onClick={() => exportAuditXlsx(exportTitle, messages)}
-                title="Exportar auditoría a Excel"
-              >
-                <Sheet className="h-3 w-3" />
-                XLSX
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 font-mono text-[10px] uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground"
-                onClick={() => { void exportAuditPdf(exportTitle, messages); }}
-                title="Exportar auditoría a PDF"
-              >
-                <Download className="h-3 w-3" />
-                PDF
-              </Button>
-              <span className="h-4 w-px bg-border" />
-            </>
-          )}
           <TopBarActions />
-          <span className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-            DeepSeek V4 Flash
-          </span>
         </div>
       </header>
 
@@ -439,7 +312,6 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
       <DropZone onFileDrop={handleFileSelect} canUpload={canUpload}>
         <div className="flex-1 overflow-y-auto ed-blueprint-bg">
           {needsIndexOnboarding && <PriceIndexOnboardingBanner />}
-          <ProactivityAlertsBanner projectId={activeProject?.id ?? null} />
           {messages.length === 0 && !pending ? (
             <div className="min-h-full flex flex-col justify-center">
               <AgentGreeting
@@ -527,7 +399,7 @@ No vuelvas a auditar ni a buscar en fuentes empresariales: aplicá los cambios s
           />
           <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground">
             <span>↩ enviar &nbsp;·&nbsp; ⇧↩ nueva línea</span>
-            <span>EdificIA puede equivocarse — verificá los cálculos</span>
+            <span>Verificá los resultados antes de usarlos</span>
           </div>
         </div>
       </div>
@@ -542,10 +414,10 @@ function PriceIndexOnboardingBanner() {
         <AlertTriangle className="h-4 w-4 shrink-0 text-[oklch(0.62_0.18_60)]" strokeWidth={1.75} />
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold text-foreground">
-            Todavía no cargaste la base de datos de tu empresa
+            No hay índices de precio cargados
           </p>
           <p className="text-[11.5px] text-muted-foreground">
-            Sin tus precios, contratos y referencias internas, EdificIA trabaja con contexto limitado y pierde precisión al comparar valores.
+            Sin índices de referencia, la comparación de precios unitarios no está disponible.
           </p>
         </div>
         <Link
@@ -553,14 +425,12 @@ function PriceIndexOnboardingBanner() {
           className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           <TrendingUp className="h-3.5 w-3.5" />
-          Cargar datos
+          Cargar índices
         </Link>
       </div>
     </div>
   );
 }
-
-// ── Chip builder ──────────────────────────────────────────────────────────────
 
 function buildChip(file: ProcessedFile) {
   let subtitle = "";
@@ -571,176 +441,34 @@ function buildChip(file: ProcessedFile) {
   } else if (file.type === "dxf") {
     subtitle = `${file.layers.length} capas`;
   } else if (file.type === "docx") {
-    subtitle = `${file.wordCount.toLocaleString()} palabras`;
+    subtitle = `${file.wordCount.toLocaleString("es-AR")} palabras`;
   }
   return { name: file.fileName, subtitle, fileType: file.type };
 }
 
-// ── Auto-prompts ──────────────────────────────────────────────────────────────
+type UploadResult = { ok: true; file: UploadResponse } | { ok: false; error: string };
 
-// Embed a machine-readable marker as the first line so MessageBubble can render a file card
-// without displaying raw JSON to the user. The AI model also sees this metadata.
-function fileMeta(file: ProcessedFile & { cacheId?: string | null; contextScan?: UploadResponse["contextScan"] }): string {
-  const meta: Record<string, unknown> = {
-    fileName: file.fileName,
-    type: file.type,
-    fileSize: file.fileSize,
-  };
-  if (file.type === "excel") {
-    meta.itemCount = file.itemCount;
-    meta.sheetName = file.sheetName;
-    if (file.detectedTotal != null) meta.detectedTotal = file.detectedTotal;
-    if (file.cacheId) meta.cacheId = file.cacheId;
-  } else if (file.type === "pdf") {
-    meta.pageCount = file.pageCount;
-    meta.isScanned = file.isScanned;
-  } else if (file.type === "docx") {
-    meta.wordCount = file.wordCount;
+async function uploadFile(file: File, projectId: string | undefined, chatSessionId: string | null): Promise<UploadResult> {
+  const { getAuthHeaders } = await import("@/lib/insforge/client");
+  const headers = { ...(await getAuthHeaders()) };
+  if (projectId) headers["x-project-id"] = projectId;
+  if (chatSessionId) headers["x-chat-session-id"] = chatSessionId;
+
+  const body = new FormData();
+  body.append("file", file);
+  try {
+    const res = await fetch("/api/upload", { method: "POST", body, headers });
+    const data: unknown = await res.json();
+    if (!res.ok) {
+      const error = apiErrorResponseSchema.safeParse(data);
+      if (!error.success) return { ok: false, error: "Error al procesar el archivo." };
+      return { ok: false, error: [error.data.error, error.data.suggestion].filter(Boolean).join(" ") };
+    }
+    const parsed = uploadResponseSchema.safeParse(data);
+    return parsed.success
+      ? { ok: true, file: parsed.data }
+      : { ok: false, error: "El servidor devolvió una respuesta inválida para el archivo." };
+  } catch {
+    return { ok: false, error: "No se pudo conectar con el servidor." };
   }
-  if (file.contextScan?.hasFindings) {
-    meta.contextFindings = file.contextScan.findings.map((finding) => ({
-      type: finding.type,
-      severity: finding.severity,
-      message: finding.message,
-      relatedFileName: finding.relatedFileName,
-      deltaPct: finding.evidence.deltaPct,
-    }));
-  }
-  return `__file_meta__:${JSON.stringify(meta)}`;
-}
-
-// Strip control chars + cap length to prevent prompt injection via filenames
-function safeStr(s: string, max = 120): string {
-  return s.replace(/[\x00-\x1f\x7f]/g, "").slice(0, max);
-}
-
-// Strip common prompt-injection patterns from document text content
-function sanitizeDocText(text: string, max = 8000): string {
-  return text
-    .replace(/ignore\s+(all\s+)?(previous|prior|above|your)\s+(instructions?|prompt|context|directives?)/gi, "[filtrado]")
-    .replace(/<\|(?:im_start|im_end|system|endoftext)\|>/gi, "")
-    .replace(/\[INST\]|\[\/INST\]/gi, "")
-    .replace(/^\s*#{1,3}\s*(system|assistant|user|instruction|override|reset|forget)\b.*$/gim, "")
-    .slice(0, max);
-}
-
-function buildFilePrompt(file: AttachedFile): string {
-  switch (file.type) {
-    case "excel": {
-      const totalLine = file.detectedTotal != null
-        ? `\nTotal declarado: $${file.detectedTotal.toLocaleString("es-AR")}`
-        : "";
-      const cacheId = file.cacheId;
-      const dataSection = cacheId
-        ? `\ncacheId del presupuesto: "${cacheId}" — pasalo a calcular_totales, validar_cierre_de_total y detectar_exclusiones_logicas.`
-        : `\n\nDatos estructurados:\n\`\`\`json\n${JSON.stringify(file.items)}\n\`\`\``;
-
-      return `${fileMeta(file)}
-Archivo Excel "${safeStr(file.fileName)}" — ${file.itemCount} ítems, hoja "${safeStr(file.sheetName ?? "")}".${totalLine}${dataSection}
-
-Leé este Excel como documento operativo de construcción, no asumas que siempre es un presupuesto. Primero clasificá qué es y para qué sirve: presupuesto, cómputo, lista de precios, certificado, acopio, comparativa de proveedor u otro.
-
-Si tiene estructura de presupuesto/cómputo con cantidades e ítems de obra:
-1. calcular_totales${cacheId ? ` con cacheId="${cacheId}"` : ""}.
-2. validar_cierre_de_total${cacheId ? ` con cacheId="${cacheId}"` : ""}${file.detectedTotal != null ? ` y declaredTotal=${file.detectedTotal}` : " (solo si hay total declarado)"}.
-3. detectar_exclusiones_logicas${cacheId ? ` con cacheId="${cacheId}"` : ""}.
-4. generar_grafica cuando la distribución de rubros ayude a decidir.
-
-Si es lista de precios/proveedor/catálogo:
-- No lo trates como "no sirve"; explicá qué decisiones habilita (comparar contra presupuesto, registrar referencia, armar compra, buscar artículos).
-- Extraé proveedor, fecha, moneda, rubros, unidades y ejemplos representativos.
-- Si el usuario ya dijo qué quiere hacer, avanzá con ese objetivo sin devolver una encuesta genérica.
-
-Cierre: decí qué entendiste del archivo, qué datos confiables extrajiste, qué acción concreta recomendás y qué faltaría si el usuario quisiera convertirlo en presupuesto de obra.`;
-    }
-
-    case "pdf": {
-      if (file.isScanned) {
-        return `${fileMeta(file)}
-PDF escaneado "${safeStr(file.fileName)}" (${file.pageCount} páginas). Procesado con OCR.
-
-Leé este PDF como documento operativo de construcción. Clasificá qué es y para qué sirve antes de juzgarlo: lista de precios, contrato, memoria, certificado, legajo, remito, presupuesto, plano escaneado u otro. Extraé datos útiles (proveedor, fecha, moneda, rubros, precios, cantidades, vencimientos o responsables) y conectalos con una acción concreta. No lo descartes por no ser presupuesto; si es referencia de proveedor, tratala como insumo para compras/cotización.`;
-      }
-      return `${fileMeta(file)}
-PDF "${safeStr(file.fileName)}" (${file.pageCount} páginas). Texto extraído:
-
----
-${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
----
-
-Leé este documento como Project Manager de obra. Primero clasificá qué es y qué decisión habilita; después extraé señales útiles: proveedor/obra/fecha/moneda/rubros/precios/cantidades/vencimientos/responsables según corresponda.
-
-No respondas "no es un presupuesto" como conclusión principal. Si no es presupuesto, explicá qué sí es y cómo se puede usar en la operación: comparar precios, alimentar una compra, contrastar contra presupuesto, registrar referencia o pedir datos faltantes. Si el usuario ya indicó una intención, respondé a esa intención.`;
-    }
-
-    case "dxf": {
-      const entitiesStr = Object.entries(file.entitySummary).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ");
-      const dimsStr = file.dimensions.slice(0, 20).map((d) => `  - ${d.layer}: "${d.text}"${d.value != null ? ` = ${d.value}` : ""}`).join("\n");
-      return `${fileMeta(file)}
-Archivo CAD DXF "${safeStr(file.fileName)}".
-
-Capas: ${file.layers.join(", ") || "ninguna"}
-Entidades: ${entitiesStr || "ninguna"}
-Dimensiones (primeras 20):
-${dimsStr || "  - Ninguna"}
-Textos: ${file.textAnnotations.slice(0, 30).join(", ") || "ninguno"}
-Bloques: ${file.blockNames.slice(0, 15).join(", ") || "ninguno"}
-
-¿Qué tipo de plano es? ¿Qué elementos constructivos identificás? Si hay dimensiones, estimá cómputos métricos básicos.`;
-    }
-
-    case "docx": {
-      return `${fileMeta(file)}
-Documento Word "${safeStr(file.fileName)}" (${file.wordCount} palabras).
-
-Contenido:
----
-${sanitizeDocText(file.text)}${file.text.length > 8000 ? "\n[texto truncado...]" : ""}
----
-
-Leé este Word como documento operativo de construcción. Clasificá tipo, propósito, responsables, fechas, especificaciones, materiales, costos o restricciones si aparecen. No lo fuerces a presupuesto: explicá para qué sirve y qué acción concreta habilita.`;
-    }
-
-    default:
-      return `${fileMeta(file)}\nArchivo "${safeStr(file.fileName)}" adjunto. Por favor analizá su contenido.`;
-  }
-}
-
-function buildImagePrompt(fileName: string): string {
-  const safe = safeStr(fileName);
-  return `__file_meta__:${JSON.stringify({ fileName, type: "image" })}\nImagen "${safe}" adjunta. Leela como insumo operativo de construcción. Si es una planilla/lista de precios: extraé proveedor, artículos, unidades y valores. Si es un plano: describí elementos constructivos y dimensiones visibles. Si es foto de obra o documento visual: explicá qué muestra, qué señales útiles hay y qué acción concreta habilita.`;
-}
-
-function buildComparisonPrompt(a: AttachedFile & { type: "excel" }, b: AttachedFile & { type: "excel" }): string {
-  const nameA = safeStr(a.fileName);
-  const nameB = safeStr(b.fileName);
-  const cacheA = a.cacheId;
-  const cacheB = b.cacheId;
-
-  const cacheRefA = cacheA ? `cacheId="${cacheA}"` : "items inline";
-  const cacheRefB = cacheB ? `cacheId="${cacheB}"` : "items inline";
-
-  const declaredLineA = a.detectedTotal != null ? ` · total declarado $${a.detectedTotal.toLocaleString("es-AR")}` : "";
-  const declaredLineB = b.detectedTotal != null ? ` · total declarado $${b.detectedTotal.toLocaleString("es-AR")}` : "";
-
-  const declaredA = a.detectedTotal != null ? ` y declaredTotal=${a.detectedTotal}` : " (omitir si no hay total declarado)";
-  const declaredB = b.detectedTotal != null ? ` y declaredTotal=${b.detectedTotal}` : " (omitir si no hay total declarado)";
-
-  return `${fileMeta(a)}
-${fileMeta(b)}
-Auditoría comparativa de dos versiones del mismo presupuesto.
-
-- A: "${nameA}" — ${a.itemCount} ítems${declaredLineA} · ${cacheRefA}
-- B: "${nameB}" — ${b.itemCount} ítems${declaredLineB} · ${cacheRefB}
-
-Plan:
-1. calcular_totales con ${cacheRefA}.
-2. calcular_totales con ${cacheRefB}.
-3. validar_cierre_de_total con ${cacheRefA}${declaredA}.
-4. validar_cierre_de_total con ${cacheRefB}${declaredB}.
-5. detectar_exclusiones_logicas con ${cacheRefA} y con ${cacheRefB} para listar errores/warnings de cada versión.
-6. comparar_presupuestos con title="A vs B", columnA="A · ${nameA}", columnB="B · ${nameB}" y rows que incluyan: Total declarado, Costo directo calculado, Cantidad de ítems, Errores detectados, Warnings detectados, Brecha A→B.
-7. Resumen ejecutivo: qué cambió entre A y B, qué rubros divergen más, cuál es más confiable y qué decisión recomendás.
-
-Citá provenance en cada cifra crítica.`;
 }

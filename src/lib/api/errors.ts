@@ -1,8 +1,6 @@
-// Standardized API error responses.
-// Usage: return apiError("Mensaje", 400)
-// Never expose stack traces or internal details in production.
+/** Respuestas de error uniformes para las rutas API. Nunca incluyen detalles internos. */
 
-export function apiError(
+function apiError(
   message: string,
   status: number,
   opts?: { code?: string; suggestion?: string },

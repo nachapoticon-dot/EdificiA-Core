@@ -21,8 +21,6 @@ export function chunkDocument(file: ProcessedFile): DocumentChunk[] {
   }
 }
 
-// ── Excel — group by rubro, fallback to flat groups of 20 ─────────────────────
-
 interface RubroGroup {
   rubro: string;
   items: BudgetItem[];
@@ -104,8 +102,6 @@ function chunkExcel(file: Extract<ProcessedFile, { type: "excel" }>): DocumentCh
     : [{ text: `Presupuesto vacío: ${file.fileName}`, chunkIndex: 0, metadata: { has_prices: false, has_quantities: false } }];
 }
 
-// ── PDF — section-aware chunking ──────────────────────────────────────────────
-
 interface Section {
   title: string;
   content: string;
@@ -173,8 +169,6 @@ function chunkPdf(file: Extract<ProcessedFile, { type: "pdf" }>): DocumentChunk[
   return slidingWindowChunk(file.text, { pageCount: file.pageCount });
 }
 
-// ── DXF ───────────────────────────────────────────────────────────────────────
-
 function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[] {
   const geo  = file.geometrySummary;
   const text = [
@@ -187,8 +181,6 @@ function chunkDxf(file: Extract<ProcessedFile, { type: "dxf" }>): DocumentChunk[
 
   return [{ text, chunkIndex: 0, metadata: { layerCount: file.layers.length, totalAreaM2: geo.totalAreaM2, totalLinearM: geo.totalLinearM } }];
 }
-
-// ── DOCX ──────────────────────────────────────────────────────────────────────
 
 function chunkDocx(file: Extract<ProcessedFile, { type: "docx" }>): DocumentChunk[] {
   if (!file.text.trim()) return [{ text: `Documento: ${file.fileName}`, chunkIndex: 0, metadata: {} }];
@@ -204,8 +196,6 @@ function chunkDocx(file: Extract<ProcessedFile, { type: "docx" }>): DocumentChun
   }
   return slidingWindowChunk(file.text, {});
 }
-
-// ── Shared sliding-window chunker ─────────────────────────────────────────────
 
 function slidingWindowChunk(text: string, meta: Record<string, unknown>): DocumentChunk[] {
   const segments = text.split(/\n{2,}/).map((s) => s.trim()).filter((s) => s.length > 20);

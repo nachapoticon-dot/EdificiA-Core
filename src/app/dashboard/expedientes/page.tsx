@@ -108,7 +108,7 @@ export default function ExpedientesPage() {
       if (statusFilter !== "all" && workCase.status !== statusFilter) return false;
       if (!needle) return true;
       const projectName = workCase.projectId ? projectsById.get(workCase.projectId)?.name ?? "" : "";
-      return `${workCase.title} ${workCase.summary ?? ""} ${projectName} ${KIND_LABELS[workCase.kind]}`
+      return `${workCase.title} ${workCase.summary ?? ""} ${projectName} ${KIND_LABELS[workCase.kind] ?? workCase.kind}`
         .toLowerCase()
         .includes(needle);
     });
@@ -319,7 +319,7 @@ function WorkCaseRow({
         <div className="flex flex-wrap items-center gap-2">
           <p className="min-w-0 truncate text-[13px] font-semibold text-foreground">{workCase.title}</p>
           <span className="rounded-[5px] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.05em] text-muted-foreground">
-            {KIND_LABELS[workCase.kind]}
+            {KIND_LABELS[workCase.kind] ?? workCase.kind}
           </span>
           <span className={cn("rounded-[5px] px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.05em]", STATUS_TONE[workCase.status])}>
             {STATUS_LABELS[workCase.status]}

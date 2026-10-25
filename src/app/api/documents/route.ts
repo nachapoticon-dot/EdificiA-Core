@@ -1,12 +1,11 @@
 import { getInsForgeAdminClient } from "@/lib/insforge/server";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { apiForbidden } from "@/lib/api/errors";
 import { dbLogger } from "@/lib/logger";
-import { documentsResponseSchema, okResponseSchema } from "@/lib/validators/api-responses";
+import { documentsResponseSchema } from "@/lib/validators/api-responses";
 
 export const runtime = "nodejs";
 
-/** GET /api/documents — returns all uploaded files for the caller's organization. */
+/** Archivos subidos por la organización, con su estado de indexación y cantidad de fragmentos. */
 export async function GET(req: Request) {
   const auth = await requireAuth(req);
   if (auth instanceof Response) return auth;
@@ -53,34 +52,6 @@ export async function GET(req: Request) {
     return Response.json(documentsResponseSchema.parse(body));
   } catch (err) {
     dbLogger.error({ err }, "GET /api/documents");
-    return Response.json({ error: "Internal error" }, { status: 500 });
-  }
-}
-
-/** DELETE /api/documents?id=<fileId> — soft-delete only. */
-export async function DELETE(req: Request) {
-  const auth = await requireAuth(req);
-  if (auth instanceof Response) return auth;
-
-  if (auth.role !== "admin") return apiForbidden("Se requiere rol admin para eliminar archivos.");
-
-  const { searchParams } = new URL(req.url);
-  const fileId = searchParams.get("id");
-  if (!fileId) return Response.json({ error: "id requerido" }, { status: 400 });
-
-  try {
-    const client = getInsForgeAdminClient();
-    const result = await client.database
-      .from("uploaded_files")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", fileId)
-      .eq("organization_id", auth.orgId)
-      .is("deleted_at", null);
-
-    if (result.error) return Response.json({ error: "No se pudo eliminar el archivo" }, { status: 500 });
-    return Response.json(okResponseSchema.parse({ ok: true }));
-  } catch (err) {
-    dbLogger.error({ err }, "DELETE /api/documents");
     return Response.json({ error: "Internal error" }, { status: 500 });
   }
 }

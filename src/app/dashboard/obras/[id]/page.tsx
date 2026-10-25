@@ -20,7 +20,7 @@ import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useWorkCases, type WorkCaseEntry } from "@/hooks/useWorkCases";
 import { getAuthHeaders } from "@/lib/insforge/client";
 import type { PhaseCoverage } from "@/lib/obra/coverage";
-import { ScheduleImportSection } from "./_components/ScheduleImportSection";
+import { KIND_LABELS, STATUS_LABELS } from "@/lib/work-cases/types";
 
 const STATUS_OPTIONS = [
   { value: "en_obra",      label: "En obra" },
@@ -35,32 +35,6 @@ const STATUS_COLORS: Record<string, string> = {
   finalizado:   "bg-accent text-muted-foreground",
   pausado:      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
-
-const WORK_CASE_KIND_LABELS: Record<WorkCaseEntry["kind"], string> = {
-  budget_audit: "Presupuesto",
-  document_audit: "Documento",
-  schedule_review: "Cronograma",
-  financial_review: "Finanzas",
-  hse_review: "HSE",
-  supplies_review: "Acopios",
-  subcontract_review: "Subcontratos",
-  daily_brief: "Brief diario",
-  operations_update: "Operación",
-  communication: "Comunicación",
-  general: "General",
-  legacy_conversation: "Legacy",
-};
-
-const WORK_CASE_STATUS_LABELS: Record<WorkCaseEntry["status"], string> = {
-  open: "Abierto",
-  in_progress: "En curso",
-  waiting: "En espera",
-  resolved: "Resuelto",
-  closed: "Cerrado",
-  archived: "Archivado",
-};
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("es-AR", {
@@ -200,11 +174,11 @@ function WorkCaseRow({
         <div className="flex items-center gap-2">
           <p className="truncate text-[13px] font-semibold text-foreground">{workCase.title}</p>
           <span className="rounded-[5px] bg-accent px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.05em] text-muted-foreground">
-            {WORK_CASE_KIND_LABELS[workCase.kind]}
+            {KIND_LABELS[workCase.kind] ?? workCase.kind}
           </span>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-          <span>{WORK_CASE_STATUS_LABELS[workCase.status]}</span>
+          <span>{STATUS_LABELS[workCase.status]}</span>
           <span className="text-muted-foreground/40">·</span>
           <span className="flex items-center gap-1">
             <Clock3 className="h-3 w-3" />
@@ -233,8 +207,6 @@ function WorkCaseRow({
     </div>
   );
 }
-
-// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ObraDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -482,7 +454,6 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
 
-          {/* ── Left: file timeline ─────────────────────────────── */}
           <div>
             <div className="mb-4 flex items-center gap-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground shrink-0">
@@ -522,7 +493,6 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
             )}
           </div>
 
-          {/* ── Right: phase coverage ───────────────────────────── */}
           <div>
             <div className="mb-4 flex items-center gap-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground shrink-0">
@@ -564,8 +534,6 @@ export default function ObraDetailPage({ params }: { params: Promise<{ id: strin
           </div>
 
         </div>
-
-        <ScheduleImportSection projectId={id} />
       </div>
     </div>
   );

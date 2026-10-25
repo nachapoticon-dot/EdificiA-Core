@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  BarChart, Bar, Cell,
+  Cell,
   PieChart, Pie,
   LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,

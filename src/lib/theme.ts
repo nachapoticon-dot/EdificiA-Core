@@ -2,7 +2,7 @@ export const THEMES = ["editorial", "plano", "oscuro"] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const DEFAULT_THEME: Theme = "editorial";
-export const STORAGE_KEY = "edificia-theme";
+const STORAGE_KEY = "edificia-theme";
 
 const DARK_THEMES: ReadonlySet<Theme> = new Set(["plano", "oscuro"]);
 
@@ -18,7 +18,7 @@ export const THEME_DESCRIPTIONS: Record<Theme, string> = {
   oscuro: "Graphite + cobre apagado",
 };
 
-export function isTheme(value: unknown): value is Theme {
+function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && (THEMES as readonly string[]).includes(value);
 }
 

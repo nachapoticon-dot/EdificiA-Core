@@ -9,8 +9,6 @@ import {
 import { usePriceIndices, useUploadPriceList } from "@/hooks/usePriceIndices";
 import type { PriceIndexRow } from "@/hooks/usePriceIndices";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const MONTH_NAMES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
@@ -27,8 +25,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   presupuesto_general: "Presupuesto General", sin_clasificar: "Sin clasificar",
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function periodLabel(row: PriceIndexRow): string {
   if (!row.period_month) return String(row.period_year);
   return `${MONTH_NAMES[row.period_month - 1]} ${row.period_year}`;
@@ -44,8 +40,6 @@ function isStale(row: PriceIndexRow): boolean {
 function formatARS(n: number): string {
   return `$${Math.round(n).toLocaleString("es-AR")}`;
 }
-
-// ── Category group ────────────────────────────────────────────────────────────
 
 function CategoryGroup({ category, rows }: { category: string; rows: PriceIndexRow[] }) {
   const [open, setOpen] = useState(false);
@@ -121,8 +115,6 @@ function CategoryGroup({ category, rows }: { category: string; rows: PriceIndexR
     </div>
   );
 }
-
-// ── Upload modal ──────────────────────────────────────────────────────────────
 
 function UploadModal({ onClose }: { onClose: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -281,8 +273,6 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-
-// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndicesPage() {
   const { data: indices = [], isLoading } = usePriceIndices();

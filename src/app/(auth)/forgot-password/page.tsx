@@ -33,7 +33,6 @@ export default function ForgotPasswordPage() {
   if (sent) {
     return (
       <div className="space-y-3 rounded-xl border border-border bg-card p-6 shadow-sm text-center">
-        <div className="text-2xl">📬</div>
         <h2 className="text-base font-semibold text-foreground">Revisá tu email</h2>
         <p className="text-sm text-muted-foreground">
           Si existe una cuenta para <strong className="text-foreground">{email}</strong>,

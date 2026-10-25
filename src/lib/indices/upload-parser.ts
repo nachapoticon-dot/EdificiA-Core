@@ -20,7 +20,6 @@ export interface ParseResult {
   period_month: number;
 }
 
-// ── Header synonyms ───────────────────────────────────────────────────────────
 // Flexible column detection: the parser looks for any of these aliases.
 
 const DESCRIPTION_ALIASES = ["descripcion", "descripción", "item", "ítem", "material", "concepto", "detalle", "rubro"];

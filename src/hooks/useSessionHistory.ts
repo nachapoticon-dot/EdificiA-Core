@@ -19,8 +19,6 @@ const EMPTY_SESSIONS: SessionEntry[] = [];
 let cachedRawSessions: string | null = null;
 let cachedSessions: SessionEntry[] = [];
 
-// ── localStorage helpers ────────────────────────────────────────────���─────────
-
 function loadSessions(): SessionEntry[] {
   if (typeof window === "undefined") return EMPTY_SESSIONS;
   const raw = localStorage.getItem(STORAGE_KEY) ?? "[]";
@@ -45,8 +43,6 @@ function subscribeToSessionUpdates(callback: () => void): () => void {
   window.addEventListener(UPDATE_EVENT, callback);
   return () => window.removeEventListener(UPDATE_EVENT, callback);
 }
-
-// ── API helpers (fire-and-forget, never throw) ────────────────────────────────
 
 async function getApiHeaders(): Promise<Record<string, string>> {
   const token = await getAuthToken();
@@ -111,8 +107,6 @@ async function fetchRemoteSessions(): Promise<SessionEntry[]> {
     return [];
   }
 }
-
-// ── Public API ────────────────────────────────────────────────────────────────
 
 export function saveSession(entry: SessionEntry): void {
   const current = loadSessions();

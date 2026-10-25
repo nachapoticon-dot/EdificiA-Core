@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import type { ProcessedFile } from "@/lib/file-processor/types";
 import { piiLabel, type PiiScanResult } from "@/lib/security/pii-detector";
-import type { ContextScanResult } from "@/lib/document-intelligence/context-scan";
+import type { ContextScanResult } from "@/lib/documents/context-scan";
 
 interface FileReadyViewProps {
   file: ProcessedFile;
@@ -17,8 +17,6 @@ interface FileReadyViewProps {
   onRemove: () => void;
   onStartComparison?: () => void;
 }
-
-/* ── Per-type config ─────────────────────────────────────────────────── */
 
 function getConfig(file: ProcessedFile) {
   switch (file.type) {
@@ -38,7 +36,7 @@ function getConfig(file: ProcessedFile) {
           { label: "Hoja", value: file.sheetName },
           { label: "Ítems", value: String(file.itemCount) },
           { label: "Total decl.", value: total },
-          { label: "Cierre", value: "✓ verificar" },
+          { label: "Cierre", value: "a verificar" },
         ],
         actions: [
           { label: "Entender y auditar", hint: "clasifica, extrae señales y verifica lo que aplique", primary: true },
@@ -153,8 +151,6 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/* ── Component ───────────────────────────────────────────────────────── */
-
 export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRemove, onStartComparison }: FileReadyViewProps) {
   const cfg = getConfig(file);
   if (!cfg || file.type === "dwg_unsupported") return null;
@@ -169,7 +165,6 @@ export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRe
         {piiScan?.hasMatches && <PiiWarningBanner scan={piiScan} />}
         {contextScan?.hasFindings && <ContextWarningBanner scan={contextScan} />}
 
-        {/* ── File card ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -250,7 +245,6 @@ export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRe
           </div>
         </motion.div>
 
-        {/* ── Suggested actions ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -304,8 +298,6 @@ export function FileReadyView({ file, piiScan, contextScan, onActionSelect, onRe
     </div>
   );
 }
-
-/* ── Sub-components ──────────────────────────────────────────────────── */
 
 function PiiWarningBanner({ scan }: { scan: PiiScanResult }) {
   return (

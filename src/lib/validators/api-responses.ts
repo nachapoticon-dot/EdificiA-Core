@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WORK_CASE_STATUSES, WORK_CASE_VERDICTS } from "@/lib/work-cases/types";
 import { budgetItemSchema } from "@/lib/math-engine/validators";
 
 export const apiErrorResponseSchema = z.object({
@@ -120,157 +121,6 @@ export const uploadResponseSchema = processedFileResponseSchema.and(uploadedMeta
 
 export type UploadResponse = z.infer<typeof uploadResponseSchema>;
 
-const proactivityFindingSchema = z.object({
-  id: z.string(),
-  type: z.enum([
-    "schedule.overdue",
-    "schedule.upcoming",
-    "schedule.blocked",
-    "hse.non_compliant",
-    "hse.expiring",
-    "supply.delayed",
-    "supply.required_soon",
-    "financial.overrun",
-    "project.stale_docs",
-  ]),
-  severity: z.enum(["info", "warning", "critical"]),
-  title: z.string(),
-  detail: z.string(),
-  organizationId: z.string(),
-  projectId: z.string(),
-  projectName: z.string(),
-  entityType: z.string(),
-  entityId: z.string().nullable().optional(),
-  dueDate: z.string().nullable().optional(),
-  metadata: z.record(z.unknown()).optional(),
-});
-
-export const dailyProjectScanResponseSchema = z.object({
-  scannedAt: z.string(),
-  scannedProjects: z.number().int().nonnegative(),
-  findingsCount: z.number().int().nonnegative(),
-  bySeverity: z.object({
-    info: z.number().int().nonnegative(),
-    warning: z.number().int().nonnegative(),
-    critical: z.number().int().nonnegative(),
-  }),
-  projects: z.array(z.object({
-    organizationId: z.string(),
-    projectId: z.string(),
-    projectName: z.string(),
-    findings: z.array(proactivityFindingSchema),
-  })),
-});
-
-export type DailyProjectScanResponse = z.infer<typeof dailyProjectScanResponseSchema>;
-
-export const proactivityFindingsResponseSchema = z.object({
-  hasData: z.boolean(),
-  latestScanAt: z.string().nullable(),
-  projectsScanned: z.number().int().nonnegative(),
-  findingsCount: z.number().int().nonnegative(),
-  bySeverity: z.object({
-    info: z.number().int().nonnegative(),
-    warning: z.number().int().nonnegative(),
-    critical: z.number().int().nonnegative(),
-  }),
-  projects: z.array(z.object({
-    projectId: z.string(),
-    projectName: z.string(),
-    scannedAt: z.string(),
-    findingsCount: z.number().int().nonnegative(),
-    bySeverity: z.object({
-      info: z.number().int().nonnegative(),
-      warning: z.number().int().nonnegative(),
-      critical: z.number().int().nonnegative(),
-    }),
-    findings: z.array(proactivityFindingSchema),
-  })),
-});
-
-export type ProactivityFindingsResponse = z.infer<typeof proactivityFindingsResponseSchema>;
-
-export const scheduleImportResponseSchema = z.object({
-  ok: z.literal(true),
-  mode: z.enum(["append", "replace"]),
-  totalRows: z.number().int().nonnegative(),
-  insertedCount: z.number().int().nonnegative(),
-  warnings: z.array(z.string()),
-});
-
-export type ScheduleImportResponse = z.infer<typeof scheduleImportResponseSchema>;
-
-export const dailyBriefResponseSchema = z.object({
-  found: z.boolean(),
-  projectId: z.string(),
-  projectName: z.string(),
-  generatedAt: z.string(),
-  schedule: z.object({
-    overdue: z.number().int().nonnegative(),
-    dueToday: z.number().int().nonnegative(),
-    dueNext7Days: z.number().int().nonnegative(),
-    blocked: z.number().int().nonnegative(),
-    items: z.array(z.object({
-      id: z.string(),
-      code: z.string().nullable(),
-      name: z.string(),
-      dueDate: z.string().nullable(),
-      status: z.string(),
-      progressPct: z.number(),
-      bucket: z.enum(["overdue", "due_today", "due_soon", "blocked"]),
-    })),
-  }),
-  hse: z.object({
-    expiringSoon: z.number().int().nonnegative(),
-    expired: z.number().int().nonnegative(),
-    items: z.array(z.object({
-      id: z.string(),
-      subject: z.string(),
-      recordType: z.string(),
-      expiresAt: z.string().nullable(),
-      status: z.string(),
-      daysToExpire: z.number().int().nullable(),
-    })),
-  }),
-  supplies: z.object({
-    delayed: z.number().int().nonnegative(),
-    upcoming: z.number().int().nonnegative(),
-    items: z.array(z.object({
-      id: z.string(),
-      itemName: z.string(),
-      requiredBy: z.string().nullable(),
-      status: z.string(),
-      receivedPct: z.number().int().nullable(),
-    })),
-  }),
-  financial: z.object({
-    latestSnapshotDate: z.string().nullable(),
-    plannedAmount: z.number().nullable(),
-    actualAmount: z.number().nullable(),
-    committedAmount: z.number().nullable(),
-    deviationPct: z.number().nullable(),
-    currency: z.string(),
-  }),
-  alerts: z.object({
-    critical: z.number().int().nonnegative(),
-    warning: z.number().int().nonnegative(),
-    info: z.number().int().nonnegative(),
-    topTitles: z.array(z.string()),
-  }),
-  weather: z.object({
-    location: z.string(),
-    date: z.string(),
-    riskLevel: z.string(),
-    precipitationMm: z.number().nullable(),
-    windKph: z.number().nullable(),
-    tempMinC: z.number().nullable(),
-    tempMaxC: z.number().nullable(),
-  }).nullable(),
-  summary: z.string(),
-});
-
-export type DailyBriefResponse = z.infer<typeof dailyBriefResponseSchema>;
-
 export const orgMemberResponseSchema = z.object({
   userId: z.string(),
   email: z.string().email().nullable(),
@@ -322,31 +172,12 @@ export const sessionsResponseSchema = z.object({
 
 export type SessionEntryResponse = z.infer<typeof sessionEntryResponseSchema>;
 
-export const workCaseVerdictSchema = z.enum([
-  "approved",
-  "flagged",
-  "inconclusive",
-  "rejected",
-  "superseded",
-]);
+export const workCaseVerdictSchema = z.enum(WORK_CASE_VERDICTS);
 
 export const workCaseEntryResponseSchema = z.object({
   id: z.string(),
-  kind: z.enum([
-    "budget_audit",
-    "document_audit",
-    "schedule_review",
-    "financial_review",
-    "hse_review",
-    "supplies_review",
-    "subcontract_review",
-    "daily_brief",
-    "operations_update",
-    "communication",
-    "general",
-    "legacy_conversation",
-  ]),
-  status: z.enum(["open", "in_progress", "waiting", "resolved", "closed", "archived"]),
+  kind: z.string(),
+  status: z.enum(WORK_CASE_STATUSES),
   title: z.string(),
   summary: z.string().nullable(),
   verdict: workCaseVerdictSchema.nullable(),
@@ -372,91 +203,24 @@ export const workCaseEventResponseSchema = z.object({
   summary: z.string().nullable(),
   payload: z.record(z.unknown()),
   actorUserId: z.string().nullable(),
-  projectId: z.string().nullable(),
   createdAt: z.string(),
-});
-
-export const workCaseEvidenceResponseSchema = z.object({
-  id: z.string(),
-  evidenceType: z.enum([
-    "file",
-    "chunk",
-    "relation",
-    "audit_event",
-    "tool_run",
-    "finding",
-    "message",
-    "schedule_task",
-    "hse_record",
-    "supply_item",
-    "financial_snapshot",
-    "subcontract",
-    "document_report",
-    "external",
-  ]),
-  entityType: z.string(),
-  entityId: z.string().nullable(),
-  label: z.string().nullable(),
-  confidence: z.number().nullable(),
-  metadata: z.record(z.unknown()),
-  projectId: z.string().nullable(),
-  createdAt: z.string(),
-});
-
-export const documentReportVerdictSchema = z.enum([
-  "consistent",
-  "inconsistent",
-  "needs_review",
-  "unsupported",
-]);
-
-export const documentReportEntrySchema = z.object({
-  id: z.string(),
-  fileId: z.string().nullable(),
-  fileName: z.string().nullable(),
-  reportType: z.enum(["upload_scan", "agent_audit", "manual_review"]),
-  status: z.enum(["ready", "needs_review", "superseded", "failed"]),
-  source: z.enum(["system", "agent", "user"]),
-  documentType: z.string(),
-  verdict: documentReportVerdictSchema,
-  confidence: z.number().nullable(),
-  summary: z.string().nullable(),
-  classification: z.record(z.unknown()),
-  extraction: z.record(z.unknown()),
-  risks: z.array(z.record(z.unknown())),
-  findings: z.array(z.record(z.unknown())),
-  metadata: z.record(z.unknown()),
-  createdAt: z.string(),
-  updatedAt: z.string(),
 });
 
 export const agentRunEntrySchema = z.object({
   id: z.string(),
-  status: z.enum(["completed", "failed", "cancelled"]),
-  modelProvider: z.string(),
   model: z.string(),
   tier: z.enum(["fast", "deep"]),
   routeReason: z.string().nullable(),
-  capabilityIds: z.array(z.string()),
-  stepBudget: z.number().int().nonnegative(),
   steps: z.number().int().nonnegative(),
-  usage: z.record(z.unknown()),
-  toolTelemetry: z.array(z.record(z.unknown())),
   toolCallsTotal: z.number().int().nonnegative(),
   toolErrorsTotal: z.number().int().nonnegative(),
-  toolRetriesTotal: z.number().int().nonnegative(),
   latencyMs: z.number().int().nonnegative(),
-  requestId: z.string().nullable(),
   startedAt: z.string(),
-  finishedAt: z.string(),
-  createdAt: z.string(),
 });
 
 export const workCaseDetailResponseSchema = z.object({
   workCase: workCaseEntryResponseSchema,
   events: z.array(workCaseEventResponseSchema),
-  evidence: z.array(workCaseEvidenceResponseSchema),
-  documentReports: z.array(documentReportEntrySchema),
   agentRuns: z.array(agentRunEntrySchema),
 });
 
@@ -464,182 +228,8 @@ export type WorkCaseEntryResponse = z.infer<typeof workCaseEntryResponseSchema>;
 export type WorkCaseVerdict = z.infer<typeof workCaseVerdictSchema>;
 export type WorkCasesResponse = z.infer<typeof workCasesResponseSchema>;
 export type WorkCaseEventResponse = z.infer<typeof workCaseEventResponseSchema>;
-export type WorkCaseEvidenceResponse = z.infer<typeof workCaseEvidenceResponseSchema>;
 export type WorkCaseDetailResponse = z.infer<typeof workCaseDetailResponseSchema>;
-export type DocumentReportEntry = z.infer<typeof documentReportEntrySchema>;
 export type AgentRunEntry = z.infer<typeof agentRunEntrySchema>;
-
-export const enterpriseReadinessStatusSchema = z.enum([
-  "descubierta",
-  "inventariada",
-  "clasificada",
-  "normalizada",
-  "indexada",
-  "operativa",
-  "observada",
-]);
-
-export const enterpriseContextResponseSchema = z.object({
-  meta: z.object({
-    query: z.string(),
-    generatedAt: z.string(),
-    totalResults: z.number().int().nonnegative(),
-  }),
-  summary: z.object({
-    sources: z.number().int().nonnegative(),
-    documents: z.number().int().nonnegative(),
-    indexed: z.number().int().nonnegative(),
-    observed: z.number().int().nonnegative(),
-    projects: z.number().int().nonnegative(),
-    workCases: z.number().int().nonnegative(),
-  }),
-  documents: z.array(z.object({
-    id: z.string(),
-    title: z.string(),
-    documentType: z.string(),
-    readinessStatus: enterpriseReadinessStatusSchema,
-    sensitivity: z.string(),
-    confidence: z.number().nullable(),
-    sourceName: z.string().nullable(),
-    sourceType: z.string().nullable(),
-    sourcePath: z.string().nullable(),
-    uploadedFileId: z.string().nullable(),
-    projectId: z.string().nullable(),
-    projectName: z.string().nullable(),
-    workCaseId: z.string().nullable(),
-    workCaseTitle: z.string().nullable(),
-    reportVerdict: documentReportVerdictSchema.nullable(),
-    findingsCount: z.number().int().nonnegative(),
-    risksCount: z.number().int().nonnegative(),
-    why: z.string(),
-    updatedAt: z.string(),
-  })),
-  projects: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    status: z.string(),
-    location: z.string().nullable(),
-    documentCount: z.number().int().nonnegative(),
-    observedCount: z.number().int().nonnegative(),
-    why: z.string(),
-  })),
-  workCases: z.array(z.object({
-    id: z.string(),
-    title: z.string(),
-    status: z.string(),
-    kind: z.string(),
-    verdict: workCaseVerdictSchema.nullable(),
-    projectId: z.string().nullable(),
-    projectName: z.string().nullable(),
-    why: z.string(),
-    updatedAt: z.string(),
-  })),
-  relations: z.array(z.object({
-    id: z.string(),
-    relationType: z.string(),
-    confidence: z.number(),
-    sourceFileName: z.string().nullable(),
-    targetFileName: z.string().nullable(),
-    why: z.string(),
-    updatedAt: z.string(),
-  })),
-});
-
-export type EnterpriseContextResponse = z.infer<typeof enterpriseContextResponseSchema>;
-
-export const enterpriseProfileEntityTypeSchema = z.enum([
-  "supplier",
-  "subcontractor",
-  "trade",
-  "location",
-  "cost_center",
-  "document_type",
-  "currency",
-  "naming_convention",
-]);
-
-export const enterpriseProfilePatternKindSchema = z.enum([
-  "naming_convention",
-  "document_format",
-  "currency",
-  "trade_vocabulary",
-  "source_reliability",
-  "frequent_supplier",
-  "frequent_subcontractor",
-  "sensitivity_default",
-]);
-
-export const enterpriseProfileRiskLevelSchema = z.enum(["bajo", "medio", "alto", "critico"]);
-
-export const enterpriseProfileResponseSchema = z.object({
-  meta: z.object({
-    organizationId: z.string(),
-    generatedAt: z.string(),
-    latestSnapshotAt: z.string().nullable(),
-    latestSnapshotVersion: z.number().int().nullable(),
-    triggerSource: z.string().nullable(),
-  }),
-  summary: z.object({
-    text: z.string(),
-    projectsCount: z.number().int().nonnegative(),
-    entityCount: z.number().int().nonnegative(),
-    patternCount: z.number().int().nonnegative(),
-    coverageCount: z.number().int().nonnegative(),
-    riskyProjects: z.number().int().nonnegative(),
-    dominantCurrency: z.string().nullable(),
-  }),
-  entities: z.array(z.object({
-    id: z.string(),
-    entityType: enterpriseProfileEntityTypeSchema,
-    canonicalName: z.string(),
-    displayName: z.string(),
-    occurrenceCount: z.number().int().nonnegative(),
-    confidence: z.number().nullable(),
-    lastSeenAt: z.string().nullable(),
-    aliases: z.array(z.string()),
-  })),
-  patterns: z.array(z.object({
-    id: z.string(),
-    patternKind: enterpriseProfilePatternKindSchema,
-    patternKey: z.string(),
-    patternValue: z.record(z.string(), z.unknown()),
-    confidence: z.number(),
-    evidenceCount: z.number().int().nonnegative(),
-    lastObservedAt: z.string().nullable(),
-  })),
-  coverage: z.array(z.object({
-    projectId: z.string(),
-    projectName: z.string().nullable(),
-    projectStatus: z.string().nullable(),
-    documentsTotal: z.number().int().nonnegative(),
-    documentsIndexed: z.number().int().nonnegative(),
-    documentsObserved: z.number().int().nonnegative(),
-    subcontractsCount: z.number().int().nonnegative(),
-    suppliesCount: z.number().int().nonnegative(),
-    hseRecordsCount: z.number().int().nonnegative(),
-    scheduleTasksCount: z.number().int().nonnegative(),
-    findingsOpen: z.number().int().nonnegative(),
-    reportsCount: z.number().int().nonnegative(),
-    coverageScore: z.number(),
-    riskLevel: enterpriseProfileRiskLevelSchema,
-    lastActivityAt: z.string().nullable(),
-    computedAt: z.string(),
-  })),
-});
-
-export type EnterpriseProfileResponse = z.infer<typeof enterpriseProfileResponseSchema>;
-
-export const enterpriseProfileRefreshResponseSchema = z.object({
-  ok: z.literal(true),
-  snapshotId: z.string(),
-  version: z.number().int(),
-  entityCount: z.number().int().nonnegative(),
-  patternCount: z.number().int().nonnegative(),
-  coverageCount: z.number().int().nonnegative(),
-  summary: z.string(),
-});
-
-export type EnterpriseProfileRefreshResponse = z.infer<typeof enterpriseProfileRefreshResponseSchema>;
 
 export const adminErrorEventsResponseSchema = z.object({
   events: z.array(z.object({
@@ -842,24 +432,7 @@ export const adminInvitationCreatedResponseSchema = z.object({
   emailSent: z.boolean(),
 });
 
-const patternRowSchema = z.object({
-  document_type: z.string(),
-  pattern_key: z.string(),
-  pattern_value: z.unknown(),
-  sample_count: z.number().int().nonnegative(),
-  updated_at: z.string(),
-});
-
-export const adminPatternsResponseSchema = z.object({
-  grouped: z.record(z.object({
-    patterns: z.array(patternRowSchema),
-    maxSampleCount: z.number().int().nonnegative(),
-  })),
-  totalPatterns: z.number().int().nonnegative(),
-});
-
 export type AdminMembersResponse = z.infer<typeof adminMembersResponseSchema>;
-export type AdminPatternsResponse = z.infer<typeof adminPatternsResponseSchema>;
 export type OrgSettingsResponse = z.infer<typeof orgSettingsResponseSchema>;
 
 const founderInvitationSchema = z.object({
@@ -902,83 +475,8 @@ export const superAdminMemberInviteResponseSchema = z.object({
   token: z.string(),
 });
 
-export const superAdminResetScopeSchema = z.enum(["all", "organization"]);
-export type SuperAdminResetScope = z.infer<typeof superAdminResetScopeSchema>;
-
-export const superAdminResetRequestSchema = z.discriminatedUnion("scope", [
-  z.object({
-    scope: z.literal("all"),
-    confirmation: z.literal("BORRAR TODO"),
-  }),
-  z.object({
-    scope: z.literal("organization"),
-    organizationId: z.string().uuid(),
-    confirmation: z.string().min(1),
-  }),
-]);
-
-export const superAdminResetResponseSchema = z.object({
-  ok: z.literal(true),
-  scope: superAdminResetScopeSchema,
-  organizationId: z.string().uuid().nullable(),
-  log: z.array(z.string()),
-});
-
 export type SuperAdminFounderInvitation = z.infer<typeof founderInvitationSchema>;
 export type SuperAdminCompanyStats = z.infer<typeof companyStatsSchema>;
-
-const obraRelationTypeSchema = z.enum([
-  "contradicts",
-  "derives_from",
-  "supersedes",
-  "references",
-  "duplicates",
-]);
-
-const obraRelationDetectorSchema = z.enum(["system", "agent", "user"]);
-
-const knowledgeGraphNodeSchema = z.object({
-  id: z.string().uuid(),
-  label: z.string(),
-  fileType: z.string(),
-  projectId: z.string().uuid().nullable(),
-  projectName: z.string().nullable(),
-  indexingStatus: z.string().nullable(),
-  processingStatus: z.string().nullable(),
-  createdAt: z.string(),
-});
-
-const knowledgeGraphEdgeSchema = z.object({
-  id: z.string().uuid(),
-  source: z.string().uuid(),
-  target: z.string().uuid(),
-  relationType: obraRelationTypeSchema,
-  confidence: z.number().min(0).max(1),
-  detectedBy: obraRelationDetectorSchema,
-  evidence: z.record(z.string(), z.unknown()),
-  metadata: z.record(z.string(), z.unknown()),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export const knowledgeGraphResponseSchema = z.object({
-  meta: z.object({
-    organizationId: z.string().uuid(),
-    projectId: z.string().uuid().nullable(),
-    generatedAt: z.string(),
-    nodeCount: z.number().int().nonnegative(),
-    edgeCount: z.number().int().nonnegative(),
-  }),
-  nodes: z.array(knowledgeGraphNodeSchema),
-  edges: z.array(knowledgeGraphEdgeSchema),
-});
-
-export type KnowledgeGraphResponse = z.infer<typeof knowledgeGraphResponseSchema>;
-
-export const documentSaveResponseSchema = z.object({
-  success: z.literal(true),
-  path: z.string(),
-});
 
 export const registerInvitationCheckResponseSchema = z.discriminatedUnion("authorized", [
   z.object({
