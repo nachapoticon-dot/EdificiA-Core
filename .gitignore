@@ -24,27 +24,5 @@ yarn-error.log*
 # Vercel
 .vercel
 
-# Scripts de debugging one-off (contienen datos de prueba)
-scripts/test-*.mjs
-scripts/test-*.js
-
-# Código legado y prototipos de diseño (privados, fuera del repo público)
-_referencias_legadas/
-design_handoff_edificia/
-
-# Estado local de herramientas de IA / InsForge CLI
-.claude/
-.claude-flow/
-.swarm/
+# CLI de InsForge
 .insforge
-.agent
-.agents
-.augment
-.cline
-.github/copilot*
-.kilocode
-.qoder
-.qwen
-.roo
-.trae
-.windsurf
